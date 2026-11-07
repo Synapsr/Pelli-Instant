@@ -1,0 +1,115 @@
+name: Bug report
+description: Something in Pelli Instant doesn't work as it should, or the AI got a photo clearly wrong.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. Please search the [existing issues](https://github.com/Synapsr/Pelli-Instant/issues) first.
+        **Security problem?** Don't post it here: see [SECURITY.md](https://github.com/Synapsr/Pelli-Instant/blob/main/SECURITY.md).
+        **Plan, billing or Pelli account question?** Ask Pelli's support, not GitHub: these issues are public.
+        Only attach photos you have the right to share publicly. Never attach a client's photos without their consent.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: What kind of problem?
+      options:
+        - The AI made a wrong call (blurry, motion blur, eyes, exposure, duplicates)
+        - A photo or a camera's files aren't read
+        - Crash, freeze or very slow analysis
+        - Export (XMP, copy, moving the rejects)
+        - Signing in or the monthly quota
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead. For a wrong call, give the reason Pelli Instant showed and the sensitivity you used.
+      placeholder: |
+        On a wedding shoot, sensitivity Balanced, a sharp portrait on a blurred background was rejected as "Blurry".
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a folder of …
+        2. …
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Pelli Instant version
+      description: Shown in Settings → About, e.g. 0.1.0. If you built from source, the commit.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: build
+    attributes:
+      label: Which build?
+      options:
+        - Official download
+        - Built from source
+        - Built from source without account (PELLI_INSTANT_NO_ACCOUNT=1)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS (Apple Silicon)
+        - Windows 11
+        - Windows 10
+        - Other (built from source)
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version and computer
+      description: The computer helps with speed and acceleration problems. Settings → About shows the accelerator in use.
+      placeholder: "macOS 15.4 on a MacBook Air M2, 16 GB, CoreML · Windows 11 24H2, Ryzen 7, DirectML"
+    validations:
+      required: true
+
+  - type: input
+    id: camera
+    attributes:
+      label: Camera and file format
+      description: For decoding or decision problems.
+      placeholder: "Canon EOS R6, CR3 · Sony A7 IV, ARW + JPEG"
+
+  - type: input
+    id: shoot-size
+    attributes:
+      label: Number of photos in the shoot
+      placeholder: "about 2,400"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Optional. On macOS, quit Pelli Instant, start it from Terminal with
+        `"/Applications/Pelli Instant.app/Contents/MacOS/Pelli Instant"`,
+        reproduce the problem and paste the lines it printed. Check them for anything private first.
+      render: text
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Screenshots, a screen recording, or what you already tried. A photo that shows the problem helps most, if you can share it.

@@ -1,0 +1,201 @@
+{
+  "schema": 1,
+  "comment": "Models of Pelli Instant. 'bundle': 'default' = shipped with the desktop app (scripts/fetch-models.mjs puts them in this folder, gitignored); 'gpu' = only useful with DirectML/CUDA (fetch with --gpu); 'maximum' = the optional Maximum pack, downloaded by the app into its data folder (fetch with --maximum for development). Every file is verified by cull-ml at load (this file is compiled into cull-ml). Every license allows commercial closed-source distribution. The files converted by Pelli (no upstream ONNX) are hosted on pelli.s3.fr-par.scw.cloud/pelli-instant/models/ (see models/README.md).",
+  "models": [
+    {
+      "id": "yunet",
+      "tag": "yunet-2023mar",
+      "file": "face_detection_yunet_2023mar.onnx",
+      "url": "https://huggingface.co/opencv/face_detection_yunet/resolve/3cc26e7f1014a5ee5d74a42acee58bafc9d0a310/face_detection_yunet_2023mar.onnx",
+      "mirrors": [
+        "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx"
+      ],
+      "sha256": "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
+      "size": 232589,
+      "license": "MIT",
+      "licenseUrl": "https://github.com/opencv/opencv_zoo/blob/main/models/face_detection_yunet/LICENSE",
+      "source": "OpenCV Zoo, YuNet 2023mar (Shiqi Yu, Wei Wu et al.)",
+      "purpose": "Face detection: boxes, confidence and 5 landmarks (eyes, nose, mouth corners)",
+      "required": true,
+      "bundle": "default"
+    },
+    {
+      "id": "face-mesh",
+      "tag": "facemesh-v2",
+      "file": "face_landmarks_detector_Nx3x256x256.onnx",
+      "url": "https://s3.ap-northeast-2.wasabisys.com/pinto-model-zoo/410_FaceMeshV2/resources.tar.gz",
+      "archive": {
+        "format": "tar.gz",
+        "member": "face_landmarks_detector_Nx3x256x256.onnx",
+        "sha256": "bcbc0e7fc711b3d5504defcbfc1d47b39ba67591fb238018d65a3c4b1642e79d",
+        "size": 18578115
+      },
+      "sha256": "6d7932bdefc38871f57dd915b8c723d855e599f29cf4cdf19616fb35d0ed572e",
+      "size": 4955447,
+      "license": "Apache-2.0",
+      "licenseUrl": "https://storage.googleapis.com/mediapipe-assets/Model%20Card%20MediaPipe%20Face%20Mesh%20V2.pdf",
+      "source": "Google MediaPipe Face Mesh V2 (face_landmarker.task, 2023-05), ONNX conversion by PINTO_model_zoo #410 (conversion repo folder licensed Apache-2.0: https://github.com/PINTO0309/PINTO_model_zoo/tree/main/410_FaceMeshV2)",
+      "purpose": "478 face landmarks on a 256x256 face crop; eye aspect ratio -> eye open/closed",
+      "required": false,
+      "bundle": "default"
+    },
+    {
+      "id": "face-blendshapes",
+      "tag": "blendshapes-v2",
+      "file": "face_blendshapes_v2.onnx",
+      "url": "https://pelli.s3.fr-par.scw.cloud/pelli-instant/models/face_blendshapes_v2.onnx",
+      "sha256": "9c699da7d38fcc16a7a46e4841d5c215fec9c4edf178e13609b4e2ca34c640c8",
+      "size": 1881503,
+      "license": "Apache-2.0",
+      "licenseUrl": "https://storage.googleapis.com/mediapipe-assets/Model%20Card%20Blendshape%20V2.pdf",
+      "source": "Google MediaPipe Face Blendshapes V2 (face_blendshapes.tflite inside face_landmarker.task float16/1, 2023-05-03, sha256 64184e22...), converted by Pelli with tf2onnx 1.16.1 (opset 17) + finalize_blendshapes.py (I/O renamed, explicit Conv pads for CoreML)",
+      "purpose": "52 ARKit blendshape scores (eyeBlink, eyeSquint, mouthSmile, jawOpen...) from 146 of the 478 Face Mesh V2 landmarks (x, y); < 0.5 ms per face on CPU",
+      "required": false,
+      "bundle": "default"
+    },
+    {
+      "id": "clip-vision",
+      "tag": "clip-b32-int8",
+      "file": "clip-vit-b32-vision-int8.onnx",
+      "url": "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/6b7c523703ae26e39be4b03774966f8571c7f523/onnx/vision_model_int8.onnx",
+      "sha256": "0ab0c1b3ace708e539633af1744d5a95247fe4e14d3e08ff197ef82a6cb9bd93",
+      "size": 88648877,
+      "license": "MIT",
+      "licenseUrl": "https://github.com/openai/CLIP/blob/main/LICENSE",
+      "source": "OpenAI CLIP ViT-B/32 (openai/clip-vit-base-patch32), ONNX export + int8 dynamic quantization by Xenova (transformers.js, model card license: mit)",
+      "purpose": "Image embedding (512-d) for similar-shot grouping, text search and the aesthetic head. Used on CPU.",
+      "required": false,
+      "bundle": "default"
+    },
+    {
+      "id": "clip-vision-fp16",
+      "tag": "clip-b32-fp16",
+      "file": "clip-vit-b32-vision-fp16.onnx",
+      "url": "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/6b7c523703ae26e39be4b03774966f8571c7f523/onnx/vision_model_fp16.onnx",
+      "sha256": "35c4e0fb0aeee527dcde1693520b214a34424a786babd530f35366bad5844efd",
+      "size": 176080659,
+      "license": "MIT",
+      "licenseUrl": "https://github.com/openai/CLIP/blob/main/LICENSE",
+      "source": "OpenAI CLIP ViT-B/32, fp16 ONNX export by Xenova (transformers.js)",
+      "purpose": "Same image embedding in fp16, preferred when a GPU/NPU execution provider (CoreML, DirectML, CUDA) is compiled in and works; slow on CPU.",
+      "required": false,
+      "bundle": "gpu"
+    },
+    {
+      "id": "clip-text",
+      "tag": "clip-b32-text-fp16",
+      "file": "clip-vit-b32-text-fp16.onnx",
+      "url": "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/6b7c523703ae26e39be4b03774966f8571c7f523/onnx/text_model_fp16.onnx",
+      "sha256": "df587ffbf248bf20d44fa6e16adc5ebc27ead691860e5333dbdaab5fd6bf3f6e",
+      "size": 127339794,
+      "license": "MIT",
+      "licenseUrl": "https://github.com/openai/CLIP/blob/main/LICENSE",
+      "source": "OpenAI CLIP ViT-B/32 text tower, fp16 ONNX export by Xenova (transformers.js). fp16 chosen over int8: cosine to fp32 1.000 vs 0.90-0.97.",
+      "purpose": "Text embedding for natural-language search (input_ids from the CLIP BPE tokenizer, 77 tokens)",
+      "required": false,
+      "bundle": "default"
+    },
+    {
+      "id": "clip-l14-vision-int8",
+      "tag": "clip-l14-int8",
+      "file": "clip-vit-l14-vision-int8.onnx",
+      "url": "https://huggingface.co/Xenova/clip-vit-large-patch14/resolve/c307790166907339eed5a9a53a249af534102536/onnx/vision_model_int8.onnx",
+      "sha256": "d6eac98fc74a89ef2e50ba635c6b4c7f005dd324dcc6aeb6be89872f58d7b3fd",
+      "size": 306348752,
+      "license": "MIT",
+      "licenseUrl": "https://github.com/openai/CLIP/blob/main/LICENSE",
+      "source": "OpenAI CLIP ViT-L/14 image tower, ONNX export + int8 dynamic quantization by Xenova (transformers.js)",
+      "purpose": "Image embedding (768-d, int8, CPU; cosine to fp32 >= 0.97, mean 0.992) for the LAION V2 aesthetic head and text search in Maximum precision",
+      "required": false,
+      "bundle": "maximum"
+    },
+    {
+      "id": "clip-l14-text",
+      "tag": "clip-l14-text-fp16",
+      "file": "clip-vit-l14-text-fp16.onnx",
+      "url": "https://huggingface.co/Xenova/clip-vit-large-patch14/resolve/c307790166907339eed5a9a53a249af534102536/onnx/text_model_fp16.onnx",
+      "sha256": "643d385d6adbc4b9067f3f94384cc63a8409accb1bfd414496d17df84b161032",
+      "size": 247784246,
+      "license": "MIT",
+      "licenseUrl": "https://github.com/openai/CLIP/blob/main/LICENSE",
+      "source": "OpenAI CLIP ViT-L/14 text tower, fp16 ONNX export by Xenova (transformers.js); same BPE vocabulary and token ids as B/32",
+      "purpose": "Text embedding (768-d) for natural-language search with the L/14 image embeddings",
+      "required": false,
+      "bundle": "maximum"
+    },
+    {
+      "id": "dinov2-b14-int8",
+      "tag": "dinov2-b14-int8",
+      "file": "dinov2-base-int8.onnx",
+      "url": "https://huggingface.co/onnx-community/dinov2-base-ONNX/resolve/9a1732c724ef0847dcedf00d3d5a93f61dea0370/onnx/model_int8.onnx",
+      "sha256": "f3006646af1ed07acceeefdd701e9be6e46e0b701ac0a1ab8e4ba7260e338302",
+      "size": 90948899,
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/facebookresearch/dinov2/blob/main/LICENSE",
+      "source": "Meta DINOv2 ViT-B/14, ONNX export + int8 dynamic quantization by onnx-community",
+      "purpose": "Burst / near-duplicate embedding in Maximum precision: CLS token (768-d, L2-normalised) of the whole photo squashed to 224x224, int8 on CPU (cosine to fp32 >= 0.968); fixed input shape via session dimension overrides",
+      "required": false,
+      "bundle": "maximum"
+    },
+    {
+      "id": "rfdetr-seg-s",
+      "tag": "rfdetr-seg-s-384",
+      "file": "rfdetr-seg-small-384-w16.onnx",
+      "url": "https://pelli.s3.fr-par.scw.cloud/pelli-instant/models/rfdetr-seg-small-384-w16.onnx",
+      "sha256": "244c291cdcba13c1146112916390831d95930b799184ed51716e061c7a4cf5cb",
+      "size": 76982395,
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/roboflow/rf-detr/blob/develop/LICENSE",
+      "source": "Roboflow RF-DETR-Seg Small (COCO, rf-detr-seg-s-ft.pth sha256 6de3da31...), exported by Pelli with rfdetr 1.11.2 (opset 17, 1x3x384x384), weights stored in fp16 and cast to fp32 in the graph (fp32 compute)",
+      "purpose": "Instance masks of people and animals (COCO ids 1, 16-25): subject region for sharpness/exposure without a face",
+      "required": false,
+      "bundle": "maximum"
+    },
+    {
+      "id": "retinaface-r50",
+      "tag": "retinaface-r50",
+      "file": "retinaface-r50-w16.onnx",
+      "url": "https://pelli.s3.fr-par.scw.cloud/pelli-instant/models/retinaface-r50-w16.onnx",
+      "sha256": "8712900d39e96e1167a4ee5ca4d504919f1e13874a2f3a7fd741c1f88dfd13be",
+      "size": 54618443,
+      "license": "MIT",
+      "licenseUrl": "https://github.com/biubug6/Pytorch_Retinaface/blob/master/LICENSE.MIT",
+      "source": "RetinaFace ResNet-50 (biubug6/Pytorch_Retinaface @ b984b4b, Resnet50_Final.pth sha256 6d1de9c2..., = facexlib v0.1.0 detection_Resnet50_Final.pth), exported by Pelli (opset 17, dynamic H/W), weights stored in fp16, fp32 compute",
+      "purpose": "Face detector for group photos in Maximum precision (boxes, score, 5 landmarks in YuNet order), 1280 px pass on photos where YuNet finds 3+ faces or a small face",
+      "required": false,
+      "bundle": "maximum"
+    }
+  ],
+  "embedded": [
+    {
+      "id": "aesthetic",
+      "tag": "laion-linear-b32",
+      "file": "crates/cull-ml/assets/laion_aesthetic_linear_vit_b_32.f32",
+      "url": "https://raw.githubusercontent.com/LAION-AI/aesthetic-predictor/main/sa_0_4_vit_b_32_linear.pth",
+      "sha256": "dba6421aa35c4489c02b02d8d2a3ad9a495d50f85d35eef521fd551619bbb2ac",
+      "sourceSha256": "c7b14cead230694acc7b9447974d3cad78003c72da032e402a303b6c2429e85f",
+      "size": 2052,
+      "license": "MIT",
+      "licenseUrl": "https://github.com/LAION-AI/aesthetic-predictor/blob/main/LICENSE",
+      "source": "LAION-Aesthetics Predictor V1, linear head for CLIP ViT-B/32 (nn.Linear(512, 1)); converted to 512 weights + 1 bias, little-endian f32, compiled into cull-ml",
+      "purpose": "Aesthetic score (LAION scale ~1..10) from the L2-normalised CLIP image embedding"
+    },
+    {
+      "id": "aesthetic-l14",
+      "tag": "laion-v2-linear-l14",
+      "file": "crates/cull-ml/assets/laion_aesthetic_v2_linear_vit_l_14.f32",
+      "url": "https://raw.githubusercontent.com/christophschuhmann/improved-aesthetic-predictor/6934dd81792f086e613a121dbce43082cb8be85e/sac+logos+ava1-l14-linearMSE.pth",
+      "sha256": "bf20d6d251b6b3c64925c070a0502ade624409a57eb5e21b135b2d8ca75c8998",
+      "sourceSha256": "21dd590f3ccdc646f0d53120778b296013b096a035a2718c9cb0d511bff0f1e0",
+      "size": 3076,
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/christophschuhmann/improved-aesthetic-predictor/blob/main/LICENSE",
+      "source": "LAION-Aesthetics Predictor V2 (sac+logos+ava1-l14-linearMSE, C. Schuhmann): MLP 768-1024-128-64-16-1 without activations, collapsed exactly into one linear map (max |diff| 5e-7); 768 weights + 1 bias, little-endian f32, compiled into cull-ml",
+      "purpose": "Aesthetic score (LAION/AVA scale ~1..10) from the L2-normalised CLIP ViT-L/14 image embedding"
+    }
+  ],
+  "runtime": {
+    "tokenizer": "instant-clip-tokenizer 0.1 (MIT) with the OpenAI CLIP BPE vocabulary bpe_simple_vocab_16e6 (MIT), compiled in",
+    "onnxruntime": "ONNX Runtime 1.31 (MIT, Microsoft) through the ort crate 2.0.0-rc.15 (MIT OR Apache-2.0), statically linked"
+  }
+}

@@ -1,0 +1,378 @@
+name: Release
+
+# A `v*` tag builds the installers and publishes a GitHub Release.
+# Running it by hand builds the installers only (workflow artifacts).
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+# One release at a time.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Installer ${{ matrix.label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS (Apple Silicon)
+            name: macos-arm64
+            runner: macos-14
+            target: aarch64-apple-darwin
+            features: coreml
+            # The int8 CLIP on the CPU is faster than CoreML on Apple
+            # Silicon: the fp16 CLIP is not shipped there.
+            models: ""
+            config: --config src-tauri/tauri.bundle.conf.json
+          # No macOS Intel build: ONNX Runtime has no prebuilt static library
+          # for x86_64-apple-darwin (see docs/models.md).
+          - label: Windows (x64)
+            name: windows-x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            features: directml
+            # + the fp16 CLIP that DirectML runs (int8 stays the CPU fallback).
+            models: --gpu
+            # ONNX Runtime's Windows build links DirectML: ship DirectML.dll.
+            config: --config src-tauri/tauri.bundle.conf.json --config src-tauri/tauri.bundle.windows.conf.json
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      # The version pinned in rust-toolchain.toml, for the build target.
+      - name: Install Rust
+        run: |
+          rustup toolchain install
+          rustup target add ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      # The version comes from `packageManager` in package.json.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: The tag matches the app version
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME, but src-tauri/tauri.conf.json says $version."
+            exit 1
+          fi
+
+      # The Standard models go inside the installer
+      # (src-tauri/tauri.bundle.conf.json), checked against their SHA-256.
+      # `--strict`: a model that can't be fetched fails the build instead of
+      # shipping an app without it. The Maximum pack is downloaded by the app.
+      - name: Models cache
+        uses: actions/cache@v4
+        with:
+          path: models
+          key: models-${{ matrix.name }}-${{ hashFiles('models/manifest.json') }}
+      - run: node scripts/fetch-models.mjs --strict ${{ matrix.models }}
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: DirectML runtime (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --release --target ${{ matrix.target }} -p cull-ml --features directml
+          dll=$(find target/${{ matrix.target }}/release -maxdepth 2 -name DirectML.dll | head -1)
+          if [ -z "$dll" ]; then echo "::error::DirectML.dll was not produced."; exit 1; fi
+          mkdir -p src-tauri/windows
+          cp "$dll" src-tauri/windows/
+
+      # Signing, the same way as Synapsr/Parler, with the same secret names.
+      #
+      # tauri-bundler checks `var_os("APPLE_CERTIFICATE")`, and GitHub expands
+      # a missing secret to "", which var_os reports as Some(""): the bundler
+      # then imports an empty certificate and the build dies. So the variables
+      # are exported only when really set: a fork without secrets still builds,
+      # unsigned. A release tag of this repository refuses to build without
+      # them.
+      - name: Stage Apple signing secrets
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          official=false
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REPOSITORY" = "Synapsr/Pelli-Instant" ]; then
+            official=true
+          fi
+          if [ -z "${APPLE_CERTIFICATE:-}" ]; then
+            if [ "$official" = true ]; then
+              echo "::error::A release needs the Apple signing secrets (see docs/contributing.md)."
+              exit 1
+            fi
+            echo "::warning::No Apple signing secrets: building an unsigned DMG. Don't publish it."
+            exit 0
+          fi
+          {
+            printf 'APPLE_CERTIFICATE<<__PELLI_EOF__\n%s\n__PELLI_EOF__\n' "$APPLE_CERTIFICATE"
+            printf 'APPLE_CERTIFICATE_PASSWORD<<__PELLI_EOF__\n%s\n__PELLI_EOF__\n' "$APPLE_CERTIFICATE_PASSWORD"
+          } >> "$GITHUB_ENV"
+          echo "::notice::Developer ID signing enabled."
+
+          # Two notarizations. Tauri notarizes and staples the .app itself
+          # (APPLE_API_*) before it packs the DMG and the updater's
+          # .app.tar.gz, so an in-app update carries a notarized app. The step
+          # after the build then notarizes the DMG (NOTARY_*).
+          if [ -z "${APPLE_API_KEY_B64:-}" ]; then
+            if [ "$official" = true ]; then
+              echo "::error::A release needs the notarization secrets (see docs/contributing.md)."
+              exit 1
+            fi
+            echo "::warning::Signing without notarization: macOS will warn users."
+            exit 0
+          fi
+          keydir="$RUNNER_TEMP/private_keys"
+          mkdir -p "$keydir"
+          key="$keydir/AuthKey_${APPLE_API_KEY}.p8"
+          printf '%s' "$APPLE_API_KEY_B64" | base64 --decode > "$key"
+          chmod 600 "$key"
+          {
+            echo "NOTARY_KEY_ID=${APPLE_API_KEY}"
+            echo "NOTARY_ISSUER=${APPLE_API_ISSUER}"
+            echo "NOTARY_KEY_PATH=$key"
+            echo "APPLE_API_KEY=${APPLE_API_KEY}"
+            echo "APPLE_API_ISSUER=${APPLE_API_ISSUER}"
+            echo "APPLE_API_KEY_PATH=$key"
+          } >> "$GITHUB_ENV"
+          echo "::notice::Notarization enabled."
+
+      # The in-app updater only installs bundles signed with Pelli Instant's
+      # key (its public half is in src-tauri/tauri.conf.json). Exported only
+      # when set: a fork builds without the update bundles instead of failing.
+      - name: Stage the updater signing key
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+            if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REPOSITORY" = "Synapsr/Pelli-Instant" ]; then
+              echo "::error::A release needs the updater signing key (see docs/contributing.md)."
+              exit 1
+            fi
+            echo "::warning::No updater signing key: building without update bundles."
+            printf '{"bundle":{"createUpdaterArtifacts":false}}' > "$RUNNER_TEMP/no-updater.json"
+            echo "PELLI_NO_UPDATER_CONFIG=--config $RUNNER_TEMP/no-updater.json" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          {
+            printf 'TAURI_SIGNING_PRIVATE_KEY<<__PELLI_EOF__\n%s\n__PELLI_EOF__\n' "$TAURI_SIGNING_PRIVATE_KEY"
+            printf 'TAURI_SIGNING_PRIVATE_KEY_PASSWORD<<__PELLI_EOF__\n%s\n__PELLI_EOF__\n' "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+          echo "::notice::Update bundles will be signed."
+
+      # Official builds always have the Pelli account: never build them with
+      # PELLI_INSTANT_NO_ACCOUNT, even if a runner or a repository variable
+      # sets it.
+      - name: Build the installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          unset PELLI_INSTANT_NO_ACCOUNT
+          pnpm tauri build ${{ matrix.config }} ${PELLI_NO_UPDATER_CONFIG:-} \
+            --target ${{ matrix.target }} --features ${{ matrix.features }}
+
+      # Nothing is published unless Apple accepted the build and the ticket is
+      # stapled into the DMG users download. A congested notary service
+      # delays the release rather than shipping an unverifiable one. Polled
+      # rather than `--wait`, so a rejection and a timeout stay apart.
+      - name: Notarize and staple the DMG
+        if: runner.os == 'macOS' && env.NOTARY_KEY_PATH != ''
+        shell: bash
+        run: |
+          set -uo pipefail
+          dmg=$(find "target/${{ matrix.target }}/release/bundle/dmg" -name '*.dmg' | head -1)
+          if [ -z "$dmg" ]; then echo "::error::No .dmg produced."; exit 1; fi
+          auth=(--key "$NOTARY_KEY_PATH" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER")
+          id=$(xcrun notarytool submit "$dmg" "${auth[@]}" --output-format json | jq -r '.id')
+          if [ -z "$id" ] || [ "$id" = "null" ]; then
+            echo "::error::Could not reach the notary service."
+            exit 1
+          fi
+          echo "Submission id: $id"
+          : "${NOTARY_MAX_MINUTES:=180}"
+          status="In Progress"
+          for i in $(seq 1 $(( NOTARY_MAX_MINUTES * 2 ))); do
+            sleep 30
+            status=$(xcrun notarytool info "$id" "${auth[@]}" --output-format json | jq -r '.status')
+            [ $(( i % 2 )) -eq 0 ] && echo "  [$(( i / 2 )) min] $status"
+            [ "$status" = "In Progress" ] || break
+          done
+          case "$status" in
+            Accepted)
+              set -e
+              xcrun stapler staple "$dmg"
+              xcrun stapler validate "$dmg"
+              ;;
+            Invalid|Rejected)
+              echo "::error::Apple rejected this build."
+              xcrun notarytool log "$id" "${auth[@]}" || true
+              exit 1
+              ;;
+            *)
+              echo "::error::Apple did not answer within ${NOTARY_MAX_MINUTES} min (status: $status). Re-run once their queue clears."
+              exit 1
+              ;;
+          esac
+
+      # Stable names: the Pelli dashboard links to
+      # releases/latest/download/<name>, and the updater's latest.json to this
+      # release's own files.
+      - name: Stable names and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="target/${{ matrix.target }}/release/bundle"
+          mkdir -p out
+          take() { # source pattern, directory, published name
+            local found
+            found=$(find "$bundle/$2" -maxdepth 1 -type f -name "$1" | head -1)
+            if [ -z "$found" ]; then echo "::error::No $2/$1 produced."; exit 1; fi
+            cp "$found" "out/$3"
+          }
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            take '*.dmg' dmg PelliInstant-macos-arm64.dmg
+            if [ -z "${PELLI_NO_UPDATER_CONFIG:-}" ]; then
+              take '*.app.tar.gz' macos PelliInstant-macos-arm64.app.tar.gz
+              take '*.app.tar.gz.sig' macos PelliInstant-macos-arm64.app.tar.gz.sig
+            fi
+          else
+            take '*-setup.exe' nsis PelliInstant-windows-x64-setup.exe
+            if [ -z "${PELLI_NO_UPDATER_CONFIG:-}" ]; then
+              take '*-setup.exe.sig' nsis PelliInstant-windows-x64-setup.exe.sig
+            fi
+          fi
+          cd out
+          for f in *.dmg *.exe; do
+            [ -e "$f" ] || continue
+            if command -v sha256sum >/dev/null; then
+              sum=$(sha256sum "$f" | cut -d' ' -f1)
+            else
+              sum=$(shasum -a 256 "$f" | cut -d' ' -f1)
+            fi
+            printf '%s  %s\n' "$sum" "$f" > "$f.sha256"
+          done
+          ls -la
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PelliInstant-${{ matrix.name }}
+          path: out/*
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish the GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # What installed copies of Pelli Instant read to find this release:
+      # https://github.com/Synapsr/Pelli-Instant/releases/latest/download/latest.json
+      # Each platform points at this release's own files, so an update never
+      # mixes versions.
+      - name: Generate latest.json
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}"
+          entry() {
+            jq -n --arg url "$base/$1" --rawfile signature "$1.sig" \
+              '{signature: ($signature | rtrimstr("\n")), url: $url}'
+          }
+          mac=$(entry PelliInstant-macos-arm64.app.tar.gz)
+          win=$(entry PelliInstant-windows-x64-setup.exe)
+          jq -n \
+            --arg version "${tag#v}" \
+            --arg notes "What's new: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${tag}" \
+            --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --argjson mac "$mac" \
+            --argjson win "$win" \
+            '{
+              version: $version,
+              notes: $notes,
+              pub_date: $date,
+              platforms: {
+                "darwin-aarch64": $mac,
+                "darwin-aarch64-app": $mac,
+                "windows-x86_64": $win,
+                "windows-x86_64-nsis": $win
+              }
+            }' > latest.json
+          cat latest.json
+
+      # Lets anyone check a download with `sha256sum -c SHA256SUMS`.
+      - name: Generate SHA256SUMS
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          sha256sum PelliInstant-macos-arm64.dmg PelliInstant-windows-x64-setup.exe \
+            PelliInstant-macos-arm64.app.tar.gz PelliInstant-macos-arm64.app.tar.gz.sig \
+            PelliInstant-windows-x64-setup.exe.sig latest.json > SHA256SUMS
+          cat SHA256SUMS
+
+      # Ties every file to this workflow run and commit:
+      #   gh attestation verify <file> --repo Synapsr/Pelli-Instant
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-checksums: dist/SHA256SUMS
+
+      # A tag with a hyphen (v0.2.0-beta.1) is a prerelease: it never becomes
+      # releases/latest, which the download links and the updater read.
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Pelli Instant ${{ github.ref_name }}
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            dist/PelliInstant-macos-arm64.dmg
+            dist/PelliInstant-macos-arm64.dmg.sha256
+            dist/PelliInstant-macos-arm64.app.tar.gz
+            dist/PelliInstant-macos-arm64.app.tar.gz.sig
+            dist/PelliInstant-windows-x64-setup.exe
+            dist/PelliInstant-windows-x64-setup.exe.sha256
+            dist/PelliInstant-windows-x64-setup.exe.sig
+            dist/latest.json
+            dist/SHA256SUMS

@@ -1,0 +1,135 @@
+{
+  "$comment": "Voice-over of the welcome tour, one line per step and language. Edit a line, then run `pnpm voices` (ELEVENLABS_API_KEY in the environment): only the lines that changed are generated again.",
+  "model": "eleven_v4",
+  "format": "mp3_44100_64",
+  "$pronounce": "Spellings sent to ElevenLabs instead of the written words, per language: in Spanish “ll” would be read as “y”; in French “Instant” is said the English way, with a French accent.",
+  "pronounce": {
+    "es": {
+      "Pelli": "Peli"
+    },
+    "fr": {
+      "Pelli Instant": "Pelli Innstante"
+    }
+  },
+  "voices": {
+    "en": {
+      "id": "WZlYpi1yf6zJhNWXih74",
+      "name": "Hope"
+    },
+    "fr": {
+      "id": "O31r762Gb3WFygrEOGh0",
+      "name": "Victoria"
+    },
+    "es": {
+      "id": "1CeqBeXMOqCleeQjfYfO",
+      "name": "Cristina"
+    },
+    "de": {
+      "id": "rKiu7lQ4c5P3az3745s3",
+      "name": "Carla Blum"
+    },
+    "it": {
+      "id": "RXoaSpLaWTEckJgPUBG3",
+      "name": "Tiziana"
+    },
+    "pt": {
+      "id": "m151rjrbWXbBqyq56tly",
+      "name": "Carla"
+    },
+    "nl": {
+      "id": "YUdpWWny7k5yb4QCeweX",
+      "name": "Ruth"
+    },
+    "pl": {
+      "id": "lehrjHysCyPSvjt0uSy6",
+      "name": "Marta"
+    },
+    "sv": {
+      "id": "zyfJspwEDo0sxPeFmtsn",
+      "name": "Malin"
+    }
+  },
+  "lines": {
+    "en": {
+      "welcome": "Meet Pelli Instant. Drop in your shoot, and in an instant, the misses step aside and your best shots rise to the top.",
+      "eye": "Every photo is looked at the way you would. Blurry, eyes closed, too dark: set aside. And in every burst, the best frame comes first.",
+      "keys": "You always have the final say. Up arrow to keep, down arrow to reject. Go ahead, try it.",
+      "search": "Find any photo, just by describing it. The bride… the rings… there they are.",
+      "export": "Your selection goes straight into Lightroom, stars and colours included. And your originals are never touched.",
+      "precision": "Everything happens on your computer. Standard is fast, and already very precise. For the finest choices, switch to maximum precision.",
+      "plan": "You're all set. Drop in your first shoot."
+    },
+    "fr": {
+      "welcome": "Voici Pelli Instant. Déposez votre séance : en un instant, les photos ratées s’écartent, et les meilleures ressortent.",
+      "eye": "Chaque photo est regardée comme vous le feriez. Floue, yeux fermés, trop sombre : elle est mise de côté. Et dans chaque rafale, la meilleure passe devant.",
+      "keys": "Le dernier mot vous revient. Flèche du haut pour garder, flèche du bas pour rejeter. À vous.",
+      "search": "Retrouvez n’importe quelle photo, simplement en la décrivant. La mariée… les alliances… Elles sont là.",
+      "export": "Votre tri arrive directement dans Lightroom, avec ses étoiles et ses couleurs. Et vos originaux ne sont jamais modifiés.",
+      "precision": "Tout se passe sur votre ordinateur. La précision standard est rapide, et déjà très fine. Pour les choix les plus fins, passez en précision maximale.",
+      "plan": "Tout est prêt. Déposez votre première séance."
+    },
+    "es": {
+      "welcome": "Te presentamos Pelli Instant. Suelta tu sesión y, en un instante, las fotos fallidas se apartan y las mejores destacan.",
+      "eye": "Cada foto se revisa como lo harías tú. Desenfocada, con los ojos cerrados, demasiado oscura: se aparta. Y en cada ráfaga, la mejor pasa delante.",
+      "keys": "La última palabra es tuya. Flecha arriba para conservar, flecha abajo para descartar. Pruébalo.",
+      "search": "Encuentra cualquier foto con solo describirla. La novia… los anillos… Ahí están.",
+      "export": "Tu selección llega directamente a Lightroom, con sus estrellas y sus colores. Y tus originales nunca se modifican.",
+      "precision": "Todo ocurre en tu ordenador. La precisión estándar es rápida, y ya muy fina. Para las elecciones más finas, pasa a la precisión máxima.",
+      "plan": "Todo listo. Suelta tu primera sesión."
+    },
+    "de": {
+      "welcome": "Das ist Pelli Instant. Ziehen Sie Ihr Shooting hinein, und im Nu treten misslungene Fotos zurück und die besten rücken nach vorne.",
+      "eye": "Jedes Foto wird angesehen, wie Sie es tun würden. Unscharf, Augen zu, zu dunkel: aussortiert. Und in jeder Serie steht das beste Bild vorne.",
+      "keys": "Das letzte Wort haben Sie. Pfeil nach oben zum Behalten, Pfeil nach unten zum Aussortieren. Probieren Sie es aus.",
+      "search": "Finden Sie jedes Foto, indem Sie es einfach beschreiben. Die Braut … die Ringe … da sind sie.",
+      "export": "Ihre Auswahl landet direkt in Lightroom, mit Sternen und Farben. Und Ihre Originale bleiben unangetastet.",
+      "precision": "Alles geschieht auf Ihrem Computer. Die Standard-Präzision ist schnell und schon sehr genau. Für die feinsten Entscheidungen wechseln Sie zur maximalen Präzision.",
+      "plan": "Alles bereit. Ziehen Sie Ihr erstes Shooting hinein."
+    },
+    "it": {
+      "welcome": "Ecco Pelli Instant. Trascina il tuo servizio e, in un istante, le foto venute male si fanno da parte e le migliori vengono fuori.",
+      "eye": "Ogni foto viene guardata come faresti tu. Sfocata, occhi chiusi, troppo scura: messa da parte. E in ogni raffica, la migliore passa davanti.",
+      "keys": "L’ultima parola è tua. Freccia su per tenere, freccia giù per scartare. Prova tu.",
+      "search": "Ritrova qualsiasi foto, semplicemente descrivendola. La sposa… le fedi… eccole.",
+      "export": "La tua selezione arriva direttamente in Lightroom, con stelle e colori. E i tuoi originali non vengono mai modificati.",
+      "precision": "Tutto avviene sul tuo computer. La precisione standard è veloce, e già molto fine. Per le scelte più fini, passa alla precisione massima.",
+      "plan": "È tutto pronto. Trascina il tuo primo servizio."
+    },
+    "pt": {
+      "welcome": "Conheça o Pelli Instant. Solte o seu ensaio e, num instante, as fotos ruins ficam de lado e as melhores se destacam.",
+      "eye": "Cada foto é analisada como você faria. Desfocada, olhos fechados, escura demais: fica de lado. E em cada rajada, a melhor vem na frente.",
+      "keys": "A última palavra é sua. Seta para cima para manter, seta para baixo para rejeitar. Experimente.",
+      "search": "Encontre qualquer foto apenas descrevendo-a. A noiva… as alianças… aí estão.",
+      "export": "Sua seleção vai direto para o Lightroom, com estrelas e cores. E os seus originais nunca são alterados.",
+      "precision": "Tudo acontece no seu computador. A precisão padrão é rápida, e já muito fina. Para as escolhas mais finas, mude para a precisão máxima.",
+      "plan": "Tudo pronto. Solte o seu primeiro ensaio."
+    },
+    "nl": {
+      "welcome": "Maak kennis met Pelli Instant. Sleep je shoot erin, en in een oogwenk gaan de mislukte foto’s opzij en springen de beste eruit.",
+      "eye": "Elke foto wordt bekeken zoals jij dat zou doen. Onscherp, ogen dicht, te donker: aan de kant. En in elke serie komt de beste vooraan.",
+      "keys": "Jij hebt het laatste woord. Pijltje omhoog om te bewaren, pijltje omlaag om af te wijzen. Probeer het maar.",
+      "search": "Vind elke foto, gewoon door hem te beschrijven. De bruid… de ringen… daar zijn ze.",
+      "export": "Je selectie komt rechtstreeks in Lightroom, met sterren en kleuren. En je originelen blijven altijd onaangeroerd.",
+      "precision": "Alles gebeurt op je eigen computer. Standaard is snel, en al heel nauwkeurig. Voor de fijnste keuzes schakel je over op maximale precisie.",
+      "plan": "Alles is klaar. Sleep je eerste shoot erin."
+    },
+    "pl": {
+      "welcome": "Poznaj Pelli Instant. Przeciągnij swoją sesję, a w jednej chwili nieudane zdjęcia odejdą na bok, a najlepsze wyjdą na pierwszy plan.",
+      "eye": "Każde zdjęcie jest oceniane okiem fotografa. Nieostre, z zamkniętymi oczami, zbyt ciemne: odłożone na bok. A w każdej serii najlepsze ujęcie trafia na początek.",
+      "keys": "Ostatnie słowo należy do ciebie. Strzałka w górę, aby zachować, strzałka w dół, aby odrzucić. Spróbuj.",
+      "search": "Znajdź dowolne zdjęcie, po prostu je opisując. Panna młoda… obrączki… i już są.",
+      "export": "Twój wybór trafia prosto do Lightrooma, z gwiazdkami i kolorami. A oryginały nigdy nie są zmieniane.",
+      "precision": "Wszystko dzieje się na twoim komputerze. Tryb standardowy jest szybki i już bardzo dokładny. Do najdokładniejszych wyborów przełącz się na maksymalną precyzję.",
+      "plan": "Wszystko gotowe. Przeciągnij swoją pierwszą sesję."
+    },
+    "sv": {
+      "welcome": "Det här är Pelli Instant. Släpp in din fotografering, och på ett ögonblick hamnar de misslyckade bilderna åt sidan och de bästa lyfts fram.",
+      "eye": "Varje bild granskas som du själv skulle göra. Oskarp, slutna ögon, för mörk: åt sidan. Och i varje bildserie hamnar den bästa först.",
+      "keys": "Du har sista ordet. Pil upp för att behålla, pil ned för att förkasta. Prova själv.",
+      "search": "Hitta vilken bild som helst, bara genom att beskriva den. Bruden… ringarna… där är de.",
+      "export": "Ditt urval hamnar direkt i Lightroom, med stjärnor och färger. Och dina original ändras aldrig.",
+      "precision": "Allt sker på din egen dator. Standard är snabb, och redan mycket noggrann. För de finaste valen byter du till maximal precision.",
+      "plan": "Allt är klart. Släpp in din första fotografering."
+    }
+  }
+}

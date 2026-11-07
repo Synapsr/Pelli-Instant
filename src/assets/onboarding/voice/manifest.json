@@ -1,0 +1,317 @@
+{
+  "de/export": {
+    "hash": "45663c729d34455d",
+    "voice": "Carla Blum",
+    "bytes": 58766
+  },
+  "de/eye": {
+    "hash": "b94bd25c0788b176",
+    "voice": "Carla Blum",
+    "bytes": 82380
+  },
+  "de/keys": {
+    "hash": "bcfc6f8cfaebb49e",
+    "voice": "Carla Blum",
+    "bytes": 62736
+  },
+  "de/plan": {
+    "hash": "11399ea775ea7467",
+    "voice": "Carla Blum",
+    "bytes": 29300
+  },
+  "de/precision": {
+    "hash": "cb8340f1dce12e17",
+    "voice": "Carla Blum",
+    "bytes": 79873
+  },
+  "de/search": {
+    "hash": "536a4d7f9597b88b",
+    "voice": "Carla Blum",
+    "bytes": 53750
+  },
+  "de/welcome": {
+    "hash": "31050ce27124fdd3",
+    "voice": "Carla Blum",
+    "bytes": 66498
+  },
+  "en/export": {
+    "hash": "3f98b28a1461be3c",
+    "voice": "Hope",
+    "bytes": 56885
+  },
+  "en/eye": {
+    "hash": "eb7adbb80600f15d",
+    "voice": "Hope",
+    "bytes": 82380
+  },
+  "en/keys": {
+    "hash": "79e4314749ec0ba8",
+    "voice": "Hope",
+    "bytes": 55004
+  },
+  "en/plan": {
+    "hash": "7f35e0dd4899dd07",
+    "voice": "Hope",
+    "bytes": 23030
+  },
+  "en/precision": {
+    "hash": "7e165fd4e2326592",
+    "voice": "Hope",
+    "bytes": 79246
+  },
+  "en/search": {
+    "hash": "1c9c1f68cd0eccaf",
+    "voice": "Hope",
+    "bytes": 55004
+  },
+  "en/welcome": {
+    "hash": "28ddcaa2c339d62c",
+    "voice": "Hope",
+    "bytes": 65871
+  },
+  "es/export": {
+    "hash": "b2d2f02eedee81b5",
+    "voice": "Cristina",
+    "bytes": 58139
+  },
+  "es/eye": {
+    "hash": "e8628c2d5db96992",
+    "voice": "Cristina",
+    "bytes": 77365
+  },
+  "es/keys": {
+    "hash": "b1a67109bdf4d493",
+    "voice": "Cristina",
+    "bytes": 53123
+  },
+  "es/plan": {
+    "hash": "8b8ce899df5939f9",
+    "voice": "Cristina",
+    "bytes": 20940
+  },
+  "es/precision": {
+    "hash": "774f8b2de2460672",
+    "voice": "Cristina",
+    "bytes": 72976
+  },
+  "es/search": {
+    "hash": "dcfcfc5784f9754f",
+    "voice": "Cristina",
+    "bytes": 49153
+  },
+  "es/welcome": {
+    "hash": "efe2da337b722731",
+    "voice": "Cristina",
+    "bytes": 62736
+  },
+  "fr/export": {
+    "hash": "a5089aa1d8f27096",
+    "voice": "Victoria",
+    "bytes": 56885
+  },
+  "fr/eye": {
+    "hash": "ec4ceaf97ae27835",
+    "voice": "Victoria",
+    "bytes": 75484
+  },
+  "fr/keys": {
+    "hash": "8b920f38fc2c45cb",
+    "voice": "Victoria",
+    "bytes": 47272
+  },
+  "fr/plan": {
+    "hash": "aff8fe492a3aad1e",
+    "voice": "Victoria",
+    "bytes": 22403
+  },
+  "fr/precision": {
+    "hash": "c35566f78559e423",
+    "voice": "Victoria",
+    "bytes": 72140
+  },
+  "fr/search": {
+    "hash": "fb150945864e78cf",
+    "voice": "Victoria",
+    "bytes": 56885
+  },
+  "fr/welcome": {
+    "hash": "d14f2d373aff974c",
+    "voice": "Victoria",
+    "bytes": 61274
+  },
+  "it/export": {
+    "hash": "c811be2ddbd4d193",
+    "voice": "Tiziana",
+    "bytes": 65244
+  },
+  "it/eye": {
+    "hash": "3a61d04cb575960c",
+    "voice": "Tiziana",
+    "bytes": 81127
+  },
+  "it/keys": {
+    "hash": "1e26771189a1bc4a",
+    "voice": "Tiziana",
+    "bytes": 46645
+  },
+  "it/plan": {
+    "hash": "cc756f7fc28f781d",
+    "voice": "Tiziana",
+    "bytes": 24911
+  },
+  "it/precision": {
+    "hash": "2e99f73846d3bd95",
+    "voice": "Tiziana",
+    "bytes": 73603
+  },
+  "it/search": {
+    "hash": "b4cf62bc37e8ff7d",
+    "voice": "Tiziana",
+    "bytes": 58766
+  },
+  "it/welcome": {
+    "hash": "1d7efbf148111d61",
+    "voice": "Tiziana",
+    "bytes": 70887
+  },
+  "nl/export": {
+    "hash": "d3b65dce419f80c0",
+    "voice": "Ruth",
+    "bytes": 59393
+  },
+  "nl/eye": {
+    "hash": "b40a736beb516488",
+    "voice": "Ruth",
+    "bytes": 75484
+  },
+  "nl/keys": {
+    "hash": "72a5f00a6d951e7e",
+    "voice": "Ruth",
+    "bytes": 57512
+  },
+  "nl/plan": {
+    "hash": "4ec52d4a5e3b5ab4",
+    "voice": "Ruth",
+    "bytes": 22403
+  },
+  "nl/precision": {
+    "hash": "37331170e8735e9b",
+    "voice": "Ruth",
+    "bytes": 73603
+  },
+  "nl/search": {
+    "hash": "9905ec176f878ea4",
+    "voice": "Ruth",
+    "bytes": 53123
+  },
+  "nl/welcome": {
+    "hash": "9b6bcf67c1b6a07a",
+    "voice": "Ruth",
+    "bytes": 62736
+  },
+  "pl/export": {
+    "hash": "4f37d79c24f65873",
+    "voice": "Marta",
+    "bytes": 55004
+  },
+  "pl/eye": {
+    "hash": "0186891bb96a4348",
+    "voice": "Marta",
+    "bytes": 97218
+  },
+  "pl/keys": {
+    "hash": "8cbc1b9c20175f5b",
+    "voice": "Marta",
+    "bytes": 60020
+  },
+  "pl/plan": {
+    "hash": "d5b512ee1921145d",
+    "voice": "Marta",
+    "bytes": 28046
+  },
+  "pl/precision": {
+    "hash": "8a42f7a0db2d0d47",
+    "voice": "Marta",
+    "bytes": 84470
+  },
+  "pl/search": {
+    "hash": "e557621b95dba2e9",
+    "voice": "Marta",
+    "bytes": 56258
+  },
+  "pl/welcome": {
+    "hash": "517fc11025d5e9eb",
+    "voice": "Marta",
+    "bytes": 75484
+  },
+  "pt/export": {
+    "hash": "25c5907609ae7898",
+    "voice": "Carla",
+    "bytes": 61274
+  },
+  "pt/eye": {
+    "hash": "6c2c559ca45c6e84",
+    "voice": "Carla",
+    "bytes": 90113
+  },
+  "pt/keys": {
+    "hash": "b3d1f6c58e9e26c9",
+    "voice": "Carla",
+    "bytes": 63363
+  },
+  "pt/plan": {
+    "hash": "7d8686ccc9a63d27",
+    "voice": "Carla",
+    "bytes": 24284
+  },
+  "pt/precision": {
+    "hash": "af1c378752a59f4a",
+    "voice": "Carla",
+    "bytes": 82380
+  },
+  "pt/search": {
+    "hash": "55dc39858aab26c1",
+    "voice": "Carla",
+    "bytes": 59393
+  },
+  "pt/welcome": {
+    "hash": "34bd3d875bd805da",
+    "voice": "Carla",
+    "bytes": 69006
+  },
+  "sv/export": {
+    "hash": "7ab4de223c416bc0",
+    "voice": "Malin",
+    "bytes": 53123
+  },
+  "sv/eye": {
+    "hash": "7c044dd5a0846f7e",
+    "voice": "Malin",
+    "bytes": 79873
+  },
+  "sv/keys": {
+    "hash": "96410ee037b21a45",
+    "voice": "Malin",
+    "bytes": 52496
+  },
+  "sv/plan": {
+    "hash": "91832c35cdd78b58",
+    "voice": "Malin",
+    "bytes": 26792
+  },
+  "sv/precision": {
+    "hash": "b116a3594fd4e28f",
+    "voice": "Malin",
+    "bytes": 72140
+  },
+  "sv/search": {
+    "hash": "16ca9399731d0cad",
+    "voice": "Malin",
+    "bytes": 55631
+  },
+  "sv/welcome": {
+    "hash": "ff31826e664b02b5",
+    "voice": "Malin",
+    "bytes": 73603
+  }
+}

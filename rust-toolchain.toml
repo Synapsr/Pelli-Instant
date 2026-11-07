@@ -1,0 +1,5 @@
+# One Rust version for everyone (contributors, CI, releases): a new stable
+# release can't break the build overnight. Bump it on purpose, in its own PR.
+[toolchain]
+channel = "1.95.0"
+components = ["rustfmt", "clippy"]

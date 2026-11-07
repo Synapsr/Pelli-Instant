@@ -1,0 +1,58 @@
+{
+  "name": "pelli-instant",
+  "productName": "Pelli Instant",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Open-source AI photo culling for photographers, on your computer (Tauri 2 desktop app).",
+  "license": "MIT",
+  "author": "Synapsr",
+  "homepage": "https://pelli.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Synapsr/Pelli-Instant.git"
+  },
+  "scripts": {
+    "dev": "vite",
+    "dev:bridge": "vite --mode bridge",
+    "models": "node scripts/fetch-models.mjs",
+    "app": "tauri dev",
+    "app:fake-pelli": "PELLI_API_URL=http://localhost:3100 tauri dev",
+    "fake-pelli": "node scripts/fake-pelli.mjs",
+    "voices": "node scripts/generate-voices.mjs",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@heroui/react": "2.8.10",
+    "@tanstack/react-virtual": "^3.13.18",
+    "@tauri-apps/api": "^2.12.4",
+    "framer-motion": "^11.18.2",
+    "lucide-react": "^0.562.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zustand": "^5.0.10"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "~4.1.18",
+    "@tauri-apps/cli": "^2.12.4",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.1.4",
+    "tailwindcss": "~4.1.18",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.7",
+    "vitest": "^3.2.7"
+  },
+  "packageManager": "pnpm@10.11.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

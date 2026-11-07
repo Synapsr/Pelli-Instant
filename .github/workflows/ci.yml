@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A newer commit on the same branch or PR cancels the run in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Faster, smaller CI builds: no debug info, no incremental artefacts.
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
+
+jobs:
+  # Engine, interface and desktop shell: format, lint, types, tests. On Linux,
+  # where the engine and the shell compile even though the app isn't shipped
+  # there; the release workflow builds the macOS and Windows installers.
+  checks:
+    name: Checks (Linux)
+    runs-on: ubuntu-24.04
+    # A cold cache builds the whole workspace twice (clippy, then tests).
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: System libraries for Tauri
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
+            librsvg2-dev libayatana-appindicator3-dev
+
+      # The version pinned in rust-toolchain.toml, with rustfmt and clippy.
+      - name: Install Rust
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      # The version comes from `packageManager` in package.json.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
+
+      # The models the tests run on (~221 MB), downloaded once per manifest.
+      - name: Models cache
+        uses: actions/cache@v4
+        with:
+          path: models
+          key: models-${{ hashFiles('models/manifest.json') }}
+      - run: node scripts/fetch-models.mjs
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      # Before Clippy: the desktop shell embeds the built interface (dist/).
+      - run: pnpm build
+
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: cargo test
+        run: cargo test --workspace
+
+  # The code that only builds on Windows (power, priorities, memory, DirectML)
+  # would otherwise only be compiled by a release. Lint only: the Linux job
+  # runs the tests.
+  windows:
+    name: Clippy (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # The desktop shell embeds the built interface (dist/).
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets --features cull-ml/directml -- -D warnings

@@ -1,0 +1,35 @@
+[package]
+name = "cull-decode"
+description = "Folder scanning, EXIF, RAW embedded previews and fast scaled JPEG decoding"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+cull-types.workspace = true
+image.workspace = true
+thiserror.workspace = true
+log.workspace = true
+# All dependencies below are permissive (checked): no copyleft.
+# MIT OR Apache-2.0 — JPEG decoding with DCT scaling (1/2, 1/4, 1/8 IDCT).
+# Its default `rayon` feature makes the per-component work of one decode run
+# on the caller's rayon pool instead of spawning OS threads per image.
+jpeg-decoder = "0.3.2"
+# BSD-2-Clause — EXIF extraction from HEIF containers.
+kamadak_exif = { package = "kamadak-exif", version = "0.6.1" }
+# BSD-3-Clause — asset ids.
+sha1_smol = "1.0.1"
+# MIT OR Apache-2.0 OR Zlib — SIMD full-size JPEG decoding (already used by
+# `image`, same versions).
+zune-jpeg = "0.5"
+zune-core = "0.5"
+# MIT OR Apache-2.0 — SIMD (SSE4.1/AVX2/NEON) convolution resize.
+fast_image_resize = "6.1.0"
+# MIT OR Apache-2.0 — SIMD baseline JPEG encoder (thumbnails, cache files).
+jpeg-encoder = { version = "0.7.1", features = ["simd"] }
+
+[dev-dependencies]
+# MIT OR Apache-2.0 — throughput section of examples/bench_decode.rs.
+rayon.workspace = true

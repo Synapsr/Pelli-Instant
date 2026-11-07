@@ -1,0 +1,53 @@
+[package]
+name = "cull-engine"
+description = "Pelli Instant engine: projects, analysis pipeline, decisions, export, Pelli client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+# Hardware acceleration of the AI models (see crates/cull-ml).
+coreml = ["cull-ml/coreml"]
+directml = ["cull-ml/directml"]
+cuda = ["cull-ml/cuda"]
+
+[dependencies]
+cull-types.workspace = true
+cull-decode.workspace = true
+cull-analysis.workspace = true
+cull-ml.workspace = true
+image.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+log.workspace = true
+rayon.workspace = true
+rusqlite = { version = "0.41", features = ["bundled"] }
+sha1_smol = { version = "1", features = ["std"] }
+crossbeam-channel = "0.5"
+parking_lot = "0.12"
+percent-encoding = "2"
+ureq = { version = "3.5", default-features = false, features = ["rustls", "gzip", "json", "platform-verifier"] }
+
+# Thread priority and memory size (macOS), free disk space (every Unix).
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# No App Nap nor idle sleep during long jobs (system::KeepAwake).
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSProcessInfo", "NSString"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Power",
+  "Win32_System_SystemInformation",
+  "Win32_System_Threading",
+] }
+
+[dev-dependencies]
+tempfile = "3"

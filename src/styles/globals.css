@@ -1,0 +1,421 @@
+@import 'tailwindcss';
+@plugin '../../hero.ts';
+@source '../../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
+@source '../**/*.{ts,tsx}';
+@custom-variant dark (&:is(.dark *));
+/* Short windows (down to the 680 px minimum): tighter vertical rhythm. */
+@custom-variant short (@media (max-height: 820px));
+
+@font-face {
+  font-family: 'Cabinet Grotesk';
+  src: url('../assets/fonts/CabinetGrotesk.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: 'Cabinet Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+  --animate-fade-in: fade-in 300ms var(--ease-out-soft) both;
+  --animate-rise-in: rise-in 360ms var(--ease-out-soft) both;
+  --animate-pulse-soft: pulse-soft 2.4s ease-in-out infinite;
+
+  @keyframes shimmer {
+    0% {
+      background-position: -160% 0;
+    }
+    100% {
+      background-position: 260% 0;
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes drift-a {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(6%, 4%, 0) scale(1.08);
+    }
+  }
+  @keyframes drift-b {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1.05);
+    }
+    50% {
+      transform: translate3d(-5%, -6%, 0) scale(0.95);
+    }
+  }
+  @keyframes spin-slow {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes pulse-soft {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+}
+
+:root {
+  /* Neutral surface used behind photos (object-fit: contain). */
+  --photo-well: #ececec;
+  --photo-well-strong: #e2e2e2;
+  --loupe-bg: #e9e9e9;
+  --shimmer: rgba(0, 0, 0, 0.05);
+}
+
+.dark {
+  --photo-well: #1c1c1c;
+  --photo-well-strong: #171717;
+  --loupe-bg: #0e0e0e;
+  --shimmer: rgba(255, 255, 255, 0.05);
+}
+
+html,
+body,
+#root,
+#root > [data-overlay-container] {
+  height: 100%;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  letter-spacing: 0.005em;
+  font-feature-settings: 'ss01', 'ss02';
+  /* Desktop app: chrome is not selectable, text fields are. */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+input,
+textarea,
+[contenteditable='true'],
+.selectable {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+img {
+  -webkit-user-drag: none;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Thin, quiet scrollbars (WebView2 shows chunky ones by default). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, currentColor 18%, transparent) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+  background-color: color-mix(in srgb, currentColor 18%, transparent);
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, currentColor 30%, transparent);
+}
+
+/*
+ * Pelli charter (docs/specs/design-system-primary-gradients.md): one violet,
+ * #5840f0, and its tints. No multi-hue gradients: surfaces are flat or nearly
+ * flat, depth comes from hairline light rings, never from dark outlines.
+ */
+:root {
+  --brand: #5840f0;
+  --brand-light: #6b52f0;
+  --brand-lighter: #7c6af0;
+  --brand-muted: #a599f5;
+  --ring-hairline: inset 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+  --ring-hairline-hover: inset 0 0 0 1px rgba(255, 255, 255, 0.13), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+/*
+ * Background of the immersive screens (home, analysis, sign-in): a deep night
+ * with two slow violet glows that breathe and lean a little towards the
+ * pointer (--px / --py, set by <Backdrop />), a fine grain and a soft vignette.
+ * The review workspace stays neutral grey around the photos.
+ */
+.ambient {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background-color: #0b0a10;
+}
+.ambient-layer {
+  position: absolute;
+  inset: -8%;
+  transform: translate3d(calc(var(--px, 0) * -24px), calc(var(--py, 0) * -24px), 0);
+}
+.ambient-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  will-change: transform;
+}
+.ambient-glow-1 {
+  width: 64vmax;
+  height: 64vmax;
+  left: 50%;
+  top: -34vmax;
+  margin-left: -32vmax;
+  background: radial-gradient(circle, rgba(88, 64, 240, 0.4), transparent 66%);
+  animation: ambient-breathe-1 18s ease-in-out infinite alternate;
+}
+.ambient-glow-2 {
+  width: 48vmax;
+  height: 48vmax;
+  right: -18vmax;
+  bottom: -26vmax;
+  background: radial-gradient(circle, rgba(124, 106, 240, 0.18), transparent 66%);
+  animation: ambient-breathe-2 26s ease-in-out infinite alternate;
+}
+.ambient-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.ambient-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(130% 100% at 50% 40%, transparent 60%, rgba(0, 0, 0, 0.35) 100%);
+}
+@keyframes ambient-breathe-1 {
+  0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.85; }
+  100% { transform: translate3d(-4vw, 5vh, 0) scale(1.12); opacity: 1; }
+}
+@keyframes ambient-breathe-2 {
+  0% { transform: translate3d(0, 0, 0) scale(1.05); }
+  100% { transform: translate3d(-8vw, -6vh, 0) scale(0.92); }
+}
+
+/*
+ * Frosted glass: a faint white body, a light hairline ring and a top edge
+ * catching the light (shadows as borders: no dark outline on a dark screen).
+ * `.glass-strong` for panels floating over photos and dialogs.
+ * Kept out of Tailwind's layers on purpose: they must win over HeroUI's
+ * utility backgrounds; their states are the classes below, not utilities.
+ */
+.glass {
+  background-color: rgba(255, 255, 255, 0.04);
+  box-shadow: var(--ring-hairline);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+}
+.glass-strong {
+  background-color: rgba(22, 20, 30, 0.98);
+  box-shadow:
+    var(--ring-hairline),
+    0 24px 64px -24px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(30px) saturate(150%);
+  -webkit-backdrop-filter: blur(30px) saturate(150%);
+}
+/* Glass inside glass: WebKit does not stack backdrop blurs reliably. */
+.glass-strong .glass {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background-color: rgba(255, 255, 255, 0.035);
+}
+.glass-hover {
+  transition-property: background-color, box-shadow, translate, transform, scale;
+  transition-duration: 200ms;
+  transition-timing-function: var(--ease-out-soft);
+}
+.glass-hover:hover,
+.glass-hover[data-hover='true'] {
+  background-color: rgba(255, 255, 255, 0.065);
+  box-shadow: var(--ring-hairline-hover);
+}
+.glass-selected,
+.glass-selected:hover,
+.glass-strong .glass-selected {
+  background-color: rgba(88, 64, 240, 0.12);
+  box-shadow:
+    inset 0 0 0 1px rgba(124, 106, 240, 0.55),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Fades the ends of a horizontal rail. */
+.fade-x {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+}
+
+/*
+ * Brand fills. `.btn-brand` is the one primary action of a screen: solid
+ * Pelli violet, a light top edge, a soft violet lift. Pressed scale comes
+ * from HeroUI (data-pressed), hence `scale` in the transitions.
+ */
+.brand-fill {
+  background-color: var(--brand);
+  color: #fff;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+}
+.btn-brand {
+  background-color: var(--brand);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
+    0 1px 2px 0 rgba(0, 0, 0, 0.35),
+    0 10px 28px -12px rgba(88, 64, 240, 0.75);
+  transition-property: background-color, box-shadow, opacity, transform, scale;
+  transition-duration: 200ms;
+  transition-timing-function: var(--ease-out-soft);
+}
+.btn-brand:hover,
+.btn-brand[data-hover='true'] {
+  background-color: var(--brand-light);
+  opacity: 1;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.24),
+    0 1px 2px 0 rgba(0, 0, 0, 0.35),
+    0 12px 32px -12px rgba(107, 82, 240, 0.9);
+}
+.btn-brand[data-disabled='true'],
+.btn-brand:disabled {
+  opacity: 0.4;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+}
+.text-brand {
+  color: var(--brand-muted);
+}
+
+/* Skeleton for photos whose preview is not generated yet. */
+.photo-shimmer {
+  background-color: var(--photo-well);
+  background-image: linear-gradient(100deg, transparent 20%, var(--shimmer) 50%, transparent 80%);
+  background-size: 60% 100%;
+  background-repeat: no-repeat;
+  animation: var(--animate-shimmer);
+}
+
+.photo-well {
+  background-color: var(--photo-well);
+}
+
+/* Visible focus for custom (non HeroUI) interactive elements. */
+.focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--heroui-background, #121212),
+    0 0 0 4px #5840f0;
+}
+.dark .focus-ring:focus-visible {
+  box-shadow:
+    0 0 0 2px #121212,
+    0 0 0 4px #a599f5;
+}
+
+/* Welcome tour: photos floating, a text caret, a progress bar on a loop. */
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(-4px);
+  }
+  50% {
+    transform: translateY(4px);
+  }
+}
+@keyframes caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+/* Maximum pack: the full bar breathes while the models are checked and loaded. */
+.pack-preparing {
+  animation: pack-pulse 1.4s ease-in-out infinite;
+}
+@keyframes pack-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Drop zone outline: the dashes march while a folder is dragged over. */
+@keyframes voice-bar {
+  0%,
+  100% {
+    scale: 1 0.3;
+  }
+  50% {
+    scale: 1 1;
+  }
+}
+
+@keyframes dash-march {
+  to {
+    stroke-dashoffset: -32;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,20 @@
+[package]
+name = "cull-analysis"
+description = "Sharpness, exposure, perceptual hashes, grouping, scoring and XMP sidecars"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+cull-types.workspace = true
+image.workspace = true
+thiserror.workspace = true
+log.workspace = true
+# MIT. Event-level XML reader/writer: lets the XMP sidecar be rewritten while
+# keeping every unknown element/attribute byte-for-byte.
+quick-xml = "0.38"
+
+[dev-dependencies]
+# MIT OR Apache-2.0
+tempfile = "3"

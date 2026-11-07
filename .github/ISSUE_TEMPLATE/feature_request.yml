@@ -1,0 +1,49 @@
+name: Suggest an improvement
+description: An idea to make Pelli Instant better.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Pelli Instant aims to stay quick and trustworthy, so the most useful suggestions start from a problem rather than a solution. Before asking for a new setting, ask whether a better default would do.
+        Please search the [existing issues](https://github.com/Synapsr/Pelli-Instant/issues) first.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The kind of shoot, the situation, and what gets in your way today.
+      placeholder: When I cull a concert, Pelli Instant …
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+      description: How you imagine Pelli Instant handling it. Rough is fine.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Workarounds or alternatives
+      description: What you do today, or how other tools (Lightroom, Photo Mechanic, other culling apps) handle it.
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      multiple: true
+      options:
+        - macOS
+        - Windows
+        - Both
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contributing
+      options:
+        - label: I'd like to work on this myself (see [docs/contributing.md](https://github.com/Synapsr/Pelli-Instant/blob/main/docs/contributing.md)).

@@ -1,0 +1,50 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/cull-types",
+  "crates/cull-decode",
+  "crates/cull-analysis",
+  "crates/cull-ml",
+  "crates/cull-engine",
+  "crates/cull-cli",
+  "src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["Synapsr"]
+repository = "https://github.com/Synapsr/Pelli-Instant"
+homepage = "https://pelli.io"
+rust-version = "1.92"
+publish = false
+
+[workspace.dependencies]
+cull-types = { path = "crates/cull-types" }
+cull-decode = { path = "crates/cull-decode" }
+cull-analysis = { path = "crates/cull-analysis" }
+cull-ml = { path = "crates/cull-ml" }
+cull-engine = { path = "crates/cull-engine" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+anyhow = "1"
+log = "0.4"
+rayon = "1.10"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "tiff"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+
+# Image decoding and pixel loops are unusable unoptimised: keep the
+# dependencies fast even in debug/test builds.
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev]
+opt-level = 1

@@ -1,0 +1,93 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Pelli Instant",
+  "mainBinaryName": "Pelli Instant",
+  "version": "0.1.0",
+  "identifier": "io.pelli.instant",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Pelli Instant",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1080,
+        "minHeight": 680,
+        "center": true,
+        "dragDropEnabled": true,
+        "backgroundColor": "#0b0a12",
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: blob: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost",
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$APPCACHE/previews/**"
+        ]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "app",
+      "dmg",
+      "nsis"
+    ],
+    "category": "Photography",
+    "shortDescription": "AI photo culling, on your computer",
+    "longDescription": "Pelli Instant sorts a photo shoot in minutes: blurry photos, closed eyes, bad exposure, duplicates and bursts. The analysis runs on your computer.",
+    "publisher": "Pelli",
+    "copyright": "Copyright © 2026 Synapsr",
+    "homepage": "https://pelli.io",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "12.0",
+      "hardenedRuntime": true
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "French",
+          "English",
+          "Spanish",
+          "German",
+          "Italian",
+          "Portuguese",
+          "Dutch",
+          "Swedish"
+        ],
+        "displayLanguageSelector": false
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/Synapsr/Pelli-Instant/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJBNEZCNzQ2QkU5OEY2OUIKUldTYjlwaStScmRQdW12Y3AvSk9XWlFheTNSNVJlbmZTL3VxSk9sMGN1S1BRUWdQOW1rMjJTaU4K",
+      "requireSignedVersion": true,
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

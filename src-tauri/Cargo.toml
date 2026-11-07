@@ -1,0 +1,37 @@
+[package]
+name = "pelli-cull-app"
+description = "Pelli Instant desktop app (Tauri shell)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+default-run = "pelli-cull-app"
+
+[lib]
+name = "pelli_cull_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+cull-engine.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+log.workspace = true
+tauri = { version = "2.12", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2.8"
+tauri-plugin-opener = "2.7"
+tauri-plugin-single-instance = "2.5"
+tauri-plugin-updater = "2"
+percent-encoding = "2"
+whoami = "2"
+env_logger = "0.11"
+
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+keyring = { version = "3.6", features = ["apple-native", "windows-native"] }
+
+[features]
+# Hardware acceleration of the AI models (set by the release builds).
+coreml = ["cull-engine/coreml"]
+directml = ["cull-engine/directml"]

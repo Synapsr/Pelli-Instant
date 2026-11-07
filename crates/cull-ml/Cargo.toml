@@ -1,0 +1,44 @@
+[package]
+name = "cull-ml"
+description = "ONNX models: faces, eye state, CLIP embeddings, aesthetic score"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+# `ort` 2.0.0-rc.15 requires Rust 1.92.
+rust-version = "1.92"
+
+[features]
+default = []
+# Execution providers. `Acceleration::Auto` uses the ones compiled in for the
+# current target and falls back to the CPU silently when one fails at
+# runtime. Each feature is a no-op on targets without that provider (it
+# still compiles and links: `lax-feature-matching` lets ort-sys pick the
+# plain prebuilt ONNX Runtime there).
+coreml = ["ort/coreml", "ort/lax-feature-matching"]     # macOS (Neural Engine / GPU)
+directml = ["ort/directml", "ort/lax-feature-matching"] # Windows (any DX12 GPU)
+cuda = ["ort/cuda", "ort/lax-feature-matching"]         # Linux/Windows (CUDA 13 + cuDNN 9 on the host)
+
+[dependencies]
+cull-types.workspace = true
+image.workspace = true
+thiserror.workspace = true
+log.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.10"
+# ONNX Runtime. The prebuilt binaries downloaded by `download-binaries`
+# (cdn.pyke.io) are *static* libraries: nothing to ship next to the
+# executable on macOS/Linux CPU builds. See README.md (packaging).
+ort = { version = "=2.0.0-rc.15", default-features = false, features = [
+  "std",
+  "download-binaries",
+  "tls-native",
+  "copy-dylibs",
+] }
+# CLIP BPE tokenizer (MIT) with the OpenAI vocabulary (MIT) embedded.
+instant-clip-tokenizer = "0.1"
+fast_image_resize = { version = "6", default-features = false, features = ["std"] }
+
+[dev-dependencies]
+image = { workspace = true }

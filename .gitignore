@@ -1,0 +1,47 @@
+# Dependencies & builds
+/node_modules
+/dist
+/target
+/src-tauri/target
+/src-tauri/gen
+coverage
+
+# AI models: downloaded by `pnpm models`, never committed
+/models/*
+!/models/manifest.json
+!/models/README.md
+
+# DirectML.dll, copied there by the Windows build
+/src-tauri/windows
+
+# Test photos (scripts/fetch-*.sh), the CLI's library, the fake Pelli's state
+/samples
+/.pelli-cull
+/.fake-pelli
+
+# Editors & OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.sw?
+
+# Logs
+*.log
+
+# Installers copied to the repo root by accident
+*.dmg
+*.msi
+*.exe
+
+# Secrets — must never land in a public repo
+.env
+.env.*
+!.env.example
+!.env.bridge
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+
