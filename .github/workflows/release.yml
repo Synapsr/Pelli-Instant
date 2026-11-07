@@ -32,7 +32,7 @@ jobs:
         include:
           - label: macOS (Apple Silicon)
             name: macos-arm64
-            runner: macos-14
+            runner: macos-latest
             target: aarch64-apple-darwin
             features: coreml
             # The int8 CLIP on the CPU is faster than CoreML on Apple

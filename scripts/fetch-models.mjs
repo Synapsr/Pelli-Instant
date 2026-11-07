@@ -270,7 +270,8 @@ async function fetchModel(m, dir) {
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2))
-  const { default: manifest } = await import(manifestPath, { with: { type: 'json' } })
+  // Read, not imported: an absolute Windows path (D:\…) is not an import URL.
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
   const selected = manifest.models.filter((m) => {
     if (opts.only) return opts.only.includes(m.id)
     if (opts.all) return true
