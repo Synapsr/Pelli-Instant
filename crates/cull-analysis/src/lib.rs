@@ -410,8 +410,8 @@ pub struct PhotoFacts<'a> {
 /// serial when both are known) AND visually similar (embedding cosine >=
 /// `similarity_threshold`, or pHash Hamming distance <= 10 when there is no
 /// embedding). Identical hashes form `GroupKind::Exact` groups whatever the
-/// time. Single-linkage inside the time window, but a group never spans more
-/// than 5 minutes. Groups of size 1 are not returned. Ids start at 1.
+/// time. Complete linkage inside the time window, and a group never spans
+/// more than one minute. Groups of size 1 are not returned. Ids start at 1.
 /// `photo_ids` are ordered best first (by `assess` ranking rules: score).
 ///
 /// Photos without capture time are compared, in the order given (natural
@@ -421,8 +421,9 @@ pub struct PhotoFacts<'a> {
 ///
 /// Details (camera make/model separation when serials are missing, copies of
 /// one image joining a burst, `Burst` vs `Similar`): see the `group` module
-/// docs. With `settings.group_similar` off, only `Exact` groups are returned;
-/// with `settings.detect_exact_duplicates` off, no `Exact` group is.
+/// docs. Groups are returned whatever `settings.group_similar` says (it only
+/// changes the verdicts, see [`assess`]); with
+/// `settings.detect_exact_duplicates` off, no `Exact` group is.
 pub fn group_similar(photos: &[PhotoFacts<'_>], settings: &CullSettings) -> Vec<SimilarGroup> {
     group::group_similar(photos, settings)
 }
@@ -444,9 +445,11 @@ pub fn split_scenes(photos: &[PhotoFacts<'_>], settings: &CullSettings) -> Vec<S
 ///
 /// Every rule and constant is documented in the `score` module. Pure and
 /// fast (≈1 ms for 5 000 photos): safe to re-run on every slider move.
-/// With `settings.group_similar` off, `Burst`/`Similar` groups are ignored;
-/// with `settings.detect_exact_duplicates` off, copies are not rejected as
-/// such. Each `detect_*` switch and `artistic_blur` are documented there too.
+/// With `settings.group_similar` off, `Burst`/`Similar` groups only stack
+/// their members (`group_id`, `group_rank`), judged as singles: no photo
+/// carries `Reason::Duplicate`; with `settings.detect_exact_duplicates` off,
+/// copies are not rejected as such. Each `detect_*` switch and
+/// `artistic_blur` are documented there too.
 pub fn assess(photos: &[PhotoFacts<'_>], groups: &[SimilarGroup], settings: &CullSettings) -> Vec<Assessment> {
     score::assess(photos, groups, settings)
 }

@@ -134,8 +134,12 @@ describe('mock engine', () => {
     expect(balanced.rejected).toBeGreaterThan(lenient.rejected)
     const keepTwo = (await api.recompute(id, { ...DEFAULT_SETTINGS, keepPerGroup: 2 })).project.counts
     expect(keepTwo.selected).toBeGreaterThan(balanced.selected)
-    const noGroups = await api.recompute(id, { ...DEFAULT_SETTINGS, groupSimilar: false })
-    expect(noGroups.groups.every((g) => g.kind === 'exact')).toBe(true)
+    // Off, bursts stay grouped (stacked) but no frame is set aside as a duplicate.
+    const grouped = await api.recompute(id, DEFAULT_SETTINGS)
+    const ungrouped = await api.recompute(id, { ...DEFAULT_SETTINGS, groupSimilar: false })
+    expect(ungrouped.groups).toEqual(grouped.groups)
+    expect(ungrouped.photos.some((p) => p.assessment?.reasons.includes('duplicate'))).toBe(false)
+    expect(ungrouped.project.counts.rejected).toBeLessThan(grouped.project.counts.rejected)
   })
 
   it('honours each criterion and artistic blur like the engine', async () => {

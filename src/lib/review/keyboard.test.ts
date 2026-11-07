@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveShortcut, type KeyInput } from './keyboard'
+import { leftToControl, resolveShortcut, type KeyInput, type KeyTarget } from './keyboard'
 
 function key(k: string, extra: Partial<KeyInput> = {}): KeyInput {
   const code = /^\d$/.test(k) ? `Digit${k}` : k.length === 1 ? `Key${k.toUpperCase()}` : k
@@ -55,11 +55,51 @@ describe('keyboard shortcuts', () => {
     expect(resolveShortcut(key('p', { altKey: true }), 'grid')).toBeNull()
   })
 
+  it('goes through the burst with ⌥← ⌥→ (Alt on Windows) in the grid and the loupe', () => {
+    expect(resolveShortcut(key('ArrowRight', { altKey: true }), 'loupe')).toEqual({ type: 'groupMove', delta: 1 })
+    expect(resolveShortcut(key('ArrowLeft', { altKey: true }), 'grid')).toEqual({ type: 'groupMove', delta: -1 })
+    // Not in compare, not with ⌘ / Ctrl, not up and down (they keep and reject in the loupe).
+    expect(resolveShortcut(key('ArrowRight', { altKey: true }), 'compare')).toBeNull()
+    expect(resolveShortcut(key('ArrowRight', { altKey: true, metaKey: true }), 'loupe')).toBeNull()
+    expect(resolveShortcut(key('ArrowUp', { altKey: true }), 'loupe')).toBeNull()
+  })
+
   it('uses 1–4 to pick the winner and arrows to page in compare', () => {
     expect(resolveShortcut(key('1'), 'compare')).toEqual({ type: 'winner', index: 0 })
     expect(resolveShortcut(key('4'), 'compare')).toEqual({ type: 'winner', index: 3 })
     expect(resolveShortcut(key('5'), 'compare')).toBeNull()
     expect(resolveShortcut(key('ArrowRight'), 'compare')).toEqual({ type: 'page', delta: 1 })
     expect(resolveShortcut(key('p'), 'compare')).toBeNull()
+  })
+})
+
+/** A fake element sitting inside the given selectors (what `closest` answers). */
+function inside(...selectors: string[]): KeyTarget {
+  return { closest: (list: string) => (list.split(',').some((sel) => selectors.includes(sel.trim())) ? {} : null) }
+}
+
+describe('keys left to a focused control', () => {
+  it('keeps the arrows on the photos after a click on a button (filmstrip, Keep, chevrons)', () => {
+    const thumbnail = inside('button')
+    expect(leftToControl('ArrowRight', thumbnail)).toBe(false)
+    expect(leftToControl('ArrowUp', thumbnail)).toBe(false)
+    // The button still answers Enter and Space.
+    expect(leftToControl('Enter', thumbnail)).toBe(true)
+    expect(leftToControl(' ', thumbnail)).toBe(true)
+  })
+
+  it('leaves the arrows to the widgets that use them', () => {
+    expect(leftToControl('ArrowLeft', inside('button', '[role="radio"]'))).toBe(true)
+    expect(leftToControl('ArrowUp', inside('[role="slider"]'))).toBe(true)
+    expect(leftToControl('ArrowDown', inside('button', '[role="menuitem"]'))).toBe(true)
+    expect(leftToControl('ArrowRight', inside('[role="dialog"]'))).toBe(true)
+    expect(leftToControl('End', inside('[role="option"]'))).toBe(true)
+  })
+
+  it('never takes the keys from the grid, nor without a control', () => {
+    expect(leftToControl('Enter', inside('[data-grid-root]', 'button'))).toBe(false)
+    expect(leftToControl('ArrowRight', inside())).toBe(false)
+    expect(leftToControl(' ', null)).toBe(false)
+    expect(leftToControl('p', inside('button'))).toBe(false)
   })
 })

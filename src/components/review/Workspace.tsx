@@ -5,6 +5,7 @@ import { useAppStore } from '@/store/app-store'
 import { useReviewStore } from '@/store/review-store'
 import { useWorkspaceStore } from '@/store/workspace-store'
 import { EmptyGrid } from './EmptyGrid'
+import { MarkFlash } from './MarkFlash'
 import { PhotoGrid } from './PhotoGrid'
 import { ReasonChips } from './ReasonChips'
 import { TitleBar } from './TitleBar'
@@ -47,6 +48,7 @@ export function Workspace() {
             <ReasonChips />
             <div className="relative min-h-0 flex-1">
               <GridArea />
+              <MarkFlash />
             </div>
           </>
         ) : (

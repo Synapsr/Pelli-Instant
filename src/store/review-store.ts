@@ -52,6 +52,13 @@ export interface MarkOptions {
   advance?: boolean
 }
 
+/** A single photo was just marked: what the confirmation overlay shows. */
+export interface MarkFlash {
+  /** changes on every mark, so the same mark twice shows twice */
+  seq: number
+  patch: Partial<UserMark>
+}
+
 interface Derived {
   visibleIds: string[]
   groupRows: GroupRow[]
@@ -77,6 +84,8 @@ export interface ReviewState extends Derived {
   columns: number
   undoStack: UndoEntry[]
   recomputing: boolean
+  /** last mark of a single photo (multi-selection marks get a toast instead) */
+  flash: MarkFlash | null
 
   load: (data: ProjectData, options?: { keepView?: boolean }) => void
   reset: () => void
@@ -95,6 +104,8 @@ export interface ReviewState extends Derived {
   selectAllVisible: () => void
   clearSelection: () => void
   move: (dir: Direction) => void
+  /** previous (-1) / next (1) frame of the focused photo's burst, unstacking it */
+  moveInGroup: (delta: -1 | 1) => void
   mark: (patch: Partial<UserMark>, options?: MarkOptions) => Promise<void>
   markMany: (changes: { ids: string[]; patch: Partial<UserMark> }[], focusId?: string | null) => Promise<void>
   undo: () => Promise<void>
@@ -161,6 +172,7 @@ const initial = {
   columns: 5,
   undoStack: [],
   recomputing: false,
+  flash: null,
 } satisfies Partial<ReviewState>
 
 export const useReviewStore = create<ReviewState>((set, get) => {
@@ -317,6 +329,22 @@ export const useReviewStore = create<ReviewState>((set, get) => {
       if (next && next !== s.focusId) set({ focusId: next, anchorId: next, selection: {}, selectionCount: 0 })
     },
 
+    moveInGroup: (delta) => {
+      const s = get()
+      const focusId = s.focusId
+      const gid = focusId ? s.photos[focusId]?.assessment?.groupId : null
+      const group = gid === null || gid === undefined ? undefined : s.groups[gid]
+      if (!focusId || !group || group.photoIds.length < 2) return
+      // Unstack the burst: an expanded group shows every frame, whatever its decision.
+      if (s.filters.tab !== 'duplicates' && (!s.filters.stackGroups || !s.filters.expanded[group.id])) {
+        update({ filters: { ...s.filters, stackGroups: true, expanded: { ...s.filters.expanded, [group.id]: true } } }, focusId)
+      }
+      const visible = new Set(get().visibleIds)
+      const frames = group.photoIds.filter((id) => visible.has(id))
+      const next = frames[frames.indexOf(focusId) + delta]
+      if (next) set({ focusId: next, anchorId: next, selection: {}, selectionCount: 0 })
+    },
+
     mark: async (patch, options = {}) => {
       const s = get()
       const projectId = s.projectId
@@ -337,7 +365,8 @@ export const useReviewStore = create<ReviewState>((set, get) => {
       const next = { ...s, photos }
       const derived = derive(next)
       const focusId = single ? focusAfterMark(prevVisible, derived.visibleIds, ids[0], advance) : settleFocus(prevVisible, derived.visibleIds, s.focusId)
-      update({ photos, undoStack: [...s.undoStack.slice(-49), { projectId, before }] }, focusId)
+      const flash = single ? { seq: (s.flash?.seq ?? 0) + 1, patch: finalPatch } : s.flash
+      update({ photos, undoStack: [...s.undoStack.slice(-49), { projectId, before }], flash }, focusId)
       if (!single) {
         notify({
           title: t('marks.applied', { count: ids.length }),

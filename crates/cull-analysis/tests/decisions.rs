@@ -242,10 +242,43 @@ fn exact_copies_group_whatever_the_time_and_untimed_photos() {
     assert_eq!(copies, 2);
     assert_eq!(a[..3].iter().filter(|x| x.verdict == Verdict::Keep).count(), 1);
     assert!(!a[3].reasons.contains(&Reason::ExactDuplicate));
-    // Grouping off: copies are still found, bursts are not.
+    // Grouping off: the same groups, and copies are still rejected.
     let st = CullSettings { group_similar: false, ..Default::default() };
-    let g = group_similar(&facts(&ps), &st);
-    assert!(g.iter().all(|g| g.kind == GroupKind::Exact));
+    assert_eq!(group_similar(&facts(&ps), &st), g);
+    let a = assess(&facts(&ps), &g, &st);
+    assert_eq!(a[..3].iter().filter(|x| x.reasons.contains(&Reason::ExactDuplicate)).count(), 2);
+}
+
+#[test]
+fn grouping_off_stacks_bursts_without_rejecting() {
+    let base = 0xA5A5_F0F0_1234_5678u64;
+    let mut ps = vec![
+        P::new("b1", Some(100.0), 0.70, base),
+        P::new("b2", Some(100.3), 0.97, base ^ 0b1),
+        P::new("b3", Some(100.6), 0.80, base ^ 0b110),
+        P::new("b4", Some(100.9), 0.05, base ^ 0b1000), // blurry
+    ];
+    ps.extend(filler(20, 1000.0, 5));
+    let f = facts(&ps);
+    let on = CullSettings::default();
+    let off = CullSettings { group_similar: false, ..Default::default() };
+    // The same burst either way: the review stacks it, best first.
+    let g = group_similar(&f, &off);
+    assert_eq!(g, group_similar(&f, &on));
+    assert_eq!((g.len(), g[0].kind, g[0].photo_ids[0].as_str()), (1, GroupKind::Burst, "b2"));
+    let a = assess(&f, &g, &off);
+    assert!(a[..4].iter().all(|x| x.group_id == Some(1)), "{a:?}");
+    assert_eq!(a[1].group_rank, 0);
+    // Off: every photo is judged as a single, none is a duplicate.
+    let singles = assess(&f, &[], &off);
+    for (x, single) in a.iter().zip(&singles) {
+        assert_eq!((x.verdict, &x.reasons, x.score), (single.verdict, &single.reasons, single.score));
+    }
+    assert!(a.iter().all(|x| !x.reasons.contains(&Reason::Duplicate)));
+    assert_eq!((a[2].verdict, a[3].verdict), (Verdict::Keep, Verdict::Reject));
+    // On: the frames after the best one are duplicates.
+    let a = assess(&f, &g, &on);
+    assert!([0, 2].iter().all(|&i| a[i].reasons.contains(&Reason::Duplicate)), "{a:?}");
 }
 
 #[test]
@@ -711,12 +744,12 @@ fn exact_copies_can_be_left_to_the_photographer() {
     assert!(a.iter().all(|x| !x.reasons.contains(&Reason::ExactDuplicate)));
     assert_eq!(a[..3].iter().filter(|x| x.verdict == Verdict::Keep).count(), 1);
     assert!(a[..3].iter().all(|x| x.verdict != Verdict::Reject), "{a:?}");
-    // Grouping off too: every copy is judged alone.
+    // Grouping off too: every copy is kept, still stacked together.
     let st = CullSettings { detect_exact_duplicates: false, group_similar: false, ..Default::default() };
     let g = group_similar(&f, &st);
-    assert!(g.is_empty());
+    assert_eq!(g.len(), 1, "{g:?}");
     let a = assess(&f, &g, &st);
-    assert!(a[..3].iter().all(|x| x.verdict == Verdict::Keep && x.group_id.is_none()));
+    assert!(a[..3].iter().all(|x| x.verdict == Verdict::Keep && x.group_id == Some(g[0].id)), "{a:?}");
 }
 
 #[test]

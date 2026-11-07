@@ -1,5 +1,5 @@
-import { Button } from '@heroui/react'
-import { CircleCheck, Columns2, Loader } from 'lucide-react'
+import { Button, Tooltip } from '@heroui/react'
+import { CircleCheck, Columns2, Info, Loader } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { DECISION_ICON, DECISION_TEXT } from '@/components/ui/Decision'
 import { ReasonIcon } from '@/components/ui/ReasonIcon'
@@ -23,12 +23,21 @@ function Section({ title, children, aside }: { title: string; children: ReactNod
   )
 }
 
-function Bar({ label, value }: { label: string; value: number | null }) {
+function Bar({ label, value, help }: { label: string; value: number | null; help?: string }) {
   const t = useT()
   const low = value !== null && value < 0.4
   return (
     <div className="flex items-center gap-3">
-      <span className="w-[88px] shrink-0 text-[13px] text-default-600">{label}</span>
+      {help ? (
+        <Tooltip content={<p className="max-w-[240px] py-0.5 text-xs leading-snug">{help}</p>} delay={300} closeDelay={0} placement="top">
+          <span tabIndex={0} className="focus-ring inline-flex w-[88px] shrink-0 cursor-help items-center gap-1 rounded text-[13px] text-default-600">
+            {label}
+            <Info className="size-3 text-default-400" aria-hidden />
+          </span>
+        </Tooltip>
+      ) : (
+        <span className="w-[88px] shrink-0 text-[13px] text-default-600">{label}</span>
+      )}
       <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-default-100 dark:bg-white/[0.06]">
         {value !== null && (
           <span
@@ -122,7 +131,8 @@ export function Inspector({ photo, previewUrl, onFocusFace, onHoverFace }: { pho
             {a && (
               <div className="mt-5 space-y-2.5">
                 {BREAKDOWN.map((k) => (
-                  <Bar key={k} label={t(`inspector.breakdown.${k}`)} value={a.breakdown[k]} />
+                  // The aesthetic only ranks: say so where it shows.
+                  <Bar key={k} label={t(`inspector.breakdown.${k}`)} value={a.breakdown[k]} help={k === 'aesthetic' ? t('inspector.aestheticHelp') : undefined} />
                 ))}
               </div>
             )}

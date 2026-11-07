@@ -1,11 +1,13 @@
 import { Button, Tooltip } from '@heroui/react'
-import { ChevronLeft, ChevronRight, LayoutGrid, PanelRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, LayoutGrid, PanelRight } from 'lucide-react'
 import { useState } from 'react'
+import { MarkFlash } from '@/components/review/MarkFlash'
 import { useLargePreview } from '@/hooks/use-large-preview'
 import { zoomTarget } from '@/hooks/use-workspace-keyboard'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
 import { useT } from '@/lib/i18n'
+import { altLabel } from '@/lib/platform'
 import { usePrefsStore } from '@/store/prefs-store'
 import { useReviewStore } from '@/store/review-store'
 import { useWorkspaceStore } from '@/store/workspace-store'
@@ -21,6 +23,10 @@ export function Loupe() {
   const focusId = useReviewStore((s) => s.focusId)
   const photo = useReviewStore((s) => (s.focusId ? s.photos[s.focusId] : undefined))
   const ids = useReviewStore((s) => s.visibleIds)
+  const group = useReviewStore((s) => {
+    const gid = s.focusId ? s.photos[s.focusId]?.assessment?.groupId : null
+    return gid === null || gid === undefined ? undefined : s.groups[gid]
+  })
   const move = useReviewStore((s) => s.move)
   const zoom = useWorkspaceStore((s) => s.zoom)
   const setZoom = useWorkspaceStore((s) => s.setZoom)
@@ -46,6 +52,8 @@ export function Loupe() {
     move(dir)
     resetZoom()
   }
+  const groupSize = group?.photoIds.length ?? 0
+  const groupIndex = group ? group.photoIds.indexOf(photo.id) : -1
 
   return (
     <div className="flex min-h-0 flex-1 animate-fade-in">
@@ -88,9 +96,22 @@ export function Loupe() {
               </button>
             </>
           )}
-          {zoom.active && (
-            <span className="pointer-events-none absolute left-4 top-4 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-semibold text-white/90 backdrop-blur-md">{t('loupe.actual')}</span>
-          )}
+          <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-2">
+            {zoom.active && <span className="rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-semibold text-white/90 backdrop-blur-md">{t('loupe.actual')}</span>}
+            {/* Place in its burst: ⌥← ⌥→ go through every frame. */}
+            {groupSize > 1 && groupIndex >= 0 && (
+              <span
+                title={t('loupe.groupPosition', { index: formatNumber(groupIndex + 1), total: formatNumber(groupSize), keys: `${altLabel()}← ${altLabel()}→` })}
+                className="pointer-events-auto inline-flex h-6 items-center gap-1 rounded-full bg-black/55 pl-2 pr-2.5 text-[11px] font-semibold text-white/90 backdrop-blur-md"
+              >
+                <Layers className="size-3" aria-hidden />
+                <span className="tabular">
+                  {formatNumber(groupIndex + 1)}/{formatNumber(groupSize)}
+                </span>
+              </span>
+            )}
+          </div>
+          <MarkFlash />
 
           {/* One floating bar: back, photo, keep / reject, zoom, details. */}
           <div className="glass-strong absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full p-1.5 pl-2 animate-rise-in">

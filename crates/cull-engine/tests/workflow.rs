@@ -43,6 +43,32 @@ fn save(img: &RgbImage, path: &Path) {
     std::fs::write(path, cull_engine::cull_decode::encode_jpeg(img, 90)).unwrap();
 }
 
+/// A JPEG rated in the camera: `xmp:Rating` in an XMP packet (APP1).
+fn save_rated(img: &RgbImage, path: &Path, rating: i8) {
+    let jpeg = cull_engine::cull_decode::encode_jpeg(img, 90);
+    let packet = format!(
+        "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\
+         <rdf:Description rdf:about=\"\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" xmp:Rating=\"{rating}\"/>\
+         </rdf:RDF></x:xmpmeta>"
+    );
+    let app1 = [b"http://ns.adobe.com/xap/1.0/\0".as_slice(), packet.as_bytes()].concat();
+    let len = u16::try_from(app1.len() + 2).unwrap();
+    let file = [&jpeg[..2], &[0xFF, 0xE1], &len.to_be_bytes(), &app1, &jpeg[2..]].concat();
+    std::fs::write(path, file).unwrap();
+}
+
+/// Keeps the photos sent with `analysis-photo`.
+#[derive(Default)]
+struct PhotoEvents(Mutex<Vec<serde_json::Value>>);
+
+impl EventSink for PhotoEvents {
+    fn emit(&self, event: &str, payload: serde_json::Value) {
+        if event == "analysis-photo" {
+            self.0.lock().push(payload["photo"].clone());
+        }
+    }
+}
+
 #[test]
 fn full_workflow_without_models() {
     let tmp = tempfile::tempdir().unwrap();
@@ -243,6 +269,11 @@ fn new_projects_start_from_the_default_criteria() {
     assert_eq!(reopened.settings, own);
     let data = engine.get_project(&project.id).unwrap();
     assert!(data.photos.iter().all(|p| !p.assessment.as_ref().unwrap().reasons.contains(&Reason::ExactDuplicate)));
+    // Grouping off: the copies are still stacked, and neither is set aside.
+    let assessment = |name: &str| data.photos.iter().find(|p| p.file_name == name).unwrap().assessment.clone().unwrap();
+    let (orig, copy) = (assessment("IMG_0001.jpg"), assessment("IMG_0001-copy.jpg"));
+    assert!(orig.group_id.is_some() && orig.group_id == copy.group_id, "{:?}", data.groups);
+    assert!(data.photos.iter().all(|p| !p.assessment.as_ref().unwrap().reasons.contains(&Reason::Duplicate)));
     // Exact copies detected again after a recompute.
     let data = engine.recompute(&project.id, CullSettings::default()).unwrap();
     let copies =
@@ -320,4 +351,92 @@ fn an_unreadable_file_keeps_its_previous_analysis() {
     let data = engine.get_project(&project.id).unwrap();
     let photo = data.photos.iter().find(|p| p.file_name == "IMG_0001.jpg").unwrap();
     assert!(photo.assessment.is_some() && photo.error.is_none(), "{photo:?}");
+}
+
+#[test]
+fn camera_ratings_become_the_photographers_marks() {
+    use cull_engine::cull_types::{final_decision, ColorLabel, FinalDecision, UserMark};
+    let tmp = tempfile::tempdir().unwrap();
+    let shoot = tmp.path().join("Shoot");
+    std::fs::create_dir_all(&shoot).unwrap();
+    save_rated(&scene(1, 600, 400), &shoot.join("IMG_0001.jpg"), 4);
+    save_rated(&rings(600, 400), &shoot.join("IMG_0002.jpg"), -1);
+    save_rated(&scene(40, 600, 400), &shoot.join("IMG_0003.jpg"), 0);
+    save_rated(&scene(80, 600, 400), &shoot.join("IMG_0004.jpg"), 2);
+    save(&scene(120, 600, 400), &shoot.join("IMG_0005.jpg"));
+    // A RAW + JPEG pair (the RAW unreadable: its JPEG twin is analysed).
+    std::fs::write(shoot.join("IMG_0006.dng"), b"II*\0not a real raw").unwrap();
+    save_rated(&scene(160, 600, 400), &shoot.join("IMG_0006.jpg"), 3);
+    let events = Arc::new(PhotoEvents::default());
+    let config = || EngineConfig {
+        data_dir: tmp.path().join("data"),
+        cache_dir: tmp.path().join("data/cache"),
+        models_dir: tmp.path().join("no-models"),
+        pack_dir: None,
+        url_mapper: Arc::new(|p: &Path| format!("file://{}", p.display())),
+        events: events.clone(),
+        secrets: None,
+    };
+    let engine = Engine::open(config()).unwrap();
+    let project = engine.open_folder(&shoot, true).unwrap();
+    let photos = |engine: &Engine| engine.get_project(&project.id).unwrap().photos;
+    let id = |name: &str| photos(&engine).into_iter().find(|p| p.file_name == name).unwrap().id;
+    let mark = |engine: &Engine, name: &str| photos(engine).into_iter().find(|p| p.file_name == name).unwrap().mark;
+
+    // Marked before its analysis: the photographer's choice stays.
+    let blue = MarkPatch { flag: None, rating: None, label: Some(ColorLabel::Blue) };
+    engine.set_marks(&project.id, &[id("IMG_0004.jpg")], blue).unwrap();
+    engine.analyze_blocking(&project.id, CullSettings::default()).unwrap();
+
+    let stars = UserMark { rating: 4, ..UserMark::default() };
+    assert_eq!(mark(&engine, "IMG_0001.jpg"), stars);
+    assert_eq!(mark(&engine, "IMG_0002.jpg"), UserMark { flag: Flag::Reject, ..UserMark::default() });
+    assert_eq!(mark(&engine, "IMG_0003.jpg"), UserMark::default());
+    assert_eq!(mark(&engine, "IMG_0004.jpg"), UserMark { label: ColorLabel::Blue, ..UserMark::default() });
+    assert_eq!(mark(&engine, "IMG_0005.jpg"), UserMark::default());
+    // Stars leave the decision to the AI; a reject in the camera is a reject.
+    for p in photos(&engine) {
+        let ai = p.assessment.as_ref().map(|a| a.verdict);
+        assert_eq!(p.decision, final_decision(ai, &p.mark), "{}", p.file_name);
+    }
+    let rejected = photos(&engine).into_iter().find(|p| p.file_name == "IMG_0002.jpg").unwrap();
+    assert_eq!(rejected.decision, FinalDecision::Rejected);
+    // Exported as the photographer's stars, whatever the decision maps to.
+    assert_eq!(mark(&engine, "IMG_0006.dng").rating, 3);
+    let xmp_only = ExportOptions {
+        xmp: XmpExportOptions {
+            enabled: true,
+            rating: PerDecision { selected: 5, to_review: 5, rejected: 5 },
+            label: PerDecision { selected: ColorLabel::None, to_review: ColorLabel::None, rejected: ColorLabel::None },
+            keep_user_marks: true,
+        },
+        copy_selected: CopySelectedOptions {
+            enabled: false,
+            destination: None,
+            include_raw: true,
+            include_jpeg: true,
+            keep_structure: false,
+        },
+        move_rejected: MoveRejectedOptions { enabled: false, folder_name: "_Rejets Pelli".into() },
+        file_list: false,
+    };
+    assert_eq!(engine.export_project(&project.id, &xmp_only).unwrap().xmp_written, 1);
+    let xmp = std::fs::read_to_string(shoot.join("IMG_0006.xmp")).unwrap();
+    assert!(xmp.contains("xmp:Rating=\"3\"") && !xmp.contains("Rating=\"5\""), "{xmp}");
+    // The grid gets them while the analysis runs.
+    let sent = events.0.lock().iter().rev().find(|v| v["id"] == id("IMG_0001.jpg").as_str()).cloned().unwrap();
+    assert_eq!(sent["mark"]["rating"], 4, "{sent}");
+
+    // The photographer removes the stars: they never come back, through a
+    // reopening, a new analysis of the photo or a restart.
+    let unrated = MarkPatch { flag: None, rating: Some(0), label: None };
+    engine.set_marks(&project.id, &[id("IMG_0001.jpg")], unrated).unwrap();
+    engine.open_folder(&shoot, true).unwrap();
+    engine.clear_cache().unwrap();
+    assert_eq!(engine.analyze_blocking(&project.id, CullSettings::default()).unwrap().analyzed, 6);
+    assert_eq!(mark(&engine, "IMG_0001.jpg"), UserMark::default());
+    drop(engine);
+    let engine = Engine::open(config()).unwrap();
+    assert_eq!(mark(&engine, "IMG_0001.jpg"), UserMark::default());
+    assert_eq!(mark(&engine, "IMG_0002.jpg").flag, Flag::Reject);
 }

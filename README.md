@@ -57,9 +57,9 @@ Looking for an open-source alternative to Aftershoot, Narrative Select or Filter
 | **Three sensitivities** | Strict, Balanced or Lenient. Switching re-sorts the shoot instantly, without analysing it again. |
 | **Your criteria** | Before the first analysis of a shoot, turn each check on or off: blur, motion blur, subject focus, closed eyes, under- and overexposure, similar shots, exact copies. *Respect artistic blur* is there for bokeh and blur on purpose. Each shoot keeps its own criteria; the defaults are in *Settings → Analysis*. |
 | **Standard or Maximum precision** | *Standard* comes with the app and is fast. *Maximum* is an optional download of bigger models (about 777 MB), from *Settings → Analysis*: finer choices on group photos, bursts and subjects without a face, for a slower analysis. Until it is installed, analyses run in Standard. |
-| **Review at the keyboard** | Grid, loupe with zoom at 100 %, and side-by-side compare of a burst. Filter by reason (Blurry, Eyes closed…). In the loupe, ↑ keeps and ↓ rejects; the Lightroom keys P, X and U work everywhere. |
-| **AI search** | Type "bride bouquet" or "first dance" and the matching photos come first. Common wedding, event and portrait words also work in French, Spanish, German and Italian. |
-| **Ratings for Lightroom** | Writes stars and colour labels to an `.xmp` file next to each RAW, for Lightroom, Capture One, Bridge or darktable. An existing `.xmp` keeps all its other settings, and the stars and labels you gave in another app stay unless you change them in Pelli Instant. |
+| **Review at the keyboard** | Grid, loupe with zoom at 100 %, and side-by-side compare of a burst. All photos or one decision at a time, filtered by reason (Blurry, Eyes closed…). In the loupe, ↑ keeps and ↓ rejects, ⌥← / ⌥→ step through a burst; the Lightroom keys P, X and U work everywhere. |
+| **AI search** | Type "bride bouquet" or "first dance" and the matching photos come first. Common wedding, event and portrait words, colours and clothing ("robe bleue", "haut rouge") also work in French, Spanish, German and Italian. |
+| **Ratings for Lightroom** | Writes stars and colour labels to an `.xmp` file next to each RAW, for Lightroom, Capture One, Bridge or darktable. You choose the stars and colour of each decision in the export (Selected ★★★ green, To review yellow, Rejected by default). Stars you gave in the camera count as yours, an existing `.xmp` keeps all its settings, and stars and labels from another app stay unless you change them in Pelli Instant. |
 | **Copy the selection** | RAW, JPEG or both, to the folder of your choice, sub-folders kept. Pelli Instant tells you how much disk space the copy needs. Each file is copied whole or not at all, and exporting again doesn't copy a photo twice. |
 | **Rejects filed away** | Moves the rejects to a `_Rejets Pelli` sub-folder next to the originals: a RAW, its JPEG and its `.xmp` move together. Nothing is deleted. |
 | **Gives way to your other apps** | A switch in *Settings → General* runs the analysis in the background, on fewer cores at a low priority: Lightroom and your browser stay smooth, sorting takes 3 to 5 times longer. Off by default, for the fastest sort. |
@@ -74,6 +74,7 @@ Looking for an open-source alternative to Aftershoot, Narrative Select or Filter
 | Key | Action |
 | --- | --- |
 | <kbd>←</kbd> <kbd>→</kbd> | Previous / next photo |
+| <kbd>⌥</kbd> <kbd>←</kbd> <kbd>→</kbd> | Previous / next photo of the burst |
 | <kbd>↑</kbd> / <kbd>↓</kbd> (loupe) | Keep / reject |
 | <kbd>P</kbd> / <kbd>X</kbd> / <kbd>U</kbd> | Keep / reject / remove the flag, everywhere |
 | <kbd>1</kbd>–<kbd>5</kbd> | Stars |
@@ -184,7 +185,7 @@ pnpm tauri dev      # run the app in development
 
 **Interface:** English, French, Spanish, German, Italian, Portuguese, Dutch, Polish and Swedish, with the welcome tour narrated in each of them. [Add yours](docs/contributing.md#conventions).
 
-**AI search:** the model understands English. A built-in glossary translates common wedding, event and portrait words from French, Spanish, German and Italian; other words pass through as typed.
+**AI search:** the model understands English. A built-in glossary translates common wedding, event and portrait words, colours, clothing and places from French, Spanish, German and Italian; other words pass through as typed.
 
 ## FAQ
 
@@ -221,7 +222,7 @@ The analysis runs entirely on your computer, without the internet. Signing in ne
 <details>
 <summary><b>Does it change my RAW files?</b></summary>
 
-No. Stars and colour labels go into an `.xmp` sidecar next to each RAW (`IMG_0001.xmp`, or `IMG_0001.CR3.xmp` when that one already exists), and every other setting in an existing sidecar is kept: develop settings, keywords, history. Stars and labels you set in Lightroom or Capture One stay too, unless you set them in Pelli Instant: the ratings that come from the AI's decisions only replace the ones Pelli Instant wrote itself.
+No. Stars and colour labels go into an `.xmp` sidecar next to each RAW (`IMG_0001.xmp`, or `IMG_0001.CR3.xmp` when that one already exists), and every other setting in an existing sidecar is kept: develop settings, keywords, history. Stars and labels you set in Lightroom or Capture One stay too, unless you set them in Pelli Instant: the ratings that come from the AI's decisions only replace the ones Pelli Instant wrote itself. Stars you gave in the camera become your own stars in Pelli Instant (unless the RAW already has a sidecar), so the export keeps them.
 
 In Lightroom Classic, select the photos, then **Metadata → Read Metadata from Files**. Lightroom has no XMP field for its Pick and Reject flags, so a rejected photo without stars gets −1 star, which Lightroom and Bridge show as *Rejected*. JPEG-only shoots get no sidecar, since Lightroom reads a JPEG's ratings inside the file.
 

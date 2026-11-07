@@ -117,6 +117,44 @@ describe('review store', () => {
     expect(after.slice(start, start + group.photoIds.length)).toEqual(group.photoIds)
   })
 
+  it('goes through every frame of a burst, unstacking it, whatever their decision', async () => {
+    await setup()
+    useReviewStore.getState().setTab('selected')
+    const s = useReviewStore.getState()
+    const group = s.groupList.find((g) => g.photoIds.length >= 3 && s.photos[g.photoIds[0]].decision === 'selected' && s.photos[g.photoIds[1]].decision !== 'selected')
+    expect(group).toBeDefined()
+    const [best, second] = group!.photoIds
+    expect(s.visibleIds).toContain(best)
+    expect(s.visibleIds).not.toContain(second)
+    useReviewStore.getState().focus(best)
+    useReviewStore.getState().moveInGroup(1)
+    let now = useReviewStore.getState()
+    expect(now.filters.expanded[group!.id]).toBe(true)
+    expect(now.focusId).toBe(second)
+    expect(group!.photoIds.every((id) => now.visibleIds.includes(id))).toBe(true)
+    now.moveInGroup(-1)
+    now.moveInGroup(-1) // first frame: stays
+    now = useReviewStore.getState()
+    expect(now.focusId).toBe(best)
+  })
+
+  it('flashes the mark of a single photo, not of a multi-selection', async () => {
+    await setup()
+    const store = useReviewStore.getState()
+    await store.mark({ flag: 'pick' }, { advance: false })
+    expect(useReviewStore.getState().flash?.patch).toEqual({ flag: 'pick' })
+    const seq = useReviewStore.getState().flash?.seq ?? 0
+    await useReviewStore.getState().mark({ label: 'red' }, { advance: false })
+    await useReviewStore.getState().mark({ label: 'red' }, { advance: false })
+    // Pressed again, the label comes off: the flash says so.
+    expect(useReviewStore.getState().flash).toEqual({ seq: seq + 2, patch: { label: 'none' } })
+    const [a, b] = useReviewStore.getState().visibleIds
+    useReviewStore.getState().click(a, { range: false, toggle: false })
+    useReviewStore.getState().click(b, { range: false, toggle: true })
+    await useReviewStore.getState().mark({ rating: 3 })
+    expect(useReviewStore.getState().flash?.seq).toBe(seq + 2)
+  })
+
   it('searches with relevance order and restores the sort when cleared', async () => {
     await setup()
     await useReviewStore.getState().runSearch('mariée bouquet')

@@ -11,3 +11,8 @@ export function isMac(): boolean {
 export function modLabel(): string {
   return isMac() ? '⌘' : 'Ctrl'
 }
+
+/** Label of the option key: ⌥ on macOS, Alt elsewhere. */
+export function altLabel(): string {
+  return isMac() ? '⌥' : 'Alt'
+}

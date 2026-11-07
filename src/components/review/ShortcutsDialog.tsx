@@ -4,7 +4,7 @@ import { Keyboard } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { IconBox } from '@/components/ui/IconBox'
 import { useT, type TKey } from '@/lib/i18n'
-import { modLabel } from '@/lib/platform'
+import { altLabel, modLabel } from '@/lib/platform'
 import { useAppStore } from '@/store/app-store'
 import { usePrefsStore } from '@/store/prefs-store'
 
@@ -26,12 +26,14 @@ export function ShortcutsDialog() {
   const autoAdvance = usePrefsStore((s) => s.autoAdvance)
   const setAutoAdvance = usePrefsStore((s) => s.setAutoAdvance)
   const mod = modLabel()
+  const alt = altLabel()
 
   const groups: { title: TKey; rows: Row[] }[] = [
     {
       title: 'shortcuts.navigation',
       rows: [
         { label: 'shortcuts.navigate', keys: ['←', '→'] },
+        { label: 'shortcuts.groupNavigate', keys: [alt, '←', '→'] },
         { label: 'shortcuts.rows', keys: ['↑', '↓'] },
         { label: 'shortcuts.selectAll', keys: [mod, 'A'] },
         { label: 'shortcuts.search', keys: [mod, 'F'] },
@@ -91,6 +93,7 @@ export function ShortcutsDialog() {
                   ))}
                 </ul>
                 {g.title === 'shortcuts.marking' && <p className="mt-2 text-pretty text-[11px] leading-snug text-default-400">{t('shortcuts.arrowsHint')}</p>}
+                {g.title === 'shortcuts.views' && <p className="mt-2 text-pretty text-[11px] leading-snug text-default-400">{t('shortcuts.compareHint', { mod })}</p>}
               </section>
             ))}
           </div>

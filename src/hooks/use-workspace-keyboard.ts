@@ -1,22 +1,11 @@
 import { useEffect } from 'react'
-import { isTypingTarget, resolveShortcut, type ShortcutAction } from '@/lib/review/keyboard'
+import { isTypingTarget, leftToControl, resolveShortcut, type KeyTarget, type ShortcutAction } from '@/lib/review/keyboard'
 import { t } from '@/lib/i18n'
 import { notify } from '@/lib/notify'
 import { useAppStore } from '@/store/app-store'
 import { usePrefsStore } from '@/store/prefs-store'
 import { useReviewStore } from '@/store/review-store'
 import { COMPARE_PAGE_SIZE, useWorkspaceStore } from '@/store/workspace-store'
-
-const INTERACTIVE = 'button, a[href], select, [role="radio"], [role="slider"], [role="menuitem"], [role="option"], [role="tab"], [role="switch"], [role="checkbox"], [role="dialog"]'
-
-/** Keys a focused control (button, radio group, slider…) handles itself. */
-function belongsToControl(e: KeyboardEvent): boolean {
-  const el = e.target as HTMLElement | null
-  if (!el || typeof el.closest !== 'function') return false
-  if (el.closest('[data-grid-root]')) return false
-  if (!el.closest(INTERACTIVE)) return false
-  return e.key === 'Enter' || e.key === ' ' || e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End'
-}
 
 /** Ids compared with C: the multi-selection, else the focused group, else focus + next. */
 export function compareCandidates(): string[] {
@@ -67,6 +56,10 @@ function run(action: ShortcutAction): void {
   switch (action.type) {
     case 'move':
       review.move(action.dir)
+      if (ws.mode === 'loupe') ws.resetZoom()
+      break
+    case 'groupMove':
+      review.moveInGroup(action.delta)
       if (ws.mode === 'loupe') ws.resetZoom()
       break
     case 'flag':
@@ -149,7 +142,7 @@ export function useWorkspaceKeyboard(): void {
         prefs.setThumbSize(prefs.thumbSize + (e.key === '-' ? -40 : 40))
         return
       }
-      if (isTypingTarget(e.target) || belongsToControl(e)) return
+      if (isTypingTarget(e.target) || leftToControl(e.key, e.target as KeyTarget | null)) return
       if (document.querySelector('[data-slot="base"][role="dialog"], [role="menu"]')) return
       const action = resolveShortcut(e, useWorkspaceStore.getState().mode)
       if (!action) return

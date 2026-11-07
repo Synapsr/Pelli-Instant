@@ -330,14 +330,28 @@ impl Store {
 
     // -- analysis ----------------------------------------------------------
 
-    pub fn save_analyses(&mut self, project_id: &str, rows: &[AnalysisRow]) -> Result<(), EngineError> {
+    /// Saves analyses. A photo without a mark, for which `from_camera` holds,
+    /// takes the rating written in its file ([`camera_mark`]) in the same
+    /// transaction: the marks seeded are returned.
+    pub fn save_analyses(
+        &mut self,
+        project_id: &str,
+        rows: &[AnalysisRow],
+        from_camera: impl Fn(&str) -> bool,
+        now: i64,
+    ) -> Result<Vec<(String, UserMark)>, EngineError> {
         let tx = self.conn.transaction()?;
+        let mut seeded = Vec::new();
         {
             let mut st = tx.prepare(
                 "INSERT OR REPLACE INTO analysis (project_id, photo_id, file_size, file_mtime,
                     models, exif_json, metrics_json, faces_json, aesthetic, embedding,
                     search_embedding, subject_json, thumb_path, error, duration_ms, analyzed_at)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+            )?;
+            let mut seed = tx.prepare(
+                "INSERT OR IGNORE INTO mark (project_id, photo_id, flag, rating, label, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             )?;
             for a in rows {
                 st.execute(params![
@@ -358,10 +372,18 @@ impl Store {
                     a.duration_ms as i64,
                     a.analyzed_at,
                 ])?;
+                let camera = if from_camera(&a.photo_id) { a.exif.as_ref().and_then(|e| e.rating) } else { None };
+                if let Some(m) = camera_mark(camera) {
+                    let row =
+                        params![project_id, a.photo_id, flag_str(m.flag), m.rating as i64, label_str(m.label), now];
+                    if seed.execute(row)? > 0 {
+                        seeded.push((a.photo_id.clone(), m));
+                    }
+                }
             }
         }
         tx.commit()?;
-        Ok(())
+        Ok(seeded)
     }
 
     pub fn analyses(&self, project_id: &str) -> Result<Vec<AnalysisRow>, EngineError> {
@@ -468,6 +490,18 @@ impl Store {
     }
 }
 
+/// The mark a photo starts with from the rating its camera (or another tool)
+/// wrote in the file: 1 to 5 stars become the photographer's stars, -1 a
+/// reject flag; no rating or 0 stars, none. The AI's verdict still decides
+/// the photos with stars (only a flag overrides it).
+pub fn camera_mark(rating: Option<i8>) -> Option<UserMark> {
+    match rating? {
+        -1 => Some(UserMark { flag: Flag::Reject, ..Default::default() }),
+        r @ 1..=5 => Some(UserMark { rating: r as u8, ..Default::default() }),
+        _ => None,
+    }
+}
+
 /// Natural order: `IMG_2` < `IMG_10`, case-insensitive.
 pub fn natural_cmp(a: &str, b: &str) -> std::cmp::Ordering {
     use std::cmp::Ordering;
@@ -529,6 +563,15 @@ mod tests {
     }
 
     #[test]
+    fn camera_ratings() {
+        assert_eq!(camera_mark(Some(4)), Some(UserMark { rating: 4, ..Default::default() }));
+        assert_eq!(camera_mark(Some(-1)), Some(UserMark { flag: Flag::Reject, ..Default::default() }));
+        assert_eq!(camera_mark(Some(0)), None);
+        assert_eq!(camera_mark(Some(9)), None);
+        assert_eq!(camera_mark(None), None);
+    }
+
+    #[test]
     fn natural_order() {
         let mut v = vec!["IMG_10.jpg", "img_2.jpg", "IMG_1.jpg"];
         v.sort_by(|a, b| natural_cmp(a, b));
@@ -552,27 +595,30 @@ mod tests {
         s.upsert_project(&p).unwrap();
         s.sync_photos("p", &[asset("a", "IMG_10.jpg"), asset("b", "IMG_2.jpg")]).unwrap();
         assert_eq!(s.photos("p").unwrap()[0].id, "b");
-        s.save_analyses(
-            "p",
-            &[AnalysisRow {
-                photo_id: "a".into(),
-                file_size: 10,
-                file_mtime: 1,
-                models: "m".into(),
-                exif: None,
-                metrics: Some(TechnicalMetrics::default()),
-                faces: vec![],
-                aesthetic: Some(5.5),
-                embedding: Some(vec![0.5, -1.0]),
-                search_embedding: Some(vec![0.25]),
-                subject: None,
-                thumb_path: None,
-                error: None,
-                duration_ms: 3,
-                analyzed_at: 4,
-            }],
-        )
-        .unwrap();
+        let row = AnalysisRow {
+            photo_id: "a".into(),
+            file_size: 10,
+            file_mtime: 1,
+            models: "m".into(),
+            exif: Some(ExifInfo { rating: Some(3), ..Default::default() }),
+            metrics: Some(TechnicalMetrics::default()),
+            faces: vec![],
+            aesthetic: Some(5.5),
+            embedding: Some(vec![0.5, -1.0]),
+            search_embedding: Some(vec![0.25]),
+            subject: None,
+            thumb_path: None,
+            error: None,
+            duration_ms: 3,
+            analyzed_at: 4,
+        };
+        // The camera's 3 stars become the photo's mark.
+        // Not for a photo whose ratings another tool already keeps.
+        assert!(s.save_analyses("p", std::slice::from_ref(&row), |_| false, 6).unwrap().is_empty());
+        assert!(s.marks("p").unwrap().is_empty());
+        let seeded = s.save_analyses("p", std::slice::from_ref(&row), |_| true, 7).unwrap();
+        assert_eq!(seeded, vec![("a".to_string(), UserMark { rating: 3, ..Default::default() })]);
+        assert_eq!(s.marks("p").unwrap(), seeded);
         let a = s.analyses("p").unwrap();
         assert_eq!(a[0].embedding.as_deref(), Some(&[0.5f32, -1.0][..]));
         assert_eq!(a[0].search_embedding.as_deref(), Some(&[0.25f32][..]));
@@ -580,6 +626,9 @@ mod tests {
         s.save_marks("p", &[("a".into(), UserMark { flag: Flag::Pick, rating: 4, label: ColorLabel::Green })], 9)
             .unwrap();
         assert_eq!(s.marks("p").unwrap()[0].1.rating, 4);
+        // Analysed again: the photographer's mark stays.
+        assert!(s.save_analyses("p", &[row], |_| true, 8).unwrap().is_empty());
+        assert_eq!(s.marks("p").unwrap()[0].1, UserMark { flag: Flag::Pick, rating: 4, label: ColorLabel::Green });
         // Uploads are remembered per gallery.
         s.mark_uploaded("p", "g1", "a", (10, 1), 5).unwrap();
         assert_eq!(s.uploaded("p", "g1").unwrap().get("a"), Some(&(10, 1)));

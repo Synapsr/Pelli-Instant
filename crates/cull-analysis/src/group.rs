@@ -56,10 +56,11 @@
 //!    their first capture time (groups without time last), then by input
 //!    position, and numbered from 1.
 //!
-//! When `settings.group_similar` is off only `Exact` groups are returned.
-//! When `settings.detect_exact_duplicates` is off there is no `Exact` group:
-//! a set of copies is a `Burst` or `Similar` group like any near-identical
-//! shots (none at all with grouping off too).
+//! Groups are built whatever `settings.group_similar` says: it only decides
+//! whether `assess` sets the members after the best aside, and the review
+//! stacks them either way. When `settings.detect_exact_duplicates` is off
+//! there is no `Exact` group: a set of copies is a `Burst` or `Similar` group
+//! like any near-identical shots.
 
 use crate::hash::{exact_copy_sets, hamming, CopyKey};
 use crate::score::{main_face, mesh_ran, rank_cmp, ranking_scores};
@@ -228,102 +229,100 @@ pub(crate) fn group_similar(photos: &[PhotoFacts<'_>], settings: &CullSettings) 
 
     // 2-4. Complete linkage over representatives.
     let mut cl = Clusters { members: Vec::new(), of: vec![None; n] };
-    if settings.group_similar {
-        let window_ms = (settings.group_window_s.max(0.0) as f64 * 1000.0).min(1e15) as i64;
-        let norms: Vec<f32> = photos.iter().map(|p| p.embedding.map(norm).unwrap_or(0.0)).collect();
-        let mesh = mesh_ran(photos);
-        let mains: Vec<Option<&FaceObservation>> = photos.iter().map(|p| main_face(p.faces, mesh)).collect();
-        let similar = |a: usize, b: usize| -> bool {
-            let (pa, pb) = (&photos[a], &photos[b]);
-            match (pa.embedding, pb.embedding) {
-                (Some(x), Some(y))
-                    if pa.embedding_space == pb.embedding_space
-                        && x.len() == y.len()
-                        && !x.is_empty()
-                        && norms[a] > 0.0
-                        && norms[b] > 0.0 =>
-                {
-                    let (cos_min, strong) = cosine_thresholds(pa.embedding_space, settings.similarity_threshold);
-                    let dot: f32 = x.iter().zip(y).map(|(p, q)| p * q).sum();
-                    let cos = dot / (norms[a] * norms[b]);
-                    cos.is_finite()
-                        && ((cos >= cos_min && hamming(dhash[a], dhash[b]) <= LAYOUT_DHASH_MAX) || cos >= strong)
-                }
-                _ => hamming(phash[a], phash[b]) <= PHASH_SIMILAR_MAX,
+    let window_ms = (settings.group_window_s.max(0.0) as f64 * 1000.0).min(1e15) as i64;
+    let norms: Vec<f32> = photos.iter().map(|p| p.embedding.map(norm).unwrap_or(0.0)).collect();
+    let mesh = mesh_ran(photos);
+    let mains: Vec<Option<&FaceObservation>> = photos.iter().map(|p| main_face(p.faces, mesh)).collect();
+    let similar = |a: usize, b: usize| -> bool {
+        let (pa, pb) = (&photos[a], &photos[b]);
+        match (pa.embedding, pb.embedding) {
+            (Some(x), Some(y))
+                if pa.embedding_space == pb.embedding_space
+                    && x.len() == y.len()
+                    && !x.is_empty()
+                    && norms[a] > 0.0
+                    && norms[b] > 0.0 =>
+            {
+                let (cos_min, strong) = cosine_thresholds(pa.embedding_space, settings.similarity_threshold);
+                let dot: f32 = x.iter().zip(y).map(|(p, q)| p * q).sum();
+                let cos = dot / (norms[a] * norms[b]);
+                cos.is_finite()
+                    && ((cos >= cos_min && hamming(dhash[a], dhash[b]) <= LAYOUT_DHASH_MAX) || cos >= strong)
             }
-        };
-        let linkable = |a: usize, b: usize| -> bool {
-            if let (Some(ta), Some(tb)) = (time(a), time(b)) {
-                if ta.abs_diff(tb) > window_ms as u64 {
-                    return false;
-                }
-            } else if hamming(phash[a], phash[b]) > UNTIMED_PHASH_MAX {
+            _ => hamming(phash[a], phash[b]) <= PHASH_SIMILAR_MAX,
+        }
+    };
+    let linkable = |a: usize, b: usize| -> bool {
+        if let (Some(ta), Some(tb)) = (time(a), time(b)) {
+            if ta.abs_diff(tb) > window_ms as u64 {
                 return false;
             }
-            let pose = match (mains[a], mains[b]) {
-                (Some(x), Some(y)) => same_pose(x, y),
-                (Some(f), None) | (None, Some(f)) => f.area_ratio < POSE_FACE_GONE_AREA,
-                (None, None) => true,
-            };
-            pose && same_camera(&photos[a], &photos[b]) && similar(a, b)
+        } else if hamming(phash[a], phash[b]) > UNTIMED_PHASH_MAX {
+            return false;
+        }
+        let pose = match (mains[a], mains[b]) {
+            (Some(x), Some(y)) => same_pose(x, y),
+            (Some(f), None) | (None, Some(f)) => f.area_ratio < POSE_FACE_GONE_AREA,
+            (None, None) => true,
         };
-        // Time span (timed members) and input-position span (untimed ones)
-        // of a cluster with `j` added.
-        let spans_ok = |members: &[usize], j: usize| -> bool {
-            let ts = members.iter().chain(std::iter::once(&j)).filter_map(|&i| time(i));
-            let (lo, hi) = ts.fold((i64::MAX, i64::MIN), |(lo, hi), t| (lo.min(t), hi.max(t)));
-            let untimed = members.iter().chain(std::iter::once(&j)).filter(|&&i| time(i).is_none());
-            let (plo, phi) = untimed.fold((usize::MAX, 0), |(lo, hi), &i| (lo.min(i), hi.max(i)));
-            (lo > hi || hi.saturating_sub(lo) <= MAX_GROUP_SPAN_MS) && (plo > phi || phi - plo <= MAX_UNTIMED_SPAN)
-        };
-        // Join the first candidate cluster (most recent first) whose every
-        // member is linkable to `j`.
-        let join = |cl: &mut Clusters, j: usize, candidates: Vec<usize>| {
-            let target = candidates
-                .into_iter()
-                .find(|&c| spans_ok(&cl.members[c], j) && cl.members[c].iter().all(|&m| linkable(m, j)));
-            cl.add(j, target);
-        };
+        pose && same_camera(&photos[a], &photos[b]) && similar(a, b)
+    };
+    // Time span (timed members) and input-position span (untimed ones)
+    // of a cluster with `j` added.
+    let spans_ok = |members: &[usize], j: usize| -> bool {
+        let ts = members.iter().chain(std::iter::once(&j)).filter_map(|&i| time(i));
+        let (lo, hi) = ts.fold((i64::MAX, i64::MIN), |(lo, hi), t| (lo.min(t), hi.max(t)));
+        let untimed = members.iter().chain(std::iter::once(&j)).filter(|&&i| time(i).is_none());
+        let (plo, phi) = untimed.fold((usize::MAX, 0), |(lo, hi), &i| (lo.min(i), hi.max(i)));
+        (lo > hi || hi.saturating_sub(lo) <= MAX_GROUP_SPAN_MS) && (plo > phi || phi - plo <= MAX_UNTIMED_SPAN)
+    };
+    // Join the first candidate cluster (most recent first) whose every
+    // member is linkable to `j`.
+    let join = |cl: &mut Clusters, j: usize, candidates: Vec<usize>| {
+        let target = candidates
+            .into_iter()
+            .find(|&c| spans_ok(&cl.members[c], j) && cl.members[c].iter().all(|&m| linkable(m, j)));
+        cl.add(j, target);
+    };
 
-        let mut timed: Vec<usize> = (0..n).filter(|&i| rep[i] == i && time(i).is_some()).collect();
-        timed.sort_by_key(|&i| order_key(i));
-        for j in 0..timed.len() {
-            let tj = time(timed[j]).unwrap_or(0);
-            let mut candidates: Vec<usize> = Vec::new();
-            for k in (j.saturating_sub(MAX_LOOKBACK)..j).rev() {
-                let i = timed[k];
-                if tj.saturating_sub(time(i).unwrap_or(0)) > window_ms {
-                    break;
-                }
-                if let Some(c) = cl.of[i] {
-                    if !candidates.contains(&c) {
-                        candidates.push(c);
-                    }
+    let mut timed: Vec<usize> = (0..n).filter(|&i| rep[i] == i && time(i).is_some()).collect();
+    timed.sort_by_key(|&i| order_key(i));
+    for j in 0..timed.len() {
+        let tj = time(timed[j]).unwrap_or(0);
+        let mut candidates: Vec<usize> = Vec::new();
+        for k in (j.saturating_sub(MAX_LOOKBACK)..j).rev() {
+            let i = timed[k];
+            if tj.saturating_sub(time(i).unwrap_or(0)) > window_ms {
+                break;
+            }
+            if let Some(c) = cl.of[i] {
+                if !candidates.contains(&c) {
+                    candidates.push(c);
                 }
             }
-            join(&mut cl, timed[j], candidates);
         }
+        join(&mut cl, timed[j], candidates);
+    }
 
-        // Photos without capture time: groups of their previous neighbours.
-        for i in (0..n).filter(|&i| rep[i] == i && time(i).is_none()) {
-            let mut candidates: Vec<usize> = Vec::new();
-            for k in (i.saturating_sub(UNTIMED_NEIGHBOURS)..i).rev() {
-                if let Some(c) = cl.of[rep[k]] {
-                    if !candidates.contains(&c) {
-                        candidates.push(c);
-                    }
+    // Photos without capture time: groups of their previous neighbours.
+    for i in (0..n).filter(|&i| rep[i] == i && time(i).is_none()) {
+        let mut candidates: Vec<usize> = Vec::new();
+        for k in (i.saturating_sub(UNTIMED_NEIGHBOURS)..i).rev() {
+            if let Some(c) = cl.of[rep[k]] {
+                if !candidates.contains(&c) {
+                    candidates.push(c);
                 }
             }
-            join(&mut cl, i, candidates);
         }
+        join(&mut cl, i, candidates);
     }
 
     // 5. Collect members (copies follow their representative).
     let mut by_root: HashMap<usize, Vec<usize>> = HashMap::new();
     for (i, &r) in rep.iter().enumerate() {
-        // A representative not clustered (grouping off) is its own root.
-        let root = cl.of[r].map_or(n + r, |c| c);
-        by_root.entry(root).or_default().push(i);
+        if let Some(c) = cl.of[r] {
+            by_root.entry(c).or_default().push(i);
+        }
     }
     let copy_of: HashMap<usize, usize> =
         copies.iter().enumerate().flat_map(|(c, set)| set.iter().map(move |&i| (i, c))).collect();
@@ -340,9 +339,6 @@ pub(crate) fn group_similar(photos: &[PhotoFacts<'_>], settings: &CullSettings) 
             let c = copy_of.get(&members[0]);
             c.is_some() && members.iter().all(|i| copy_of.get(i) == c)
         };
-        if !settings.group_similar && !one_image {
-            continue;
-        }
         let kind = if one_image {
             GroupKind::Exact
         } else {

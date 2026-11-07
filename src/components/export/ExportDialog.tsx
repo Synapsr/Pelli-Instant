@@ -11,9 +11,11 @@ import { formatBytes, formatNumber, shortenPath } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { useAppStore } from '@/store/app-store'
 import { useExportStore } from '@/store/export-store'
+import { DEFAULT_XMP_MAPPING, usePrefsStore } from '@/store/prefs-store'
 import { useReviewStore } from '@/store/review-store'
 import { ExportReportView, ExportRunning } from './ExportProgress'
 import { GallerySection, useGalleries, type GalleryChoice } from './GallerySection'
+import { XmpMapping } from './XmpMapping'
 
 /**
  * Sending the selection to a Pelli gallery is built (engine, API, UI) but
@@ -23,12 +25,8 @@ import { GallerySection, useGalleries, type GalleryChoice } from './GallerySecti
 export const SHOW_GALLERY_EXPORT = false
 
 export const DEFAULT_EXPORT: ExportOptions = {
-  xmp: {
-    enabled: true,
-    rating: { selected: 3, toReview: 2, rejected: -1 },
-    label: { selected: 'green', toReview: 'yellow', rejected: 'red' },
-    keepUserMarks: true,
-  },
+  // Stars and labels per decision: the photographer's choice, kept in the preferences.
+  xmp: { enabled: true, ...DEFAULT_XMP_MAPPING, keepUserMarks: true },
   copySelected: { enabled: false, destination: null, includeRaw: true, includeJpeg: true, keepStructure: true },
   moveRejected: { enabled: false, folderName: '_Rejets Pelli' },
   fileList: false,
@@ -198,7 +196,8 @@ function ExportContent({ onClose }: { onClose: () => void }) {
           folderPerScene: gallery.folderPerScene,
         }
       : null
-    void run(project.id, { ...options, fileList: false, xmp: { ...options.xmp, enabled: xmpOn } }, request)
+    const { rating, label } = usePrefsStore.getState().xmpMapping
+    void run(project.id, { ...options, fileList: false, xmp: { ...options.xmp, rating, label, enabled: xmpOn } }, request)
   }
 
   const pickDestination = async () => {
@@ -227,7 +226,9 @@ function ExportContent({ onClose }: { onClose: () => void }) {
       </div>
 
       <ModalBody className="gap-2.5 px-7 py-4">
-        <OutputCard icon={Tags} title={t('export.cards.xmp')} body={counts.raw > 0 ? t('export.cards.xmpBody') : t('export.xmp.noRaw')} on={xmpOn} disabled={counts.raw === 0} onToggle={(enabled) => set('xmp', { ...options.xmp, enabled })} />
+        <OutputCard icon={Tags} title={t('export.cards.xmp')} body={counts.raw > 0 ? t('export.cards.xmpBody') : t('export.xmp.noRaw')} on={xmpOn} disabled={counts.raw === 0} onToggle={(enabled) => set('xmp', { ...options.xmp, enabled })}>
+          <XmpMapping />
+        </OutputCard>
 
         <OutputCard icon={Images} title={t('export.cards.copy', { count: counts.selected })} body={t('export.cards.copyBody')} on={options.copySelected.enabled} onToggle={(enabled) => set('copySelected', { ...options.copySelected, enabled })}>
           <div className="flex items-center gap-2">

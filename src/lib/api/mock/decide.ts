@@ -4,10 +4,11 @@ import type { MockRecord } from './shoot'
 
 /**
  * Decision rules of the mock engine. They imitate the real engine: technical
- * defects reject, borderline cases go to review, similar shots keep the best
- * `keepPerGroup` frames, a detection turned off never gives its reason, and
- * artistic blur only rejects a photo with nothing sharp in it (clearly soft
- * ones go to review, the subject's focus is not judged).
+ * defects reject, borderline cases go to review, bursts and similar shots are
+ * always grouped (stacked in the grid) and, with `groupSimilar`, keep only
+ * their best `keepPerGroup` frames, a detection turned off never gives its
+ * reason, and artistic blur only rejects a photo with nothing sharp in it
+ * (clearly soft ones go to review, the subject's focus is not judged).
  */
 
 interface Thresholds {
@@ -177,7 +178,7 @@ export function assess(record: MockRecord, settings: CullSettings, group: GroupI
   } else if (group && group.isExactCopy) {
     reasons.push('exactDuplicate')
     verdict = 'reject'
-  } else if (group && group.size > 1) {
+  } else if (group && group.size > 1 && settings.groupSimilar) {
     if (group.keptBefore < settings.keepPerGroup) {
       verdict = tech.borderline ? 'maybe' : 'keep'
     } else {
@@ -206,14 +207,12 @@ export function assess(record: MockRecord, settings: CullSettings, group: GroupI
   }
 }
 
-/** Similar-shots groups over consecutive frames (time window + similarity). */
+/**
+ * Similar-shots groups over consecutive frames (time window + similarity),
+ * whatever `groupSimilar` says: it only decides whether the frames after the
+ * best ones are set aside as duplicates (`assess`).
+ */
 export function buildGroups(records: MockRecord[], settings: CullSettings): SimilarGroup[] {
-  if (!settings.groupSimilar) {
-    if (!settings.detectExactDuplicates) return []
-    return records
-      .filter((r) => r.exactOf)
-      .map((r, i) => ({ id: i + 1, kind: 'exact' as const, photoIds: [r.exactOf as string, r.id] }))
-  }
   const chains: MockRecord[][] = []
   let chain: MockRecord[] = []
   for (const r of records) {

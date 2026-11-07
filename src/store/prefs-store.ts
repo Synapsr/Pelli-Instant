@@ -1,5 +1,18 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware'
+import type { ColorLabel, FinalDecision } from '@/lib/contract'
+
+/** Stars (0..5, -1 = rejected) and colour label the XMP sidecars get for each decision. */
+export interface XmpMapping {
+  rating: Record<FinalDecision, number>
+  label: Record<FinalDecision, ColorLabel>
+}
+
+/** "To review" gets its colour only: two stars would collide with the photographer's own star system. */
+export const DEFAULT_XMP_MAPPING: XmpMapping = {
+  rating: { selected: 3, toReview: 0, rejected: -1 },
+  label: { selected: 'green', toReview: 'yellow', rejected: 'red' },
+}
 
 /** Per-user UI conveniences, kept in localStorage (never required to work). */
 export interface PrefsState {
@@ -15,6 +28,8 @@ export interface PrefsState {
   onboarded: boolean
   /** the welcome tour's voice-over */
   voice: boolean
+  /** what the export writes in the XMP sidecars (the photographer's own marks always win) */
+  xmpMapping: XmpMapping
   setThumbSize: (size: number) => void
   toggleSidebar: () => void
   toggleInspector: () => void
@@ -23,6 +38,7 @@ export interface PrefsState {
   setSounds: (value: boolean) => void
   setOnboarded: (value: boolean) => void
   setVoice: (value: boolean) => void
+  setXmpMapping: (decision: FinalDecision, patch: { rating?: number; label?: ColorLabel }) => void
 }
 
 export const THUMB_MIN = 120
@@ -64,6 +80,7 @@ export const usePrefsStore = create<PrefsState>()(
       sounds: true,
       onboarded: false,
       voice: true,
+      xmpMapping: DEFAULT_XMP_MAPPING,
       setThumbSize: (size) => set({ thumbSize: Math.round(Math.min(THUMB_MAX, Math.max(THUMB_MIN, size))) }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       toggleInspector: () => set((s) => ({ inspectorOpen: !s.inspectorOpen })),
@@ -72,6 +89,13 @@ export const usePrefsStore = create<PrefsState>()(
       setSounds: (sounds) => set({ sounds }),
       setOnboarded: (onboarded) => set({ onboarded }),
       setVoice: (voice) => set({ voice }),
+      setXmpMapping: (decision, patch) =>
+        set(({ xmpMapping }) => ({
+          xmpMapping: {
+            rating: patch.rating === undefined ? xmpMapping.rating : { ...xmpMapping.rating, [decision]: patch.rating },
+            label: patch.label === undefined ? xmpMapping.label : { ...xmpMapping.label, [decision]: patch.label },
+          },
+        })),
     }),
     {
       name: 'pelli-cull:prefs',
@@ -86,6 +110,7 @@ export const usePrefsStore = create<PrefsState>()(
         sounds: s.sounds,
         onboarded: s.onboarded,
         voice: s.voice,
+        xmpMapping: s.xmpMapping,
       }),
     },
   ),

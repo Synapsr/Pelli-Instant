@@ -515,8 +515,10 @@ pub struct CullSettings {
     pub detect_underexposed: bool,
     /// [`Reason::Overexposed`].
     pub detect_overexposed: bool,
-    /// Group bursts and similar shots, keeping the best of each
-    /// ([`Reason::Duplicate`]).
+    /// Keep only the best (`keep_per_group`) of each group of similar shots
+    /// or burst: the others go to review or are rejected
+    /// ([`Reason::Duplicate`]). Groups are formed either way, so the review
+    /// can stack them.
     pub group_similar: bool,
     /// How many photos are kept per group of similar shots (1..=5).
     pub keep_per_group: u8,

@@ -41,7 +41,7 @@
 //!   through a logistic (`0.5` = the shoot's median photo). On small shoots
 //!   (< ~20 photos) it is blended with an absolute scale centred on 5.0.
 //! * **uniqueness** — `1 / √n` for a photo in a group of `n` similar shots,
-//!   1 for a unique moment.
+//!   1 for a unique moment (and in every group when grouping is off).
 //!
 //! # 2. Overall score (0..100)
 //!
@@ -159,7 +159,8 @@
 //!    and mean luma, or an `Exact` group): all but the best copy are
 //!    `Reject` + `ExactDuplicate`. With exact duplicate detection off, copies
 //!    are judged like any other photo (and, grouping on, as similar shots).
-//! 2. **Groups** (when grouping is on), members ranked by score: the
+//! 2. **Groups**, members ranked by score (`group_rank`: the review stacks
+//!    them best first). With grouping on (`group_similar`), the
 //!    `keep_per_group` best members without blocking defect are `Keep`
 //!    (`Maybe` if they carry a soft defect); members with a blocking defect
 //!    are `Reject` with its reasons. The other defect-free members carry
@@ -173,7 +174,8 @@
 //!
 //!    If *no* member is defect-free, the best one without an obvious defect
 //!    becomes `Maybe` (keeping its reasons), so a moment is never silently
-//!    thrown away.
+//!    thrown away. With grouping off, the members of bursts and series are
+//!    judged as singles: none carries `Duplicate`.
 //! 3. **Singles**: blocking defect → `Reject`; soft defect → `Maybe`;
 //!    otherwise `Keep`. The aesthetic score only ranks: `LowAesthetic` is no
 //!    longer raised (on delivered shoots it flagged product details,
@@ -871,26 +873,25 @@ pub(crate) fn assess(photos: &[PhotoFacts<'_>], groups: &[SimilarGroup], setting
         m
     };
 
-    // Active groups: exact copies when their detection is on, bursts/similar
-    // when grouping is on.
+    // Every group stacks its members (`group_id`, `group_rank`). It sorts
+    // them (copies, duplicates) when its kind is wanted: exact copies when
+    // their detection is on, bursts and similar shots when grouping is on;
+    // otherwise its members are scored and judged as singles.
     let mut member_of: Vec<Option<usize>> = vec![None; n];
-    let mut active: Vec<(u32, GroupKind, Vec<usize>)> = Vec::new();
+    let mut stacks: Vec<(u32, GroupKind, Vec<usize>, bool)> = Vec::new();
     for g in groups {
-        let wanted = if g.kind == GroupKind::Exact { settings.detect_exact_duplicates } else { settings.group_similar };
-        if !wanted {
-            continue;
-        }
+        let sorts = if g.kind == GroupKind::Exact { settings.detect_exact_duplicates } else { settings.group_similar };
         let mut members = Vec::with_capacity(g.photo_ids.len());
         for id in &g.photo_ids {
             if let Some(&i) = index.get(id.as_str()) {
                 if member_of[i].is_none() {
-                    member_of[i] = Some(active.len());
+                    member_of[i] = Some(stacks.len());
                     members.push(i);
                 }
             }
         }
         if members.len() >= 2 {
-            active.push((g.id, g.kind, members));
+            stacks.push((g.id, g.kind, members, sorts));
         } else {
             for i in members {
                 member_of[i] = None;
@@ -902,7 +903,7 @@ pub(crate) fn assess(photos: &[PhotoFacts<'_>], groups: &[SimilarGroup], setting
         .iter()
         .enumerate()
         .map(|(i, f)| {
-            let size = member_of[i].map(|g| active[g].2.len()).unwrap_or(1);
+            let size = member_of[i].map(|g| &stacks[g]).filter(|g| g.3).map_or(1, |g| g.2.len());
             score_one(f, &ctx, settings, size)
         })
         .collect();
@@ -924,8 +925,8 @@ pub(crate) fn assess(photos: &[PhotoFacts<'_>], groups: &[SimilarGroup], setting
         })
         .collect();
     let mut copy_sets = if settings.detect_exact_duplicates { exact_copy_sets(&keys) } else { Vec::new() };
-    for (_, kind, members) in &active {
-        if *kind == GroupKind::Exact {
+    for (_, kind, members, sorts) in &stacks {
+        if *kind == GroupKind::Exact && *sorts {
             copy_sets.push(members.clone());
         }
     }
@@ -947,13 +948,13 @@ pub(crate) fn assess(photos: &[PhotoFacts<'_>], groups: &[SimilarGroup], setting
     }
 
     // 2. Groups of similar shots.
-    for (_, kind, members) in &active {
+    for (_, kind, members, sorts) in &stacks {
         let mut ranked = members.clone();
         ranked.sort_by(|&a, &b| rank_cmp(key(a), key(b)));
         for (r, &i) in ranked.iter().enumerate() {
             group_rank[i] = r as u32;
         }
-        if *kind == GroupKind::Exact {
+        if *kind == GroupKind::Exact || !sorts {
             continue; // copies handled above, the original is judged as a single
         }
         let candidates: Vec<usize> =
@@ -999,7 +1000,8 @@ pub(crate) fn assess(photos: &[PhotoFacts<'_>], groups: &[SimilarGroup], setting
         }
     }
 
-    // 3. Singles (and originals of exact copies).
+    // 3. Singles (and originals of exact copies, members of groups that
+    //    don't sort).
     for i in 0..n {
         let d = &mut decisions[i];
         if d.decided {
@@ -1025,7 +1027,7 @@ pub(crate) fn assess(photos: &[PhotoFacts<'_>], groups: &[SimilarGroup], setting
                 score: (scored[i].score * 10.0).round() / 10.0,
                 verdict: decisions[i].verdict,
                 reasons,
-                group_id: member_of[i].map(|g| active[g].0),
+                group_id: member_of[i].map(|g| stacks[g].0),
                 group_rank: group_rank[i],
                 breakdown: scored[i].breakdown,
             }

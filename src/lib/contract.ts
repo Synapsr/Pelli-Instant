@@ -90,7 +90,11 @@ export interface CullSettings {
   detectEyesClosed: boolean
   detectUnderexposed: boolean
   detectOverexposed: boolean
-  /** group bursts and similar shots, keeping the best (`duplicate`) */
+  /**
+   * keep only the best `keepPerGroup` frames of each burst or group of
+   * similar shots, the others get `duplicate`; groups exist (and are stacked
+   * in the review) either way
+   */
   groupSimilar: boolean
   /** 1..5 */
   keepPerGroup: number

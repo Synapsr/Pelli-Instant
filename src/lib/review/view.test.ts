@@ -57,6 +57,16 @@ describe('visible photos', () => {
     expect(computeVisible(fixture(), filters({ tab: 'toReview' }), null)).toEqual(['p5'])
   })
 
+  it('shows the whole burst when a group is expanded, whatever the decision tab', () => {
+    // Every frame within the scope, best first, at the place of the group.
+    expect(computeVisible(fixture(), filters({ tab: 'selected', expanded: { 1: true } }), null)).toEqual(['p1', 'p3', 'p2', 'p4'])
+    expect(computeVisible(fixture(), filters({ tab: 'rejected', expanded: { 1: true } }), null)).toEqual(['p3', 'p2', 'p4', 'p6'])
+    // The scope still applies: p4 is in another moment.
+    expect(computeVisible(fixture(), filters({ tab: 'selected', sceneId: 1, expanded: { 1: true } }), null)).toEqual(['p1', 'p3', 'p2'])
+    // A group with no frame in the tab stays out of it.
+    expect(computeVisible(fixture(), filters({ tab: 'toReview', expanded: { 1: true } }), null)).toEqual(['p5'])
+  })
+
   it('filters by reason (duplicates include exact duplicates), scene and camera', () => {
     expect(computeVisible(fixture(), filters({ reason: 'eyesClosed', stackGroups: false }), null)).toEqual(['p4'])
     expect(computeVisible(fixture(), filters({ reason: 'duplicate', stackGroups: false }), null)).toEqual(['p2', 'p4'])

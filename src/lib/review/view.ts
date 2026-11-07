@@ -85,14 +85,21 @@ export function sortIds(data: ReviewData, sort: SortKey, hits: SearchHits): stri
 }
 
 /**
- * Ids shown in the grid. Groups are stacked behind their best visible member
- * (placed where the group first appears) unless expanded.
+ * Ids shown in the grid. Groups are stacked behind their best member in the
+ * tab (placed where the group first appears) unless expanded. An expanded
+ * group shows the whole burst, whatever each frame's decision: every member
+ * within the scope (search, moment, camera, reason).
  */
 export function computeVisible(data: ReviewData, filters: ViewFilters, hits: SearchHits): string[] {
   const sorted = sortIds(data, filters.sort === 'relevance' && !hits ? 'date' : filters.sort, hits)
   const passes = (id: string) => {
     const p = data.photos[id]
     return p !== undefined && inTab(p, filters.tab) && inScope(p, filters, hits)
+  }
+  // Pending photos still only show in "all".
+  const inBurst = (id: string) => {
+    const p = data.photos[id]
+    return p !== undefined && (p.status === 'analyzed' || filters.tab === 'all') && inScope(p, filters, hits)
   }
   if (filters.tab === 'duplicates') return computeGroupRows(data, filters, hits).flatMap((row) => row.ids)
 
@@ -108,9 +115,8 @@ export function computeVisible(data: ReviewData, filters: ViewFilters, hits: Sea
     }
     if (emitted.has(group.id)) continue
     emitted.add(group.id)
-    const members = group.photoIds.filter(passes)
-    if (filters.expanded[group.id]) out.push(...members)
-    else out.push(members[0] ?? id)
+    if (filters.expanded[group.id]) out.push(...group.photoIds.filter(inBurst))
+    else out.push(group.photoIds.find(passes) ?? id)
   }
   return out
 }

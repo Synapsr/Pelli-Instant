@@ -12,6 +12,8 @@ export interface ZoomState {
 
 interface WorkspaceState {
   mode: WorkspaceMode
+  /** where the compare view was opened from: closing it goes back there */
+  compareFrom: 'grid' | 'loupe'
   compareIds: string[]
   comparePage: number
   zoom: ZoomState
@@ -33,16 +35,22 @@ export const COMPARE_PAGE_SIZE = 4
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   mode: 'grid',
+  compareFrom: 'grid',
   compareIds: [],
   comparePage: 0,
   zoom: NO_ZOOM,
   searchFocusTick: 0,
   openLoupe: () => set({ mode: 'loupe', zoom: NO_ZOOM }),
-  closeOverlay: () => set({ mode: 'grid', zoom: NO_ZOOM, compareIds: [] }),
+  // Compare opened from the loupe goes back to it (same photo); anything else to the grid.
+  closeOverlay: () => {
+    const { mode, compareFrom } = get()
+    set({ mode: mode === 'compare' && compareFrom === 'loupe' ? 'loupe' : 'grid', compareFrom: 'grid', zoom: NO_ZOOM, compareIds: [] })
+  },
   toggleLoupe: () => set({ mode: get().mode === 'loupe' ? 'grid' : 'loupe', zoom: NO_ZOOM }),
   openCompare: (ids) => {
     if (ids.length < 2) return
-    set({ mode: 'compare', compareIds: ids, comparePage: 0, zoom: NO_ZOOM })
+    const { mode, compareFrom } = get()
+    set({ mode: 'compare', compareFrom: mode === 'compare' ? compareFrom : mode, compareIds: ids, comparePage: 0, zoom: NO_ZOOM })
   },
   setComparePage: (page) => {
     const pages = Math.max(1, Math.ceil(get().compareIds.length / COMPARE_PAGE_SIZE))
@@ -51,5 +59,5 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   setZoom: (zoom) => set({ zoom: { ...get().zoom, ...zoom } }),
   resetZoom: () => set({ zoom: NO_ZOOM }),
   requestSearchFocus: () => set({ searchFocusTick: get().searchFocusTick + 1 }),
-  reset: () => set({ mode: 'grid', compareIds: [], comparePage: 0, zoom: NO_ZOOM }),
+  reset: () => set({ mode: 'grid', compareFrom: 'grid', compareIds: [], comparePage: 0, zoom: NO_ZOOM }),
 }))

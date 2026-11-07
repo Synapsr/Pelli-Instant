@@ -57,9 +57,9 @@ Vous cherchez une alternative open source à Aftershoot, Narrative Select ou Fil
 | **Trois sévérités** | Stricte, Équilibrée ou Souple. Changer de sévérité retrie la séance instantanément, sans tout réanalyser. |
 | **Vos critères** | Avant la première analyse d'une séance, activez ou désactivez chaque vérification : flou, bougé, mise au point sur le sujet, yeux fermés, sous- et surexposition, images similaires, doublons exacts. *Respecter le flou artistique* est là pour le bokeh et le flou voulu. Chaque séance garde ses propres critères ; ceux par défaut sont dans *Réglages → Analyse*. |
 | **Précision Standard ou Maximale** | *Standard* est livrée avec l'app et rapide. *Maximale* est un téléchargement facultatif de modèles plus grands (environ 777 Mo), depuis *Réglages → Analyse* : des choix plus fins sur les photos de groupe, les rafales et les sujets sans visage, pour une analyse plus lente. Tant qu'elle n'est pas installée, les analyses se font en Standard. |
-| **Le tri au clavier** | Grille, loupe avec zoom à 100 %, comparaison côte à côte d'une rafale, filtre par raison (Floue, Yeux fermés…). Dans la loupe, ↑ garde et ↓ rejette ; les touches de Lightroom P, X et U marchent partout. |
-| **La recherche IA** | Tapez « mariée bouquet » ou « première danse » et les bonnes photos remontent en tête. |
-| **Des notes pour Lightroom** | Écrit étoiles et étiquettes de couleur dans un fichier `.xmp` à côté de chaque RAW, pour Lightroom, Capture One, Bridge ou darktable. Un `.xmp` existant garde tous ses autres réglages, et les étoiles et étiquettes données dans un autre logiciel restent, sauf si vous les changez dans Pelli Instant. |
+| **Le tri au clavier** | Grille, loupe avec zoom à 100 %, comparaison côte à côte d'une rafale. Toutes les photos ou une décision à la fois, filtre par raison (Floue, Yeux fermés…). Dans la loupe, ↑ garde et ↓ rejette, ⌥← / ⌥→ parcourent une rafale ; les touches de Lightroom P, X et U marchent partout. |
+| **La recherche IA** | Tapez « mariée bouquet », « première danse » ou « robe bleue » et les bonnes photos remontent en tête. |
+| **Des notes pour Lightroom** | Écrit étoiles et étiquettes de couleur dans un fichier `.xmp` à côté de chaque RAW, pour Lightroom, Capture One, Bridge ou darktable. Vous choisissez à l'export les étoiles et la couleur de chaque décision (par défaut : Sélectionnées ★★★ vert, À vérifier jaune, Rejetées en rejet). Les étoiles données dans le boîtier comptent comme les vôtres, un `.xmp` existant garde tous ses réglages, et les étoiles et étiquettes d'un autre logiciel restent, sauf si vous les changez dans Pelli Instant. |
 | **La copie de la sélection** | RAW, JPEG ou les deux, dans le dossier de votre choix, sous-dossiers compris. Pelli Instant vous dit combien de place prendra la copie. Chaque fichier est copié en entier ou pas du tout, et un nouvel export ne copie pas deux fois la même photo. |
 | **Les rejets rangés** | Déplace les rejets dans un sous-dossier `_Rejets Pelli`, à côté des originaux : un RAW, son JPEG et son `.xmp` partent ensemble. Rien n'est supprimé. |
 | **La priorité à vos autres logiciels** | Un interrupteur dans *Réglages → Général* fait tourner l'analyse en arrière-plan, sur moins de cœurs et en basse priorité : Lightroom et votre navigateur restent fluides, le tri prend 3 à 5 fois plus de temps. Désactivé par défaut, pour le tri le plus rapide. |
@@ -74,6 +74,7 @@ Vous cherchez une alternative open source à Aftershoot, Narrative Select ou Fil
 | Touche | Action |
 | --- | --- |
 | <kbd>←</kbd> <kbd>→</kbd> | Photo précédente / suivante |
+| <kbd>⌥</kbd> <kbd>←</kbd> <kbd>→</kbd> | Photo précédente / suivante de la rafale |
 | <kbd>↑</kbd> / <kbd>↓</kbd> (loupe) | Garder / rejeter |
 | <kbd>P</kbd> / <kbd>X</kbd> / <kbd>U</kbd> | Garder / rejeter / retirer le marquage, partout |
 | <kbd>1</kbd>–<kbd>5</kbd> | Étoiles |
@@ -184,7 +185,7 @@ pnpm tauri dev      # lance l'app en développement
 
 **Interface :** anglais, français, espagnol, allemand, italien, portugais, néerlandais, polonais et suédois, avec la présentation de bienvenue racontée dans chacune. [Ajoutez la vôtre](docs/contributing.md#conventions).
 
-**Recherche IA :** le modèle comprend l'anglais. Un glossaire intégré traduit le vocabulaire courant du mariage, de l'événementiel et du portrait depuis le français, l'espagnol, l'allemand et l'italien ; les autres mots passent tels quels.
+**Recherche IA :** le modèle comprend l'anglais. Un glossaire intégré traduit le vocabulaire courant du mariage, de l'événementiel et du portrait, les couleurs, les vêtements et les lieux depuis le français, l'espagnol, l'allemand et l'italien ; les autres mots passent tels quels.
 
 ## Questions fréquentes
 
@@ -221,7 +222,7 @@ L'analyse se fait entièrement sur votre ordinateur, sans internet. La connexion
 <details>
 <summary><b>Est-ce que ça modifie mes RAW ?</b></summary>
 
-Non. Les étoiles et les étiquettes de couleur vont dans un fichier `.xmp` à côté de chaque RAW (`IMG_0001.xmp`, ou `IMG_0001.CR3.xmp` quand celui-ci existe déjà), et un fichier existant garde tous ses autres réglages : développement, mots-clés, historique. Les étoiles et étiquettes que vous avez mises dans Lightroom ou Capture One restent aussi, sauf si vous les changez dans Pelli Instant : les notes tirées des décisions de l'IA ne remplacent que celles que Pelli Instant a lui-même écrites.
+Non. Les étoiles et les étiquettes de couleur vont dans un fichier `.xmp` à côté de chaque RAW (`IMG_0001.xmp`, ou `IMG_0001.CR3.xmp` quand celui-ci existe déjà), et un fichier existant garde tous ses autres réglages : développement, mots-clés, historique. Les étoiles et étiquettes que vous avez mises dans Lightroom ou Capture One restent aussi, sauf si vous les changez dans Pelli Instant : les notes tirées des décisions de l'IA ne remplacent que celles que Pelli Instant a lui-même écrites. Les étoiles données dans le boîtier deviennent vos étoiles dans Pelli Instant (sauf si le RAW a déjà un `.xmp`), et l'export les garde.
 
 Dans Lightroom Classic, sélectionnez les photos, puis **Métadonnées → Lire les métadonnées à partir des fichiers**. Lightroom n'a pas de champ XMP pour ses drapeaux Retenue et Rejetée : une photo rejetée sans étoiles reçoit donc −1 étoile, que Lightroom et Bridge affichent comme *Rejetée*. Une séance en JPEG seul n'a pas de fichier `.xmp`, puisque Lightroom lit les notes d'un JPEG dans le fichier lui-même.
 

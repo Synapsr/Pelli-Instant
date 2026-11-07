@@ -13,6 +13,12 @@
 //! are skipped; a missing thumbnail only triggers a decode. Photos analysed
 //! for the first time are counted on the Pelli monthly quota ([`crate::usage`]).
 //!
+//! A photo the photographer has not marked yet takes, when its analysis is
+//! saved, the rating its camera wrote in the file: stars, or a reject flag
+//! ([`crate::store::camera_mark`]). Marks already there are never touched,
+//! and a RAW with an `.xmp` sidecar is left alone: another tool (Lightroom,
+//! Capture One…) already keeps its ratings, which the export preserves.
+//!
 //! Workers run at the priority of the analysis speed setting
 //! ([`crate::settings::AppSettings::background`]): all cores at
 //! user-initiated priority, or a few threads at background priority (macOS
@@ -451,6 +457,9 @@ impl AnalysisJob<'_> {
         let engine = self.engine;
         let pid = self.project.id.as_str();
         let total = todo.len() as u32;
+        // A RAW with a sidecar keeps the ratings another tool wrote there.
+        let with_sidecar: HashSet<&str> =
+            todo.iter().filter(|(a, _)| a.xmp_sidecar.is_some()).map(|(a, _)| a.id.as_str()).collect();
         let threads = match maximum {
             // More workers only wait for the pack's heavy models, holding
             // decoded photos in memory.
@@ -521,15 +530,24 @@ impl AnalysisJob<'_> {
                 }
                 let flush_due = batch.len() >= 64 || last_flush.elapsed() > Duration::from_millis(400);
                 if (flush_due || disconnected) && !batch.is_empty() {
-                    if let Err(e) = engine.store.lock().save_analyses(pid, &batch) {
-                        log::error!("analysis results not saved: {e}");
-                        self.cancel.store(true, Ordering::Relaxed);
-                        failure = Some(e);
-                        continue;
-                    }
+                    let from_camera = |id: &str| !with_sidecar.contains(id);
+                    let seeded = match engine.store.lock().save_analyses(pid, &batch, from_camera, now_ms()) {
+                        Ok(seeded) => seeded,
+                        Err(e) => {
+                            log::error!("analysis results not saved: {e}");
+                            self.cancel.store(true, Ordering::Relaxed);
+                            failure = Some(e);
+                            continue;
+                        }
+                    };
                     let mut st = state.lock();
                     for row in batch.drain(..) {
                         st.analyses.insert(row.photo_id.clone(), row);
+                    }
+                    // Ratings from the camera, unless the photographer marked
+                    // the photo in the meantime.
+                    for (id, mark) in seeded {
+                        st.marks.entry(id).or_insert(mark);
                     }
                     if last_decide.elapsed() > Duration::from_millis(1000) || disconnected {
                         st.decide(&self.project.settings);

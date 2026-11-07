@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { WindowBar } from '@/components/ui/WindowBar'
 import { UpdateNotice } from '@/components/update/UpdateNotice'
+import { useMediaQuery } from '@/hooks/use-media-query'
 import { api } from '@/lib/api'
 import { formatNumber } from '@/lib/format'
 import { useT } from '@/lib/i18n'
@@ -17,7 +18,8 @@ import { useWorkspaceStore } from '@/store/workspace-store'
 import { SearchField } from './SearchField'
 import { SensitivityPopover } from './SensitivityPopover'
 
-const TABS: ('selected' | 'toReview' | 'rejected')[] = ['selected', 'toReview', 'rejected']
+/** "All" first: the whole shoot, then its three piles. */
+const TABS: ('all' | 'selected' | 'toReview' | 'rejected')[] = ['all', 'selected', 'toReview', 'rejected']
 
 /** AI search folded into an icon until it is used (⌘F opens it). */
 function SearchToggle() {
@@ -77,7 +79,9 @@ export function TitleBar() {
   const setTab = useReviewStore((s) => s.setTab)
   const goHome = useAppStore((s) => s.goHome)
   const openDialog = useAppStore((s) => s.openDialog)
-  const current: FilterTab = TABS.includes(tab as (typeof TABS)[number]) ? tab : 'selected'
+  const current: FilterTab = TABS.includes(tab as (typeof TABS)[number]) ? tab : 'all'
+  // A narrow window keeps the tabs clear of the tools: no dots, no count on "all".
+  const roomy = useMediaQuery('(min-width: 1280px)')
 
   return (
     <WindowBar className="border-b border-white/[0.06] bg-[#161616]">
@@ -104,13 +108,16 @@ export function TitleBar() {
           size="sm"
           options={TABS.map((value) => ({
             value,
-            label: (
-              <span className="inline-flex items-center gap-1.5">
-                <DecisionDot decision={value} size={6} />
-                {t(`review.tabs.${value}`)}
-              </span>
-            ),
-            meta: formatNumber(counts[value]),
+            label:
+              value === 'all' ? (
+                t('review.tabs.all')
+              ) : (
+                <span className="inline-flex items-center gap-1.5">
+                  {roomy && <DecisionDot decision={value} size={6} />}
+                  {t(`review.tabs.${value}`)}
+                </span>
+              ),
+            meta: value === 'all' && !roomy ? undefined : formatNumber(counts[value]),
           }))}
         />
       </div>

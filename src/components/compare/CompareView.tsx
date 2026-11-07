@@ -1,5 +1,5 @@
 import { Button } from '@heroui/react'
-import { Award, ChevronLeft, ChevronRight, LayoutGrid, Link2 } from 'lucide-react'
+import { Award, ChevronLeft, ChevronRight, ImageIcon, LayoutGrid, Link2 } from 'lucide-react'
 import { memo, useMemo } from 'react'
 import { ZoomableImage } from '@/components/loupe/ZoomableImage'
 import { DecisionDot, DECISION_TEXT } from '@/components/ui/Decision'
@@ -68,6 +68,7 @@ export function CompareView() {
   const page = useWorkspaceStore((s) => s.comparePage)
   const setPage = useWorkspaceStore((s) => s.setComparePage)
   const close = useWorkspaceStore((s) => s.closeOverlay)
+  const fromLoupe = useWorkspaceStore((s) => s.compareFrom === 'loupe')
   const photos = useReviewStore((s) => s.photos)
   const pages = Math.max(1, Math.ceil(ids.length / COMPARE_PAGE_SIZE))
   const pageIds = ids.slice(page * COMPARE_PAGE_SIZE, page * COMPARE_PAGE_SIZE + COMPARE_PAGE_SIZE)
@@ -78,8 +79,16 @@ export function CompareView() {
   return (
     <div className="flex min-h-0 flex-1 flex-col animate-fade-in">
       <div className="flex h-12 shrink-0 items-center gap-3 border-b border-default-200/60 px-3 dark:border-white/[0.06]">
-        <Button size="sm" variant="light" radius="lg" className="h-8 min-w-0 gap-1.5 px-2.5 text-[13px] text-default-500" startContent={<LayoutGrid className="size-3.5" />} onPress={close}>
-          {t('loupe.backToGrid')}
+        <Button
+          size="sm"
+          variant="light"
+          radius="lg"
+          className="h-8 min-w-0 gap-1.5 px-2.5 text-[13px] text-default-500"
+          startContent={fromLoupe ? <ImageIcon className="size-3.5" /> : <LayoutGrid className="size-3.5" />}
+          onPress={close}
+          title={`${fromLoupe ? t('compare.backToLoupe') : t('loupe.backToGrid')} (Esc)`}
+        >
+          {fromLoupe ? t('compare.backToLoupe') : t('loupe.backToGrid')}
         </Button>
         <h2 className="text-[13px] font-semibold text-foreground">{t('compare.title')}</h2>
         <span className="text-xs text-default-400">{t('common.photos', { count: ids.length })}</span>

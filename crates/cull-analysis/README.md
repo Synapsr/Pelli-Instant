@@ -108,6 +108,9 @@ from an average grey. Dark and bright photos made on purpose stay fine:
     other expressions), nothing is rejected: at least one shot in five is
     kept and the others wait in **to review**, stacked under the best one.
     Choosing the expression is your call.
+* Groups are always **stacked** in the review, the best shot on top. With
+  the similar photos check off, nothing is set aside as **Duplicate**: each
+  shot of a group is judged on its own.
 * **Exact duplicates** (the same picture copied or re-exported twice) are
   found whatever their date.
 
@@ -167,12 +170,14 @@ instantly.
 Each thing Pelli Instant flags has its own switch, grouped as you look at a
 photo: **sharpness** (blurry photos, motion blur, subject out of focus),
 **eyes** (closed eyes), **exposure** (underexposure, overexposure) and
-**similar photos** (grouping bursts with the number of photos kept per group,
-exact duplicates). A check you turn off never flags a photo, and no longer
-weighs on its score. Turning off motion blur also means a frame softened by
-motion is not called "blurry" instead: shoot creative motion blur, turn it
-off. Turning off exact duplicates leaves copies to the similar photos (one
-kept, the others to review) or, with grouping off too, keeps every copy.
+**similar photos** (keeping the best of each burst, with the number of
+photos kept per group, exact duplicates). A check you turn off never flags a
+photo, and no longer weighs on its score. Turning off motion blur also means
+a frame softened by motion is not called "blurry" instead: shoot creative
+motion blur, turn it off. Turning off similar photos keeps every shot of a
+burst, still stacked. Turning off exact duplicates leaves copies to the
+similar photos (one kept, the others to review) or, with them off too, keeps
+every copy.
 
 The defaults for new shoots are in **Settings › Analysis**. Before a shoot is
 analysed for the first time, Pelli Instant shows its criteria: sort with one
@@ -275,7 +280,8 @@ Public API: `src/lib.rs` (contract with `cull-engine`). Each module documents it
   photos without time: groups holding one of their 8 previous neighbours in
   input order, same tests plus pHash ≤ 16, ≤ 24 positions per group.
   `Burst` (consecutive gaps ≤ 2 s) rejects Duplicates; `Similar` sends them
-  to Maybe.
+  to Maybe. Groups are formed whatever `group_similar` says; off, their
+  members are judged as singles (uniqueness 1).
 * **Body hash**: dHash of a 27 × 36 grey canvas of the person around the
   main face (±2 face widths, 0.4 above to 3.5 below the face box), the part
   outside the photo filled with the crop's mean.

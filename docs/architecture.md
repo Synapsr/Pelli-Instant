@@ -87,23 +87,28 @@ engine through one contract.
    time, close embeddings and framing; exact copies whatever their date),
    splits the shoot into moments, scores each photo from 0 to 100 and gives
    it a verdict, Keep, Maybe or Reject, with its reasons, for the project's
-   criteria and sensitivity. Changing them (`recompute`) reruns only this
+   criteria and sensitivity. Groups are always built, so bursts stay
+   stacked; the "keep the best of each burst" criterion only decides
+   whether the others are marked as duplicates. Changing them (`recompute`) reruns only this
    step, on the stored measures: it is instant.
 6. **Review.** What a photo ends up as is `final_decision` in `cull-types`:
    the photographer's flag if there is one (keep or reject), otherwise the
    AI's verdict (Keep → Selected, Maybe → To review, Reject → Rejected).
    Marks (flag, stars, colour label) are saved at once with `set_marks`, and
-   never change when the AI's verdicts do.
+   never change when the AI's verdicts do. A photo starts from the rating
+   its camera wrote in the file (stars, or a reject), unless it is already
+   marked or its RAW has an `.xmp` sidecar.
 7. **Search.** `search` turns the query into an English CLIP prompt (a
    built-in glossary translates common French, Spanish, German and Italian
-   words, `query.rs`), embeds it with the CLIP text model of the project's
+   words, colours, clothing and places, `query.rs`), embeds it with the CLIP text model of the project's
    precision (ViT-B/32, or ViT-L/14 from the pack), and ranks the photos by
    cosine similarity with their stored embeddings.
 8. **Export.** `export_project` (`export.rs`) writes XMP sidecars next to the
    RAW files only (stars, colour label, and Pelli's flag, score, verdict and
    reasons in its own namespace; everything else in an existing sidecar is
    kept byte for byte, ratings set in another tool are kept, and the file is
-   replaced atomically), copies the selection (each file through a hidden
+   replaced atomically; the stars and colour of each decision come from the
+   export options), copies the selection (each file through a hidden
    temporary file, one name suffix per photo when a name is taken, earlier
    copies left alone), moves the rejects to `_Rejets Pelli` (a photo's
    files all together or not at all), and leaves the export marker in the

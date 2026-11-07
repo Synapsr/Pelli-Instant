@@ -5,6 +5,8 @@ export type KeyContext = 'grid' | 'loupe' | 'compare'
 
 export type ShortcutAction =
   | { type: 'move'; dir: Direction }
+  /** previous (-1) / next (1) photo of the focused photo's burst */
+  | { type: 'groupMove'; delta: -1 | 1 }
   | { type: 'flag'; flag: Flag }
   | { type: 'rating'; rating: number }
   | { type: 'label'; label: ColorLabel }
@@ -60,6 +62,10 @@ export function resolveShortcut(e: KeyInput, context: KeyContext): ShortcutActio
     if (key === 'z' && !e.shiftKey) return { type: 'undo' }
     return null
   }
+  // ⌥← / ⌥→ (Alt on Windows): through the burst, whatever each frame's verdict.
+  if (e.altKey && !mod && context !== 'compare' && (key === 'ArrowLeft' || key === 'ArrowRight')) {
+    return { type: 'groupMove', delta: key === 'ArrowLeft' ? -1 : 1 }
+  }
   if (e.altKey) return null
 
   if (key === 'Escape') return { type: 'escape' }
@@ -94,6 +100,31 @@ export function resolveShortcut(e: KeyInput, context: KeyContext): ShortcutActio
     return { type: 'label', label: LABEL_KEYS[digit] }
   }
   return null
+}
+
+/** Controls that handle Enter / Space themselves. */
+const ACTIVATES = 'button, a[href], select, [role="radio"], [role="slider"], [role="menuitem"], [role="option"], [role="tab"], [role="switch"], [role="checkbox"], [role="dialog"]'
+/** Widgets that move with the arrows (a plain button doesn't: arrows still change photo). */
+const MOVES_WITH_ARROWS = '[role="radio"], [role="slider"], [role="menuitem"], [role="option"], [role="tab"], [role="dialog"]'
+
+/** What `leftToControl` needs from the event target (an element). */
+export interface KeyTarget {
+  closest: (selector: string) => unknown
+}
+
+/**
+ * True when the focused control handles this key itself: Enter and Space on
+ * any control, the arrows only in the widgets that use them (radio groups,
+ * sliders, menus, lists, tabs, dialogs). A clicked button (a thumbnail of the
+ * filmstrip, Keep, the chevrons…) keeps the focus but never the arrows. The
+ * grid handles its own keys.
+ */
+export function leftToControl(key: string, target: KeyTarget | null): boolean {
+  if (!target || typeof target.closest !== 'function') return false
+  if (target.closest('[data-grid-root]')) return false
+  if (key === 'Enter' || key === ' ') return Boolean(target.closest(ACTIVATES))
+  if (key.startsWith('Arrow') || key === 'Home' || key === 'End') return Boolean(target.closest(MOVES_WITH_ARROWS))
+  return false
 }
 
 /** True when the event comes from a text field (shortcuts must not fire). */

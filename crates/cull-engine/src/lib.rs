@@ -308,7 +308,7 @@ impl ProjectState {
     pub(crate) fn decide(&mut self, settings: &CullSettings) {
         let owned = self.facts();
         let facts: Vec<_> = owned.iter().map(OwnedFacts::as_facts).collect();
-        self.groups = if settings.group_similar { cull_analysis::group_similar(&facts, settings) } else { Vec::new() };
+        self.groups = cull_analysis::group_similar(&facts, settings);
         self.scenes = cull_analysis::split_scenes(&facts, settings);
         let assessments = cull_analysis::assess(&facts, &self.groups, settings);
         self.assessments = owned.iter().map(|f| f.id.clone()).zip(assessments).collect();

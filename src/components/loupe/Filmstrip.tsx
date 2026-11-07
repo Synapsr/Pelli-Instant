@@ -1,6 +1,8 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { Layers } from 'lucide-react'
 import { memo, useEffect, useRef } from 'react'
 import { DecisionDot } from '@/components/ui/Decision'
+import { StarsBadge } from '@/components/ui/Marks'
 import { cn } from '@/lib/cn'
 import { useT } from '@/lib/i18n'
 import { useReviewStore } from '@/store/review-store'
@@ -11,6 +13,10 @@ const GAP = 6
 const FilmItem = memo(function FilmItem({ id, start }: { id: string; start: number }) {
   const photo = useReviewStore((s) => s.photos[id])
   const focused = useReviewStore((s) => s.focusId === id)
+  const groupSize = useReviewStore((s) => {
+    const gid = s.photos[id]?.assessment?.groupId
+    return gid === null || gid === undefined ? 0 : (s.groups[gid]?.photoIds.length ?? 0)
+  })
   if (!photo) return null
   const pending = photo.status !== 'analyzed'
   return (
@@ -19,6 +25,8 @@ const FilmItem = memo(function FilmItem({ id, start }: { id: string; start: numb
       tabIndex={-1}
       aria-label={photo.fileName}
       aria-current={focused}
+      // A click must not keep the focus: the keyboard stays on the photos.
+      onMouseDown={(e) => e.preventDefault()}
       onClick={() => useReviewStore.getState().focus(id)}
       className={cn(
         'photo-well absolute top-2 bottom-2 overflow-hidden rounded-lg transition-[box-shadow,opacity] duration-200',
@@ -31,6 +39,17 @@ const FilmItem = memo(function FilmItem({ id, start }: { id: string; start: numb
       <span className="absolute bottom-1 left-1 flex rounded-full bg-black/55 p-[3px]">
         <DecisionDot decision={photo.decision} user={photo.mark.flag !== 'none'} pending={pending} size={6} />
       </span>
+      {groupSize > 1 && (
+        <span aria-hidden className="absolute right-1 top-1 flex h-[18px] items-center gap-0.5 rounded-full bg-black/65 pl-1 pr-1.5 text-[10px] font-semibold text-white/95">
+          <Layers className="size-2.5" />
+          <span className="tabular">{groupSize}</span>
+        </span>
+      )}
+      {photo.mark.rating > 0 && (
+        <span className="absolute bottom-1 right-1 flex h-[18px] items-center rounded-full bg-black/55 px-1.5">
+          <StarsBadge rating={photo.mark.rating} />
+        </span>
+      )}
     </button>
   )
 })
