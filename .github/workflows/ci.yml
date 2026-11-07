@@ -16,6 +16,10 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # ort-sys downloads ONNX Runtime once and links it from this folder. It is
+  # cached with the build (rust-cache below): a cached build pointing at a
+  # runtime that is not there any more fails to link.
+  ORT_CACHE_DIR: ${{ github.workspace }}/.ort-cache
   # Faster, smaller CI builds: no debug info, no incremental artefacts.
   CARGO_INCREMENTAL: 0
   CARGO_PROFILE_DEV_DEBUG: 0
@@ -45,6 +49,10 @@ jobs:
         run: rustup toolchain install
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          # v1: caches from before ORT_CACHE_DIR point at a missing runtime.
+          prefix-key: v1-rust
+          cache-directories: .ort-cache
 
       # The version comes from `packageManager` in package.json.
       - uses: pnpm/action-setup@v4
@@ -90,6 +98,10 @@ jobs:
         run: rustup toolchain install
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          # v1: caches from before ORT_CACHE_DIR point at a missing runtime.
+          prefix-key: v1-rust
+          cache-directories: .ort-cache
 
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
