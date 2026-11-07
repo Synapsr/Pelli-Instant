@@ -3,8 +3,7 @@
   "bundle": {
     "resources": {
       "../models/*.onnx": "models/",
-      "../models/*.json": "models/",
-      "../models/*.txt": "models/"
+      "../models/*.json": "models/"
     }
   }
 }
