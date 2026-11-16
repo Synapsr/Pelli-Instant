@@ -32,7 +32,8 @@ export function gridLayout(width: number, target: number): GridLayout {
 export function PhotoGrid() {
   const t = useT()
   const ids = useReviewStore((s) => s.visibleIds)
-  const focusId = useReviewStore((s) => s.focusId)
+  // Where the focus shows: itself, or the slot of the stack it is walking.
+  const focusSlot = useReviewStore((s) => s.focusSlot)
   const setColumns = useReviewStore((s) => s.setColumns)
   const thumbSize = usePrefsStore((s) => s.thumbSize)
   const ref = useRef<HTMLDivElement>(null)
@@ -59,10 +60,10 @@ export function PhotoGrid() {
 
   // Keep the focused photo on screen while navigating with the keyboard.
   useEffect(() => {
-    if (!focusId) return
-    const index = ids.indexOf(focusId)
+    if (!focusSlot) return
+    const index = ids.indexOf(focusSlot)
     if (index >= 0) virtualizer.scrollToIndex(Math.floor(index / layout.columns), { align: 'auto' })
-  }, [focusId, ids, layout.columns, virtualizer])
+  }, [focusSlot, ids, layout.columns, virtualizer])
 
   const items = virtualizer.getVirtualItems()
   const first = items.length ? items[0].index * layout.columns : 0

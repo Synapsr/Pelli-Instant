@@ -15,9 +15,14 @@ export interface ViewTransform {
   height: number
 }
 
-/** Fit / 100 % transform keeping the zoom centre in view (clamped to the image). */
-export function computeTransform(cw: number, ch: number, iw: number, ih: number, zoom: ZoomState, padding = PADDING): ViewTransform {
-  const fit = Math.min((cw - padding * 2) / iw, (ch - padding * 2) / ih)
+/**
+ * Fit / 100 % transform keeping the zoom centre in view (clamped to the image).
+ * `band`: height kept free at the bottom for a floating bar. The photo fits
+ * above it, and at 100 % its bottom edge can always be panned above it.
+ */
+export function computeTransform(cw: number, ch: number, iw: number, ih: number, zoom: ZoomState, padding = PADDING, band = 0): ViewTransform {
+  const vh = Math.max(1, ch - band)
+  const fit = Math.min((cw - padding * 2) / iw, (vh - padding * 2) / ih)
   // "100 %": one preview pixel per CSS pixel (at least 2.5× the fitted size).
   const actual = Math.max(1, fit * 2.5)
   const scale = zoom.active ? actual : Math.max(0.01, fit)
@@ -28,7 +33,7 @@ export function computeTransform(cw: number, ch: number, iw: number, ih: number,
     const t = container / 2 - center * size
     return Math.min(0, Math.max(container - size, t))
   }
-  return { scale, width, height, tx: place(cw, width, zoom.x), ty: place(ch, height, zoom.y) }
+  return { scale, width, height, tx: place(cw, width, zoom.x), ty: place(vh, height, zoom.y) }
 }
 
 /** Preview box of a photo in CSS px (long edge = preview size), from its aspect. */
@@ -52,6 +57,7 @@ export function ZoomableImage({
   highlight,
   faces = [],
   padding = PADDING,
+  band = 0,
   label,
 }: {
   src: string | null
@@ -64,6 +70,8 @@ export function ZoomableImage({
   highlight?: number | null
   faces?: FaceView[]
   padding?: number
+  /** height kept free at the bottom (the loupe's floating bar) */
+  band?: number
   label: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -71,7 +79,7 @@ export function ZoomableImage({
   const drag = useRef<{ x: number; y: number; cx: number; cy: number; moved: boolean } | null>(null)
   const [dragging, setDragging] = useState(false)
   const { iw, ih } = previewBox(photoWidth, photoHeight)
-  const view = cw && ch ? computeTransform(cw, ch, iw, ih, zoom, padding) : null
+  const view = cw && ch ? computeTransform(cw, ch, iw, ih, zoom, padding, band) : null
   const shown = src ?? fallbackSrc
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
@@ -147,7 +155,7 @@ export function ZoomableImage({
       {hbox && (
         <span
           aria-hidden
-          className="pointer-events-none absolute rounded-md border-2 border-[#a599f5] shadow-[0_0_0_9999px_rgba(0,0,0,0.28)] transition-all duration-200"
+          className="pointer-events-none absolute rounded-md border-2 border-[#a599f5] shadow-[0_0_0_9999px_rgba(0,0,0,0.28)] transition-[left,top,width,height] duration-200"
           style={{ left: hbox.left - 4, top: hbox.top - 4, width: hbox.width + 8, height: hbox.height + 8 }}
         />
       )}

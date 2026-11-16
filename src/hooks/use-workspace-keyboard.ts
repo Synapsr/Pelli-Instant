@@ -1,7 +1,5 @@
 import { useEffect } from 'react'
 import { isTypingTarget, leftToControl, resolveShortcut, type KeyTarget, type ShortcutAction } from '@/lib/review/keyboard'
-import { t } from '@/lib/i18n'
-import { notify } from '@/lib/notify'
 import { useAppStore } from '@/store/app-store'
 import { usePrefsStore } from '@/store/prefs-store'
 import { useReviewStore } from '@/store/review-store'
@@ -27,25 +25,17 @@ export function zoomTarget(photoId: string | null): { x: number; y: number } {
   return face ? { x: face.bbox.x + face.bbox.w / 2, y: face.bbox.y + face.bbox.h * 0.45 } : { x: 0.5, y: 0.5 }
 }
 
+/**
+ * Choose (1–4) in the compare view, the same rule as S: keeps that photo,
+ * rejects the others shown on this page and the other selected photos of the
+ * comparison; to-review photos of other pages, never seen, don't move.
+ */
 export function pickCompareWinner(index: number): void {
   const ws = useWorkspaceStore.getState()
   const page = ws.compareIds.slice(ws.comparePage * COMPARE_PAGE_SIZE, ws.comparePage * COMPARE_PAGE_SIZE + COMPARE_PAGE_SIZE)
   const winner = page[index]
   if (!winner) return
-  const others = ws.compareIds.filter((id) => id !== winner)
-  const review = useReviewStore.getState()
-  void review.markMany(
-    [
-      { ids: [winner], patch: { flag: 'pick' } },
-      { ids: others, patch: { flag: 'reject' } },
-    ],
-    winner,
-  )
-  notify({
-    title: t('compare.winner', { name: review.photos[winner]?.fileName ?? '' }),
-    tone: 'success',
-    action: { label: t('marks.undo'), run: () => void useReviewStore.getState().undo() },
-  })
+  void useReviewStore.getState().choose({ id: winner, seen: page, pool: ws.compareIds, advance: false })
   ws.closeOverlay()
 }
 
@@ -65,6 +55,13 @@ function run(action: ShortcutAction): void {
     case 'flag':
       void review.mark({ flag: action.flag })
       break
+    case 'choose':
+      void review.choose()
+      break
+    case 'fullscreen':
+      if (ws.mode === 'grid' && !review.focusId) break
+      ws.toggleFullscreen()
+      break
     case 'rating':
       void review.mark({ rating: action.rating })
       break
@@ -75,7 +72,9 @@ function run(action: ShortcutAction): void {
       if (review.focusId) ws.toggleLoupe()
       break
     case 'escape':
-      if (ws.mode !== 'grid') ws.closeOverlay()
+      // Full screen first; Esc again leaves the loupe.
+      if (ws.fullscreen) ws.exitFullscreen()
+      else if (ws.mode !== 'grid') ws.closeOverlay()
       else if (review.selectionCount) review.clearSelection()
       else if (review.search.hits) review.clearSearch()
       break

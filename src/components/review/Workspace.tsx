@@ -1,5 +1,6 @@
 import { Skeleton } from '@heroui/react'
 import { lazy, Suspense } from 'react'
+import { useWindowFullscreen } from '@/hooks/use-window-fullscreen'
 import { useWorkspaceKeyboard } from '@/hooks/use-workspace-keyboard'
 import { useAppStore } from '@/store/app-store'
 import { useReviewStore } from '@/store/review-store'
@@ -34,14 +35,17 @@ function GridArea() {
 /**
  * The review: one bar (decision tabs, search, sensitivity, export) and the
  * photos. Neutral grey around the photos so colours are judged without a cast.
+ * Full screen (F) keeps the loupe's photo alone.
  */
 export function Workspace() {
   useWorkspaceKeyboard()
+  useWindowFullscreen()
   const mode = useWorkspaceStore((s) => s.mode)
+  const fullscreen = useWorkspaceStore((s) => s.fullscreen)
 
   return (
     <div className="flex h-full flex-col bg-[#121212] animate-fade-in">
-      <TitleBar />
+      {!fullscreen && <TitleBar />}
       <main className="flex min-h-0 min-w-0 flex-1 flex-col">
         {mode === 'grid' ? (
           <>

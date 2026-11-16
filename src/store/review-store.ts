@@ -5,7 +5,7 @@ import { t } from '@/lib/i18n'
 import { notify } from '@/lib/notify'
 import { playSound } from '@/lib/sound'
 import { usePlusStore } from './plus-store'
-import { applyMarkPatch, countDecisions } from '@/lib/review/decision'
+import { applyMarkPatch, chooseChanges, countDecisions, type MarkChange } from '@/lib/review/decision'
 import {
   clickSelection,
   focusAfterMark,
@@ -13,10 +13,13 @@ import {
   moveFocus,
   moveInRows,
   selectAll,
+  slotOf,
+  type BurstOf,
   type ClickModifiers,
   type Direction,
 } from '@/lib/review/selection'
 import {
+  burstFrames,
   captureOrder,
   computeCameraCounts,
   computeGroupRows,
@@ -24,6 +27,8 @@ import {
   computeTabCounts,
   computeVisible,
   DEFAULT_FILTERS,
+  groupIdOf,
+  isStackClosed,
   sameIds,
   type FilterTab,
   type GroupRow,
@@ -53,6 +58,18 @@ export interface MarkOptions {
   advance?: boolean
 }
 
+/** "Choose this one": who wins, and against what (default: the rest of its burst). */
+export interface ChooseOptions {
+  /** the photo kept (default: the focus) */
+  id?: string
+  /** photos shown next to it (a compare page): all rejected */
+  seen?: string[]
+  /** the competing photos: only the selected ones are rejected (default: its burst) */
+  pool?: string[]
+  /** leave the burst afterwards (default: the auto-advance preference) */
+  advance?: boolean
+}
+
 /** A single photo was just marked: what the confirmation overlay shows. */
 export interface MarkFlash {
   /** changes on every mark, so the same mark twice shows twice */
@@ -78,7 +95,12 @@ export interface ReviewState extends Derived {
   search: SearchState
   reasonCounts: Partial<Record<Reason, number>>
   cameraCounts: { camera: string; count: number }[]
+  /** the photo under the cursor: a visible photo, or a frame of the closed stack being walked */
   focusId: string | null
+  /** where the focus is shown in `visibleIds` (`slotOf`): itself, or its stack's slot */
+  focusSlot: string | null
+  /** the closed stack whose frames the cursor walks (⌥← ⌥→), null otherwise */
+  walkGroupId: number | null
   selection: Record<string, true>
   selectionCount: number
   anchorId: string | null
@@ -105,10 +127,12 @@ export interface ReviewState extends Derived {
   selectAllVisible: () => void
   clearSelection: () => void
   move: (dir: Direction) => void
-  /** previous (-1) / next (1) frame of the focused photo's burst, unstacking it */
+  /** previous (-1) / next (1) frame of the focused photo's burst; a closed stack stays closed */
   moveInGroup: (delta: -1 | 1) => void
   mark: (patch: Partial<UserMark>, options?: MarkOptions) => Promise<void>
-  markMany: (changes: { ids: string[]; patch: Partial<UserMark> }[], focusId?: string | null) => Promise<void>
+  markMany: (changes: MarkChange[], focusId?: string | null) => Promise<void>
+  /** keeps a photo and rejects the selected photos competing with it (S, compare); one undo */
+  choose: (options?: ChooseOptions) => Promise<void>
   undo: () => Promise<void>
   runSearch: (query: string) => Promise<void>
   clearSearch: () => void
@@ -133,12 +157,43 @@ function derive(s: Base): Derived {
   }
 }
 
-/** Keeps focus/selection valid once the visible list changed. */
-function settleFocus(prevVisible: readonly string[], visible: readonly string[], focusId: string | null): string | null {
+function burstOfState(s: Pick<ReviewState, 'photos' | 'groups'>): BurstOf {
+  return (id) => {
+    const p = s.photos[id]
+    const gid = p ? groupIdOf(p) : null
+    return gid === null ? undefined : s.groups[gid]?.photoIds
+  }
+}
+
+/** Keeps the focus valid once the visible list changed: still shown (or in its stack's slot), else what took its slot. */
+function settleFocus(prevVisible: readonly string[], visible: readonly string[], focusId: string | null, burstOf: BurstOf): string | null {
   if (!visible.length) return null
-  if (focusId && visible.includes(focusId)) return focusId
-  const index = focusId ? prevVisible.indexOf(focusId) : -1
+  if (focusId && slotOf(focusId, visible, burstOf)) return focusId
+  const slot = slotOf(focusId, prevVisible, burstOf)
+  const index = slot ? prevVisible.indexOf(slot) : -1
   return visible[Math.min(Math.max(index, 0), visible.length - 1)]
+}
+
+/**
+ * Focus, its slot and the walk, consistent: a frame hidden in a closed stack
+ * means the cursor walks that stack; on the stack's cover, the walk goes on
+ * only if it was already under way (`walk`).
+ */
+function placeFocus(
+  s: Pick<ReviewState, 'photos' | 'groups' | 'filters'>,
+  visible: readonly string[],
+  focusId: string | null,
+  walk: number | null,
+): Pick<ReviewState, 'focusId' | 'focusSlot' | 'walkGroupId'> {
+  const focusSlot = slotOf(focusId, visible, burstOfState(s))
+  const photo = focusId ? s.photos[focusId] : undefined
+  const gid = photo ? groupIdOf(photo) : null
+  let walkGroupId: number | null = null
+  if (focusSlot && gid !== null) {
+    if (focusSlot !== focusId) walkGroupId = gid
+    else if (walk === gid && isStackClosed(gid, s.filters)) walkGroupId = gid
+  }
+  return { focusId, focusSlot, walkGroupId }
 }
 
 function pruneSelection(selection: Record<string, true>, visible: readonly string[]): Record<string, true> {
@@ -167,6 +222,8 @@ const initial = {
   reasonCounts: {},
   cameraCounts: [],
   focusId: null,
+  focusSlot: null,
+  walkGroupId: null,
   selection: {},
   selectionCount: 0,
   anchorId: null,
@@ -182,14 +239,22 @@ export const useReviewStore = create<ReviewState>((set, get) => {
     const s = get()
     const next = { ...s, ...patch }
     const derived = derive(next)
-    const focusId = explicitFocus !== undefined ? explicitFocus : settleFocus(s.visibleIds, derived.visibleIds, next.focusId)
+    const wanted = explicitFocus !== undefined ? explicitFocus : next.focusId
+    const focusId = wanted === null ? null : settleFocus(s.visibleIds, derived.visibleIds, wanted, burstOfState(next))
+    const placed = placeFocus(next, derived.visibleIds, focusId, next.walkGroupId)
     const selection = pruneSelection(next.selection, derived.visibleIds)
-    set({ ...patch, ...derived, focusId, selection, selectionCount: Object.keys(selection).length })
+    set({ ...patch, ...derived, ...placed, selection, selectionCount: Object.keys(selection).length })
+  }
+
+  /** Moves the cursor (no re-derivation): a single focus, no multi-selection. */
+  const moveTo = (focusId: string, walk: number | null) => {
+    const s = get()
+    set({ ...placeFocus(s, s.visibleIds, focusId, walk), anchorId: focusId, selection: {}, selectionCount: 0 })
   }
 
   const setFilters = (filters: Partial<ViewFilters>) => update({ filters: { ...get().filters, ...filters } })
 
-  const applyLocal = (changes: { ids: string[]; patch: Partial<UserMark> }[]) => {
+  const applyLocal = (changes: MarkChange[]) => {
     const photos = { ...get().photos }
     const before: Record<string, UserMark> = {}
     for (const { ids, patch } of changes) {
@@ -204,7 +269,7 @@ export const useReviewStore = create<ReviewState>((set, get) => {
   }
 
   /** Sends marks to the engine; rolls back the photos still holding our value on failure. */
-  const persist = async (projectId: string, changes: { ids: string[]; patch: Partial<UserMark> }[], before: Record<string, UserMark>) => {
+  const persist = async (projectId: string, changes: MarkChange[], before: Record<string, UserMark>) => {
     try {
       const results = await Promise.all(changes.filter((c) => c.ids.length).map((c) => api().setMarks(projectId, c.ids, c.patch)))
       if (get().projectId !== projectId) return
@@ -258,7 +323,8 @@ export const useReviewStore = create<ReviewState>((set, get) => {
       }
       const fresh = { ...base, filters: DEFAULT_FILTERS, search: EMPTY_SEARCH, selection: {}, anchorId: null, undoStack: [], visibleIds: [], groupRows: [] }
       const derived = derive(fresh)
-      set({ ...fresh, ...derived, focusId: derived.visibleIds[0] ?? null, selectionCount: 0 })
+      const focusId = derived.visibleIds[0] ?? null
+      set({ ...fresh, ...derived, focusId, focusSlot: focusId, walkGroupId: null, selectionCount: 0 })
     },
 
     reset: () => set({ ...initial }),
@@ -301,49 +367,55 @@ export const useReviewStore = create<ReviewState>((set, get) => {
       if (columns !== get().columns) set({ columns })
     },
 
-    focus: (id) => set({ focusId: id, anchorId: id, selection: {}, selectionCount: 0 }),
+    // A frame of the walked stack (the inspector's strip) keeps the walk going.
+    focus: (id) => {
+      if (id) moveTo(id, get().walkGroupId)
+      else set({ focusId: null, focusSlot: null, walkGroupId: null, anchorId: null, selection: {}, selectionCount: 0 })
+    },
     click: (id, mods) => {
       const s = get()
-      const next = clickSelection(s, id, mods, s.visibleIds)
+      const next = clickSelection(s, id, mods, s.visibleIds, burstOfState(s))
       const count = Object.keys(next.selection).length
       // A single selected photo is just the focus.
       const selection = count > 1 ? next.selection : {}
-      set({ ...next, selection, selectionCount: count > 1 ? count : 0 })
+      set({ ...next, ...placeFocus(s, s.visibleIds, next.focusId, s.walkGroupId), selection, selectionCount: count > 1 ? count : 0 })
     },
     selectAllVisible: () => {
       const s = get()
       const next = selectAll(s.visibleIds, s.focusId)
-      set({ ...next, selectionCount: Object.keys(next.selection).length })
+      set({ ...next, ...placeFocus(s, s.visibleIds, next.focusId, s.walkGroupId), selectionCount: Object.keys(next.selection).length })
     },
     clearSelection: () => set({ selection: {}, selectionCount: 0 }),
 
+    // ← → leave a walked stack from its slot, to the neighbouring slots.
     move: (dir) => {
       const s = get()
+      const burstOf = burstOfState(s)
       const next =
         s.filters.tab === 'duplicates'
           ? moveInRows(
               s.groupRows.map((r) => r.ids),
               s.focusId,
               dir,
+              burstOf,
             )
-          : moveFocus(s.visibleIds, s.focusId, dir, s.columns)
-      if (next && next !== s.focusId) set({ focusId: next, anchorId: next, selection: {}, selectionCount: 0 })
+          : moveFocus(s.visibleIds, s.focusId, dir, s.columns, burstOf)
+      if (next && next !== (s.focusSlot ?? s.focusId)) moveTo(next, null)
     },
 
+    // The cursor goes through every frame, whatever its decision; a closed
+    // stack stays closed and shows the frame under the cursor (G unfolds it).
     moveInGroup: (delta) => {
       const s = get()
       const focusId = s.focusId
-      const gid = focusId ? s.photos[focusId]?.assessment?.groupId : null
-      const group = gid === null || gid === undefined ? undefined : s.groups[gid]
+      const photo = focusId ? s.photos[focusId] : undefined
+      const gid = photo ? groupIdOf(photo) : null
+      const group = gid === null ? undefined : s.groups[gid]
       if (!focusId || !group || group.photoIds.length < 2) return
-      // Unstack the burst: an expanded group shows every frame, whatever its decision.
-      if (s.filters.tab !== 'duplicates' && (!s.filters.stackGroups || !s.filters.expanded[group.id])) {
-        update({ filters: { ...s.filters, stackGroups: true, expanded: { ...s.filters.expanded, [group.id]: true } } }, focusId)
-      }
-      const visible = new Set(get().visibleIds)
-      const frames = group.photoIds.filter((id) => visible.has(id))
-      const next = frames[frames.indexOf(focusId) + delta]
-      if (next) set({ focusId: next, anchorId: next, selection: {}, selectionCount: 0 })
+      const frames = burstFrames(group, s, s.filters, s.search.hits)
+      const index = frames.indexOf(focusId)
+      const next = index === -1 ? frames[0] : frames[index + delta]
+      if (next && next !== focusId) moveTo(next, group.id)
     },
 
     mark: async (patch, options = {}) => {
@@ -365,7 +437,11 @@ export const useReviewStore = create<ReviewState>((set, get) => {
       const prevVisible = s.visibleIds
       const next = { ...s, photos }
       const derived = derive(next)
-      const focusId = single ? focusAfterMark(prevVisible, derived.visibleIds, ids[0], advance) : settleFocus(prevVisible, derived.visibleIds, s.focusId)
+      const burstOf = burstOfState(next)
+      // Walking a closed stack: auto-advance goes to its next frame, then leaves it.
+      const walked = single && s.walkGroupId !== null && ids[0] === s.focusId ? s.groups[s.walkGroupId] : undefined
+      const walk = walked ? burstFrames(walked, s, s.filters, s.search.hits) : null
+      const focusId = single ? focusAfterMark(prevVisible, derived.visibleIds, ids[0], advance, burstOf, walk) : settleFocus(prevVisible, derived.visibleIds, s.focusId, burstOf)
       const flash = single ? { seq: (s.flash?.seq ?? 0) + 1, patch: finalPatch } : s.flash
       update({ photos, undoStack: [...s.undoStack.slice(-49), { projectId, before }], flash }, focusId)
       if (!single) {
@@ -375,6 +451,34 @@ export const useReviewStore = create<ReviewState>((set, get) => {
         })
       }
       await persist(projectId, changes, before)
+    },
+
+    choose: async (options = {}) => {
+      const s = get()
+      const winner = options.id ?? s.focusId
+      const photo = winner ? s.photos[winner] : undefined
+      if (!winner || !photo || !s.projectId) return
+      const gid = groupIdOf(photo)
+      const pool = options.pool ?? (gid === null ? [] : (s.groups[gid]?.photoIds ?? []))
+      const changes = chooseChanges(s.photos, winner, { seen: options.seen, pool })
+      const rejected = changes[1]?.ids ?? []
+      // Nothing competes with it: a plain keep.
+      if (!rejected.length) {
+        await get().mark({ flag: 'pick' }, { ids: [winner], advance: options.advance })
+        return
+      }
+      // The burst is decided: auto-advance leaves it.
+      const advance = options.advance ?? usePrefsStore.getState().autoAdvance
+      const after = derive({ ...s, photos: applyLocal(changes).photos }).visibleIds
+      const focusId = advance ? focusAfterMark(s.visibleIds, after, winner, true, burstOfState(s)) : winner
+      const pending = get().markMany(changes, focusId)
+      notify({
+        title: t('marks.chosen', { name: photo.fileName }),
+        description: t('marks.othersRejected', { count: rejected.length, name: s.photos[rejected[0]]?.fileName ?? '' }),
+        tone: 'success',
+        action: { label: t('marks.undo'), run: () => void get().undo() },
+      })
+      await pending
     },
 
     markMany: async (changes, focusId) => {

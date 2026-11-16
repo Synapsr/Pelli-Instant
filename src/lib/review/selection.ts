@@ -1,3 +1,28 @@
+/** Members of a photo's burst (any order), undefined when it is in none. */
+export type BurstOf = (id: string) => readonly string[] | undefined
+
+const NO_BURST: BurstOf = () => undefined
+
+/**
+ * Where a photo sits in the visible list: itself when it is shown, else the
+ * place of its burst (a frame hidden in a closed stack is shown in the stack's
+ * slot while the cursor walks it), else nowhere (null).
+ */
+export function slotOf(id: string | null, visible: readonly string[], burstOf: BurstOf = NO_BURST): string | null {
+  if (!id) return null
+  if (visible.includes(id)) return id
+  let slot: string | null = null
+  let best = Infinity
+  for (const member of burstOf(id) ?? []) {
+    const index = visible.indexOf(member)
+    if (index !== -1 && index < best) {
+      best = index
+      slot = member
+    }
+  }
+  return slot
+}
+
 export interface SelectionState {
   selection: Readonly<Record<string, true>>
   anchorId: string | null
@@ -11,12 +36,16 @@ export interface ClickModifiers {
   toggle: boolean
 }
 
-/** Finder-like selection on click. */
-export function clickSelection(state: SelectionState, id: string, mods: ClickModifiers, visible: readonly string[]): SelectionState {
+/**
+ * Finder-like selection on click. A multi-selection holds what the grid
+ * shows: a frame hidden in a closed stack counts as its stack's slot.
+ */
+export function clickSelection(state: SelectionState, id: string, mods: ClickModifiers, visible: readonly string[], burstOf: BurstOf = NO_BURST): SelectionState {
+  const slot = (photo: string | null) => slotOf(photo, visible, burstOf)
   if (mods.range) {
     const anchor = state.anchorId ?? state.focusId ?? id
-    const a = visible.indexOf(anchor)
-    const b = visible.indexOf(id)
+    const a = visible.indexOf(slot(anchor) ?? anchor)
+    const b = visible.indexOf(slot(id) ?? id)
     if (a === -1 || b === -1) return { selection: { [id]: true }, anchorId: id, focusId: id }
     const [from, to] = a < b ? [a, b] : [b, a]
     const selection: Record<string, true> = mods.toggle ? { ...state.selection } : {}
@@ -26,9 +55,11 @@ export function clickSelection(state: SelectionState, id: string, mods: ClickMod
   if (mods.toggle) {
     const selection: Record<string, true> = { ...state.selection }
     // Toggling from a single implicit selection keeps the focused photo selected.
-    if (state.focusId && Object.keys(selection).length === 0) selection[state.focusId] = true
-    if (selection[id]) delete selection[id]
-    else selection[id] = true
+    const focused = slot(state.focusId)
+    if (focused && Object.keys(selection).length === 0) selection[focused] = true
+    const target = slot(id) ?? id
+    if (selection[target]) delete selection[target]
+    else selection[target] = true
     return { selection, anchorId: id, focusId: id }
   }
   return { selection: { [id]: true }, anchorId: id, focusId: id }
@@ -52,10 +83,11 @@ export function markTargets(state: SelectionState, visible: readonly string[]): 
 
 export type Direction = 'left' | 'right' | 'up' | 'down'
 
-/** Next focus in a grid of `columns` columns (clamped, no wrap). */
-export function moveFocus(visible: readonly string[], focusId: string | null, dir: Direction, columns: number): string | null {
+/** Next focus in a grid of `columns` columns (clamped, no wrap), from the focus's slot. */
+export function moveFocus(visible: readonly string[], focusId: string | null, dir: Direction, columns: number, burstOf: BurstOf = NO_BURST): string | null {
   if (!visible.length) return null
-  const index = focusId ? visible.indexOf(focusId) : -1
+  const slot = slotOf(focusId, visible, burstOf)
+  const index = slot ? visible.indexOf(slot) : -1
   if (index === -1) return visible[0]
   const step = dir === 'left' ? -1 : dir === 'right' ? 1 : dir === 'up' ? -Math.max(1, columns) : Math.max(1, columns)
   const next = index + step
@@ -64,12 +96,19 @@ export function moveFocus(visible: readonly string[], focusId: string | null, di
   return visible[next]
 }
 
-/** Moves between rows of unequal length (the "Doublons" view). */
-export function moveInRows(rows: readonly (readonly string[])[], focusId: string | null, dir: Direction): string | null {
+/** Moves between rows of unequal length (the "Doublons" view), from the focus's slot. */
+export function moveInRows(rows: readonly (readonly string[])[], focusId: string | null, dir: Direction, burstOf: BurstOf = NO_BURST): string | null {
   if (!rows.length) return null
-  let r = rows.findIndex((row) => focusId !== null && row.includes(focusId))
+  let r = -1
+  let c = -1
+  for (let i = 0; i < rows.length && r === -1; i++) {
+    const slot = slotOf(focusId, rows[i], burstOf)
+    if (slot) {
+      r = i
+      c = rows[i].indexOf(slot)
+    }
+  }
   if (r === -1) return rows[0][0] ?? null
-  let c = rows[r].indexOf(focusId as string)
   if (dir === 'left' || dir === 'right') {
     c += dir === 'left' ? -1 : 1
     if (c < 0 && r > 0) {
@@ -87,26 +126,36 @@ export function moveInRows(rows: readonly (readonly string[])[], focusId: string
 }
 
 /**
- * Focus after marking `targetId` with auto-advance: the next photo of the
- * list as it was, or — when the marked photo left the list (filtered tab) —
- * whatever now sits at its former index.
+ * Focus after marking `targetId`. With auto-advance: the next frame of the
+ * burst being walked (`walk`, the cursor inside a closed stack), else the next
+ * slot of the list as it was, or — when the marked photo left the list
+ * (filtered tab) — whatever now sits at its former slot. Without: the photo
+ * itself while it can still be shown (in its stack's slot when hidden).
  */
 export function focusAfterMark(
   before: readonly string[],
   after: readonly string[],
   targetId: string,
   advance: boolean,
+  burstOf: BurstOf = NO_BURST,
+  walk: readonly string[] | null = null,
 ): string | null {
   if (!after.length) return null
-  const index = before.indexOf(targetId)
-  const present = new Set(after)
-  const stillThere = present.has(targetId)
+  const shown = (id: string) => slotOf(id, after, burstOf) !== null
+  if (advance && walk) {
+    const i = walk.indexOf(targetId)
+    const next = i === -1 ? undefined : walk[i + 1]
+    if (next && shown(next)) return next
+  }
+  const slot = slotOf(targetId, before, burstOf) ?? targetId
+  const index = before.indexOf(slot)
   if (!advance) {
-    if (stillThere) return targetId
+    if (shown(targetId)) return targetId
     return after[Math.min(Math.max(index, 0), after.length - 1)]
   }
+  const present = new Set(after)
   for (let i = index + 1; i < before.length; i++) {
     if (present.has(before[i])) return before[i]
   }
-  return stillThere ? targetId : after[after.length - 1]
+  return shown(targetId) ? targetId : after[after.length - 1]
 }

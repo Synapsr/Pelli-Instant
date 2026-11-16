@@ -4,19 +4,26 @@ import { memo, useEffect, useRef } from 'react'
 import { DecisionDot } from '@/components/ui/Decision'
 import { StarsBadge } from '@/components/ui/Marks'
 import { cn } from '@/lib/cn'
+import { formatNumber } from '@/lib/format'
 import { useT } from '@/lib/i18n'
+import { framePosition } from '@/lib/review/view'
 import { useReviewStore } from '@/store/review-store'
 
 const ITEM_W = 104
 const GAP = 6
 
+/** One slot of the strip; a walked stack shows the frame under the cursor. */
 const FilmItem = memo(function FilmItem({ id, start }: { id: string; start: number }) {
-  const photo = useReviewStore((s) => s.photos[id])
-  const focused = useReviewStore((s) => s.focusId === id)
-  const groupSize = useReviewStore((s) => {
-    const gid = s.photos[id]?.assessment?.groupId
-    return gid === null || gid === undefined ? 0 : (s.groups[gid]?.photoIds.length ?? 0)
+  const focused = useReviewStore((s) => s.focusSlot === id)
+  const shownId = useReviewStore((s) => (s.focusSlot === id && s.focusId ? s.focusId : id))
+  const photo = useReviewStore((s) => s.photos[shownId])
+  const group = useReviewStore((s) => {
+    const gid = s.photos[shownId]?.assessment?.groupId
+    return gid === null || gid === undefined ? undefined : s.groups[gid]
   })
+  // Walking this stack: the frame's place in the burst ("3/7") instead of its size.
+  const walkIndex = useReviewStore((s) => (focused && group && s.walkGroupId === group.id ? framePosition(group, shownId, s.filters.sort, s.search.hits, s) : -1))
+  const groupSize = group?.photoIds.length ?? 0
   if (!photo) return null
   const pending = photo.status !== 'analyzed'
   return (
@@ -27,7 +34,7 @@ const FilmItem = memo(function FilmItem({ id, start }: { id: string; start: numb
       aria-current={focused}
       // A click must not keep the focus: the keyboard stays on the photos.
       onMouseDown={(e) => e.preventDefault()}
-      onClick={() => useReviewStore.getState().focus(id)}
+      onClick={() => useReviewStore.getState().focus(shownId)}
       className={cn(
         'photo-well absolute top-2 bottom-2 overflow-hidden rounded-lg transition-[box-shadow,opacity] duration-200',
         focused ? 'ring-2 ring-[#5840f0] ring-offset-2 ring-offset-[var(--loupe-bg)] dark:ring-[#a599f5]' : 'opacity-75 hover:opacity-100',
@@ -40,9 +47,15 @@ const FilmItem = memo(function FilmItem({ id, start }: { id: string; start: numb
         <DecisionDot decision={photo.decision} user={photo.mark.flag !== 'none'} pending={pending} size={6} />
       </span>
       {groupSize > 1 && (
-        <span aria-hidden className="absolute right-1 top-1 flex h-[18px] items-center gap-0.5 rounded-full bg-black/65 pl-1 pr-1.5 text-[10px] font-semibold text-white/95">
+        <span
+          aria-hidden
+          className={cn(
+            'absolute right-1 top-1 flex h-[18px] items-center gap-0.5 rounded-full pl-1 pr-1.5 text-[10px] font-semibold text-white/95',
+            walkIndex >= 0 ? 'bg-[#5840f0]' : 'bg-black/65',
+          )}
+        >
           <Layers className="size-2.5" />
-          <span className="tabular">{groupSize}</span>
+          <span className="tabular">{walkIndex >= 0 ? `${formatNumber(walkIndex + 1)}/${formatNumber(groupSize)}` : formatNumber(groupSize)}</span>
         </span>
       )}
       {photo.mark.rating > 0 && (
@@ -58,7 +71,7 @@ const FilmItem = memo(function FilmItem({ id, start }: { id: string; start: numb
 export function Filmstrip() {
   const t = useT()
   const ids = useReviewStore((s) => s.visibleIds)
-  const focusId = useReviewStore((s) => s.focusId)
+  const focusSlot = useReviewStore((s) => s.focusSlot)
   const ref = useRef<HTMLDivElement>(null)
   const virtualizer = useVirtualizer({
     horizontal: true,
@@ -69,7 +82,7 @@ export function Filmstrip() {
     paddingStart: 12,
     paddingEnd: 12,
   })
-  const index = focusId ? ids.indexOf(focusId) : -1
+  const index = focusSlot ? ids.indexOf(focusSlot) : -1
   useEffect(() => {
     if (index >= 0) virtualizer.scrollToIndex(index, { align: 'center' })
   }, [index, virtualizer])

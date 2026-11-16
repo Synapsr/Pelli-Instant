@@ -7,6 +7,7 @@ import type { PhotoView } from '@/lib/contract'
 import { cn } from '@/lib/cn'
 import { formatNumber } from '@/lib/format'
 import { useT, type Translate } from '@/lib/i18n'
+import { framePosition, isBest } from '@/lib/review/view'
 import { useReviewStore } from '@/store/review-store'
 import { useWorkspaceStore } from '@/store/workspace-store'
 
@@ -19,8 +20,9 @@ function decisionLabel(t: Translate, photo: PhotoView): string {
 }
 
 /**
- * One photo of the grid. Subscribes to its own photo / focus / selection so
- * a mark re-renders this card only.
+ * One slot of the grid. Subscribes to its own photo / focus / selection so
+ * a mark re-renders this card only. A closed stack whose frames the cursor
+ * walks (⌥← ⌥→) shows the frame under the cursor, with its place ("3/7").
  */
 export const PhotoCard = memo(function PhotoCard({
   id,
@@ -40,30 +42,35 @@ export const PhotoCard = memo(function PhotoCard({
   flow?: boolean
 }) {
   const t = useT()
-  const photo = useReviewStore((s) => s.photos[id])
-  const focused = useReviewStore((s) => s.focusId === id)
+  const focused = useReviewStore((s) => s.focusSlot === id)
+  const shownId = useReviewStore((s) => (s.focusSlot === id && s.focusId ? s.focusId : id))
+  const photo = useReviewStore((s) => s.photos[shownId])
   const selected = useReviewStore((s) => s.selection[id] === true)
   const group = useReviewStore((s) => {
-    const gid = s.photos[id]?.assessment?.groupId
+    const gid = s.photos[shownId]?.assessment?.groupId
     return gid === null || gid === undefined ? undefined : s.groups[gid]
   })
   const expanded = useReviewStore((s) => (group ? s.filters.expanded[group.id] === true && s.filters.stackGroups : false))
   const inDuplicates = useReviewStore((s) => s.filters.tab === 'duplicates')
   const stacked = useReviewStore((s) => s.filters.stackGroups) && !inDuplicates
+  const walking = useReviewStore((s) => focused && group !== undefined && s.walkGroupId === group.id)
+  // Place in the burst, in the grid's order (not its rank: the best is `photoIds[0]`).
+  const position = useReviewStore((s) => framePosition(group, shownId, s.filters.sort, s.search.hits, s))
 
   if (!photo) return null
   const pending = photo.status !== 'analyzed'
   const rejected = !pending && photo.decision === 'rejected'
   const reasons = photo.assessment?.reasons ?? []
   const groupSize = group?.photoIds.length ?? 0
-  const rank = group ? group.photoIds.indexOf(id) : -1
+  const closed = stacked && !expanded
+  const best = isBest(group, shownId)
   const imageHeight = height - CARD_INFO_HEIGHT
 
   const onClick = (e: MouseEvent) => {
-    useReviewStore.getState().click(id, { range: e.shiftKey, toggle: e.metaKey || e.ctrlKey })
+    useReviewStore.getState().click(shownId, { range: e.shiftKey, toggle: e.metaKey || e.ctrlKey })
   }
   const onDoubleClick = () => {
-    useReviewStore.getState().focus(id)
+    useReviewStore.getState().focus(shownId)
     useWorkspaceStore.getState().openLoupe()
   }
   const onGroupBadge = (e: MouseEvent) => {
@@ -84,7 +91,7 @@ export const PhotoCard = memo(function PhotoCard({
       className={cn('group/card select-none', flow ? 'relative flex-none' : 'absolute left-0 top-0')}
       style={flow ? { width, height } : { width, height, transform: `translate3d(${x ?? 0}px, ${y ?? 0}px, 0)`, transition: 'transform 260ms cubic-bezier(0.22, 1, 0.36, 1)' }}
     >
-      {stacked && groupSize > 1 && !expanded && (
+      {closed && groupSize > 1 && (
         <>
           <span aria-hidden className="absolute inset-x-3 -top-[5px] h-3 rounded-t-lg bg-default-200/70 dark:bg-white/[0.06]" />
           <span aria-hidden className="absolute inset-x-1.5 -top-[2.5px] h-3 rounded-t-[10px] bg-default-200 dark:bg-white/[0.1]" />
@@ -121,27 +128,31 @@ export const PhotoCard = memo(function PhotoCard({
             ))}
           </div>
         )}
-        {inDuplicates && rank === 0 && (
+        {inDuplicates && best && (
           <span className="absolute right-2 top-2 inline-flex h-6 items-center gap-1 rounded-full bg-[#5840f0] px-2 text-[11px] font-semibold text-white shadow-md shadow-[#5840f0]/30">
             <Award className="size-3" aria-hidden />
             {t('compare.best')}
           </span>
         )}
-        {!inDuplicates && groupSize > 1 && (rank === 0 || !stacked || !expanded) && (
+        {!inDuplicates && groupSize > 1 && (closed || !stacked || position === 0) && (
           <button
             type="button"
             tabIndex={-1}
             onClick={onGroupBadge}
             title={`${t('review.card.group', { count: groupSize })} · ${t('review.groups.compare')} (C)`}
-            className="absolute right-2 top-2 flex h-6 items-center gap-1 rounded-full bg-black/65 pl-1.5 pr-2 text-[11px] font-semibold text-white/95 transition-colors hover:bg-black/80"
+            className={cn(
+              'absolute right-2 top-2 flex h-6 items-center gap-1 rounded-full pl-1.5 pr-2 text-[11px] font-semibold text-white/95 transition-colors',
+              walking ? 'bg-[#5840f0] hover:bg-[#4a33e0]' : 'bg-black/65 hover:bg-black/80',
+            )}
           >
             <Layers className="size-3" aria-hidden />
-            {groupSize}
+            {/* Walking this slot's burst: the frame under the cursor. */}
+            <span className="tabular">{walking ? `${formatNumber(position + 1)}/${formatNumber(groupSize)}` : formatNumber(groupSize)}</span>
           </button>
         )}
-        {stacked && expanded && rank > 0 && (
+        {stacked && expanded && position > 0 && (
           <span className="absolute right-2 top-2 flex h-6 items-center rounded-full bg-black/60 px-2 text-[11px] font-medium text-white/80 tabular">
-            {rank + 1}/{groupSize}
+            {formatNumber(position + 1)}/{formatNumber(groupSize)}
           </span>
         )}
       </div>
@@ -151,6 +162,12 @@ export const PhotoCard = memo(function PhotoCard({
         <LabelSwatch label={photo.mark.label} size={8} />
         <StarsBadge rating={photo.mark.rating} />
         {photo.mark.flag !== 'none' && <Flag className={cn('size-3', DECISION_TEXT[photo.decision], photo.mark.flag === 'pick' && 'fill-current')} aria-hidden />}
+        {/* The best of an unfolded or walked burst, wherever it sits in it. */}
+        {best && !inDuplicates && (!closed || walking) && (
+          <span title={t('compare.best')} className="flex">
+            <Award className="size-3 text-[#5840f0] dark:text-[#a599f5]" aria-label={t('compare.best')} />
+          </span>
+        )}
         {photo.assessment && <span className="tabular text-[11px] text-default-400">{formatNumber(Math.round(photo.assessment.score))}</span>}
       </div>
     </div>

@@ -5,9 +5,13 @@ export type KeyContext = 'grid' | 'loupe' | 'compare'
 
 export type ShortcutAction =
   | { type: 'move'; dir: Direction }
-  /** previous (-1) / next (1) photo of the focused photo's burst */
+  /** previous (-1) / next (1) frame of the focused photo's burst, the stack staying closed */
   | { type: 'groupMove'; delta: -1 | 1 }
   | { type: 'flag'; flag: Flag }
+  /** keep this photo, reject the other selected photos of its burst */
+  | { type: 'choose' }
+  /** photo only, the window in full screen (F, like Lightroom) */
+  | { type: 'fullscreen' }
   | { type: 'rating'; rating: number }
   | { type: 'label'; label: ColorLabel }
   | { type: 'loupe' }
@@ -49,7 +53,9 @@ function digitOf(e: KeyInput): number | null {
  *
  * Marking: in the loupe, ↑ keeps and ↓ rejects, so a whole shoot is sorted
  * with one hand on the arrows (← → move). P / X / U, the Lightroom keys,
- * work everywhere for those who have them in their fingers.
+ * work everywhere for those who have them in their fingers. S chooses a frame
+ * of a burst over the others (Aftershoot's swap); F shows the photo alone, in
+ * full screen (Lightroom's key).
  */
 export function resolveShortcut(e: KeyInput, context: KeyContext): ShortcutAction | null {
   const mod = e.metaKey || e.ctrlKey
@@ -90,6 +96,8 @@ export function resolveShortcut(e: KeyInput, context: KeyContext): ShortcutActio
   if (key === 'p') return { type: 'flag', flag: 'pick' }
   if (key === 'x') return { type: 'flag', flag: 'reject' }
   if (key === 'u') return { type: 'flag', flag: 'none' }
+  if (key === 's') return { type: 'choose' }
+  if (key === 'f') return { type: 'fullscreen' }
   if (key === 'c') return { type: 'compare' }
   if (key === 'g') return { type: 'group' }
   if (key === 'z') return { type: 'zoom' }

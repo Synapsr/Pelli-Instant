@@ -74,32 +74,95 @@ export function inTab(photo: PhotoView, tab: FilterTab): boolean {
   return photo.decision === tab
 }
 
+/** The sort actually applied: relevance without a search falls back to the date. */
+export function effectiveSort(sort: SortKey, hits: SearchHits): SortKey {
+  return sort === 'relevance' && !hits ? 'date' : sort
+}
+
+/** Index of each photo in capture order, cached per `dateOrder` array. */
+const dateIndexes = new WeakMap<readonly string[], Map<string, number>>()
+
+export function dateIndex(dateOrder: readonly string[]): Map<string, number> {
+  let index = dateIndexes.get(dateOrder)
+  if (!index) {
+    index = new Map(dateOrder.map((id, i) => [id, i]))
+    dateIndexes.set(dateOrder, index)
+  }
+  return index
+}
+
+const byName = (photos: ReviewData['photos']) => (a: string, b: string) =>
+  (photos[a]?.fileName ?? '').localeCompare(photos[b]?.fileName ?? '', undefined, { numeric: true })
+
+/**
+ * Frames of a burst in the order of the grid's sort: capture order by date,
+ * best first by score or relevance (the engine's order), file name by name.
+ * Position is not rank: the best is always `group.photoIds[0]`.
+ */
+export function groupOrder(group: SimilarGroup, sort: SortKey, data: ReviewData): string[] {
+  if (sort === 'score' || sort === 'relevance') return group.photoIds
+  if (sort === 'name') return [...group.photoIds].sort(byName(data.photos))
+  const index = dateIndex(data.dateOrder)
+  return [...group.photoIds].sort((a, b) => (index.get(a) ?? Infinity) - (index.get(b) ?? Infinity))
+}
+
+/** The best frame of its burst (the engine ranks the members, best first). */
+export function isBest(group: SimilarGroup | undefined, id: string): boolean {
+  return group !== undefined && group.photoIds.length > 1 && group.photoIds[0] === id
+}
+
+/** Place of a frame in its burst, in the grid's order (0-based; -1 when it is in none). */
+export function framePosition(group: SimilarGroup | undefined, id: string, sort: SortKey, hits: SearchHits, data: ReviewData): number {
+  return group ? groupOrder(group, effectiveSort(sort, hits), data).indexOf(id) : -1
+}
+
+/** True when the group shows as one closed stack (stacking on, not unfolded, not the "Doublons" rows). */
+export function isStackClosed(groupId: number, filters: ViewFilters): boolean {
+  return filters.tab !== 'duplicates' && filters.stackGroups && !filters.expanded[groupId]
+}
+
+/**
+ * Frames one goes through in a burst (⌥← ⌥→), and what an unfolded burst
+ * shows: every member within the scope (search, moment, camera, reason),
+ * whatever its decision, in the grid's order. Pending photos only in "all".
+ */
+export function burstFrames(group: SimilarGroup, data: ReviewData, filters: ViewFilters, hits: SearchHits): string[] {
+  return groupOrder(group, effectiveSort(filters.sort, hits), data).filter((id) => {
+    const p = data.photos[id]
+    return p !== undefined && (p.status === 'analyzed' || filters.tab === 'all') && inScope(p, filters, hits)
+  })
+}
+
+/**
+ * The photo a closed stack shows: the photographer's own kept photo, else
+ * the best selected member, else the best member, among those in the tab.
+ */
+export function stackCover(group: SimilarGroup, photos: ReviewData['photos'], passes: (id: string) => boolean): string | undefined {
+  const members = group.photoIds.filter(passes)
+  return members.find((id) => photos[id]?.mark.flag === 'pick') ?? members.find((id) => photos[id]?.decision === 'selected') ?? members[0]
+}
+
 export function sortIds(data: ReviewData, sort: SortKey, hits: SearchHits): string[] {
   const ids = [...data.dateOrder]
   const { photos } = data
   if (sort === 'date') return ids
   if (sort === 'relevance' && hits) return ids.sort((a, b) => (hits[b] ?? 0) - (hits[a] ?? 0))
-  if (sort === 'name') return ids.sort((a, b) => photos[a].fileName.localeCompare(photos[b].fileName, undefined, { numeric: true }))
+  if (sort === 'name') return ids.sort(byName(photos))
   const score = (id: string) => photos[id].assessment?.score ?? -1
   return ids.sort((a, b) => score(b) - score(a))
 }
 
 /**
- * Ids shown in the grid. Groups are stacked behind their best member in the
- * tab (placed where the group first appears) unless expanded. An expanded
- * group shows the whole burst, whatever each frame's decision: every member
- * within the scope (search, moment, camera, reason).
+ * Ids shown in the grid. Groups are stacked behind their cover (`stackCover`)
+ * in the tab, placed where the group first appears, unless expanded. An
+ * expanded group shows the whole burst (`burstFrames`), whatever each frame's
+ * decision, in the grid's order.
  */
 export function computeVisible(data: ReviewData, filters: ViewFilters, hits: SearchHits): string[] {
-  const sorted = sortIds(data, filters.sort === 'relevance' && !hits ? 'date' : filters.sort, hits)
+  const sorted = sortIds(data, effectiveSort(filters.sort, hits), hits)
   const passes = (id: string) => {
     const p = data.photos[id]
     return p !== undefined && inTab(p, filters.tab) && inScope(p, filters, hits)
-  }
-  // Pending photos still only show in "all".
-  const inBurst = (id: string) => {
-    const p = data.photos[id]
-    return p !== undefined && (p.status === 'analyzed' || filters.tab === 'all') && inScope(p, filters, hits)
   }
   if (filters.tab === 'duplicates') return computeGroupRows(data, filters, hits).flatMap((row) => row.ids)
 
@@ -115,15 +178,15 @@ export function computeVisible(data: ReviewData, filters: ViewFilters, hits: Sea
     }
     if (emitted.has(group.id)) continue
     emitted.add(group.id)
-    if (filters.expanded[group.id]) out.push(...group.photoIds.filter(inBurst))
-    else out.push(group.photoIds.find(passes) ?? id)
+    if (filters.expanded[group.id]) out.push(...burstFrames(group, data, filters, hits))
+    else out.push(stackCover(group, data.photos, passes) ?? id)
   }
   return out
 }
 
 export interface GroupRow {
   group: SimilarGroup
-  /** members in scope, best first */
+  /** members in scope, in the grid's order (`groupOrder`) */
   ids: string[]
 }
 
@@ -139,7 +202,7 @@ export function computeGroupRows(data: ReviewData, filters: ViewFilters, hits: S
     seen.add(gid)
     const group = data.groups[gid]
     if (!group) continue
-    const ids = group.photoIds.filter((pid) => {
+    const ids = groupOrder(group, effectiveSort(filters.sort, hits), data).filter((pid) => {
       const member = data.photos[pid]
       return member !== undefined && member.status === 'analyzed' && inScope(member, filters, hits)
     })

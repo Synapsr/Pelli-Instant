@@ -1,12 +1,14 @@
 import { Button, Tooltip } from '@heroui/react'
-import { CircleCheck, Columns2, Info, Loader } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { DECISION_ICON, DECISION_TEXT } from '@/components/ui/Decision'
+import { useReducedMotion } from 'framer-motion'
+import { Award, CircleCheck, Columns2, Info, Loader } from 'lucide-react'
+import { useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { DecisionDot, DECISION_ICON, DECISION_TEXT } from '@/components/ui/Decision'
 import { ReasonIcon } from '@/components/ui/ReasonIcon'
 import type { FaceView, PhotoView, ScoreBreakdown } from '@/lib/contract'
 import { cn } from '@/lib/cn'
 import { formatAperture, formatBytes, formatCaptureDate, formatFocal, formatNumber, formatPercent } from '@/lib/format'
 import { useT } from '@/lib/i18n'
+import { effectiveSort, groupOrder } from '@/lib/review/view'
 import { useReviewStore } from '@/store/review-store'
 import { useWorkspaceStore } from '@/store/workspace-store'
 import { CloseUps } from './CloseUps'
@@ -69,6 +71,9 @@ export function Inspector({ photo, previewUrl, onFocusFace, onHoverFace }: { pho
     const gid = photo.assessment?.groupId
     return gid === null || gid === undefined ? undefined : s.groups[gid]
   })
+  // The burst in the grid's order (capture order by date), as ⌥← ⌥→ walk it.
+  const framesKey = useReviewStore((s) => (group ? groupOrder(group, effectiveSort(s.filters.sort, s.search.hits), s).join('\n') : ''))
+  const frames = useMemo(() => (framesKey ? framesKey.split('\n') : []), [framesKey])
   const a = photo.assessment
   const Icon = DECISION_ICON[photo.decision]
   const userFlag = photo.mark.flag !== 'none'
@@ -145,8 +150,8 @@ export function Inspector({ photo, previewUrl, onFocusFace, onHoverFace }: { pho
       </Section>
 
       {group && group.photoIds.length > 1 && (
-        <Section title={t('inspector.group')} aside={<span className="text-xs text-default-500">{t('inspector.groupRank', { rank: group.photoIds.indexOf(photo.id) + 1, count: group.photoIds.length })}</span>}>
-          <GroupStrip ids={group.photoIds} current={photo.id} />
+        <Section title={t('inspector.group')} aside={<span className="tabular text-xs text-default-500">{t('inspector.groupRank', { rank: frames.indexOf(photo.id) + 1, count: frames.length })}</span>}>
+          <GroupStrip ids={frames} best={group.photoIds[0]} current={photo.id} />
           <Button
             size="sm"
             variant="flat"
@@ -197,19 +202,36 @@ export function Inspector({ photo, previewUrl, onFocusFace, onHoverFace }: { pho
   )
 }
 
-function GroupStrip({ ids, current }: { ids: string[]; current: string }) {
+/**
+ * Every frame of the burst, the current one kept in view. Each frame shows
+ * its decision, so two selected frames of one burst are seen at a glance (S
+ * keeps one and rejects the other); the best carries its badge.
+ */
+function GroupStrip({ ids, best, current }: { ids: string[]; best: string; current: string }) {
+  const t = useT()
   const photos = useReviewStore((s) => s.photos)
+  const ref = useRef<HTMLDivElement>(null)
+  const reduce = useReducedMotion()
+  useEffect(() => {
+    const strip = ref.current
+    const frame = strip?.querySelector<HTMLElement>(`[data-frame="${CSS.escape(current)}"]`)
+    if (!strip || !frame) return
+    const left = frame.offsetLeft - (strip.clientWidth - frame.offsetWidth) / 2
+    strip.scrollTo({ left: Math.max(0, left), behavior: reduce ? 'auto' : 'smooth' })
+  }, [current, ids, reduce])
   return (
-    <div className="flex gap-1.5 overflow-x-auto pb-1">
-      {ids.slice(0, 12).map((id, i) => {
+    <div ref={ref} className="relative flex gap-1.5 overflow-x-auto px-0.5 pb-1.5 pt-0.5">
+      {ids.map((id, i) => {
         const p = photos[id]
         if (!p) return null
         return (
           <button
             key={id}
             type="button"
+            data-frame={id}
             onClick={() => useReviewStore.getState().focus(id)}
-            aria-label={p.fileName}
+            aria-label={`${p.fileName}, ${t(`verdict.${p.decision}`)}${id === best ? `, ${t('compare.best')}` : ''}`}
+            aria-current={id === current}
             className={cn(
               'focus-ring photo-well relative h-12 w-[68px] shrink-0 overflow-hidden rounded-md transition-opacity',
               id === current ? 'ring-2 ring-[#5840f0] dark:ring-[#a599f5]' : 'opacity-70 hover:opacity-100',
@@ -217,6 +239,14 @@ function GroupStrip({ ids, current }: { ids: string[]; current: string }) {
           >
             {p.thumbUrl && <img src={p.thumbUrl} alt="" className={cn('h-full w-full object-cover', p.decision === 'rejected' && 'opacity-50')} draggable={false} />}
             <span className="absolute left-1 top-1 rounded bg-black/55 px-1 text-[9px] font-semibold text-white tabular">{i + 1}</span>
+            {id === best && (
+              <span className="absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-[#5840f0] text-white">
+                <Award className="size-2.5" aria-hidden />
+              </span>
+            )}
+            <span className="absolute bottom-1 left-1 flex rounded-full bg-black/55 p-[3px]">
+              <DecisionDot decision={p.decision} user={p.mark.flag !== 'none'} pending={p.status !== 'analyzed'} size={6} />
+            </span>
           </button>
         )
       })}

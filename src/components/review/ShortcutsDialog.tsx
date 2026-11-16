@@ -46,6 +46,7 @@ export function ShortcutsDialog() {
         { label: 'shortcuts.pick', keys: ['↑'], alt: ['P'] },
         { label: 'shortcuts.reject', keys: ['↓'], alt: ['X'] },
         { label: 'shortcuts.unflag', keys: ['U'] },
+        { label: 'shortcuts.choose', keys: ['S'] },
         { label: 'shortcuts.stars', keys: ['0', '…', '5'] },
         { label: 'shortcuts.labels', keys: ['6', '7', '8', '9'] },
         { label: 'shortcuts.undo', keys: [mod, 'Z'] },
@@ -56,6 +57,7 @@ export function ShortcutsDialog() {
       rows: [
         { label: 'shortcuts.loupe', keys: [t('shortcuts.space')] },
         { label: 'shortcuts.zoom', keys: ['Z'] },
+        { label: 'shortcuts.fullscreen', keys: ['F'] },
         { label: 'shortcuts.compare', keys: ['C'] },
         { label: 'shortcuts.group', keys: ['G'] },
         { label: 'shortcuts.export', keys: [mod, 'E'] },

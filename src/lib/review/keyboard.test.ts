@@ -64,6 +64,22 @@ describe('keyboard shortcuts', () => {
     expect(resolveShortcut(key('ArrowUp', { altKey: true }), 'loupe')).toBeNull()
   })
 
+  it('chooses a frame of a burst with S, in the grid and the loupe', () => {
+    expect(resolveShortcut(key('s'), 'loupe')).toEqual({ type: 'choose' })
+    expect(resolveShortcut(key('S', { shiftKey: true }), 'grid')).toEqual({ type: 'choose' })
+    // Compare chooses with 1–4; ⌘S / Alt+S are not ours.
+    expect(resolveShortcut(key('s'), 'compare')).toBeNull()
+    expect(resolveShortcut(key('s', { metaKey: true }), 'loupe')).toBeNull()
+    expect(resolveShortcut(key('s', { altKey: true }), 'loupe')).toBeNull()
+  })
+
+  it('shows the photo in full screen with F, ⌘F staying the search', () => {
+    expect(resolveShortcut(key('f'), 'loupe')).toEqual({ type: 'fullscreen' })
+    expect(resolveShortcut(key('F', { shiftKey: true }), 'grid')).toEqual({ type: 'fullscreen' })
+    expect(resolveShortcut(key('f', { metaKey: true }), 'loupe')).toEqual({ type: 'search' })
+    expect(resolveShortcut(key('f'), 'compare')).toBeNull()
+  })
+
   it('uses 1–4 to pick the winner and arrows to page in compare', () => {
     expect(resolveShortcut(key('1'), 'compare')).toEqual({ type: 'winner', index: 0 })
     expect(resolveShortcut(key('4'), 'compare')).toEqual({ type: 'winner', index: 3 })

@@ -29,4 +29,35 @@ describe('workspace store', () => {
     useWorkspaceStore.getState().closeOverlay()
     expect(useWorkspaceStore.getState().mode).toBe('loupe')
   })
+
+  it('enters full screen from the loupe, or from the grid by opening the loupe', () => {
+    useWorkspaceStore.getState().toggleFullscreen()
+    expect(useWorkspaceStore.getState()).toMatchObject({ mode: 'loupe', fullscreen: true })
+    useWorkspaceStore.getState().toggleFullscreen()
+    expect(useWorkspaceStore.getState()).toMatchObject({ mode: 'loupe', fullscreen: false })
+    useWorkspaceStore.getState().toggleFullscreen()
+    expect(useWorkspaceStore.getState().fullscreen).toBe(true)
+  })
+
+  it('leaves full screen first (Esc, the window’s green button), the loupe stays', () => {
+    useWorkspaceStore.getState().toggleFullscreen()
+    useWorkspaceStore.getState().exitFullscreen()
+    expect(useWorkspaceStore.getState()).toMatchObject({ mode: 'loupe', fullscreen: false })
+    useWorkspaceStore.getState().exitFullscreen()
+    expect(useWorkspaceStore.getState().mode).toBe('loupe')
+  })
+
+  it('is full screen only in the loupe: leaving it or comparing ends it', () => {
+    useWorkspaceStore.getState().toggleFullscreen()
+    useWorkspaceStore.getState().openCompare(['a', 'b'])
+    expect(useWorkspaceStore.getState()).toMatchObject({ mode: 'compare', fullscreen: false })
+    useWorkspaceStore.getState().closeOverlay()
+    useWorkspaceStore.getState().toggleFullscreen()
+    useWorkspaceStore.getState().closeOverlay()
+    expect(useWorkspaceStore.getState()).toMatchObject({ mode: 'grid', fullscreen: false })
+    // Not from the compare view.
+    useWorkspaceStore.getState().openCompare(['a', 'b'])
+    useWorkspaceStore.getState().toggleFullscreen()
+    expect(useWorkspaceStore.getState()).toMatchObject({ mode: 'compare', fullscreen: false })
+  })
 })
