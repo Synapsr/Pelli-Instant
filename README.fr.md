@@ -64,7 +64,7 @@ Vous cherchez une alternative open source à Aftershoot, Narrative Select ou Fil
 | **Trois sévérités** | Stricte, Équilibrée ou Souple. Changer de sévérité retrie la séance instantanément, sans tout réanalyser. |
 | **Vos critères** | Avant la première analyse d'une séance, activez ou désactivez chaque vérification : flou, bougé, mise au point sur le sujet, yeux fermés, sous- et surexposition, images similaires, doublons exacts. *Respecter le flou artistique* est là pour le bokeh et le flou voulu. Chaque séance garde ses propres critères ; ceux par défaut sont dans *Réglages → Analyse*. |
 | **La précision Standard, gratuite** | Les modèles livrés avec l'app : rapides, et déjà très fins. La précision *Maximale*, avec des modèles plus grands, fait partie de [Plus](#pelli-instant-plus). |
-| **Le tri au clavier** | Grille, loupe avec zoom à 100 %, comparaison côte à côte d'une rafale. Toutes les photos ou une décision à la fois, filtre par raison (Floue, Yeux fermés…). Dans la loupe, ↑ garde et ↓ rejette, ⌥← / ⌥→ parcourent une rafale ; les touches de Lightroom P, X et U marchent partout. |
+| **Le tri au clavier** | Grille, loupe avec zoom à 100 % et plein écran (F), comparaison côte à côte d'une rafale. Toutes les photos ou une décision à la fois, filtre par raison (Floue, Yeux fermés…). Dans la loupe, ↑ garde et ↓ rejette ; ⌥← / ⌥→ parcourent une rafale sans la déplier, et S choisit l'image affichée : elle est gardée, les autres images sélectionnées de la rafale sont rejetées. Dans une rafale, les images suivent le tri de la grille (ordre de prise de vue par date). Les touches de Lightroom P, X et U marchent partout. |
 | **La recherche IA** (Plus) | Tapez « mariée bouquet », « première danse » ou « robe bleue » et les bonnes photos remontent en tête. |
 | **Des notes pour Lightroom** | Écrit étoiles, étiquettes de couleur et marqueurs Retenue et Rejetée dans un fichier `.xmp` à côté de chaque RAW, pour Lightroom, Capture One, Bridge ou darktable. Vous choisissez à l'export les étoiles et la couleur de chaque décision (par défaut : Sélectionnées ★★★ vert, À vérifier jaune, Rejetées en rejet), et les noms des couleurs sont écrits dans la langue de votre Lightroom. Les photos sélectionnées arrivent marquées *Retenue* et les rejetées *Rejetée* dans Lightroom Classic 13.2 et suivants. Les étoiles données dans le boîtier comptent comme les vôtres, un `.xmp` existant garde tous ses réglages, et les étoiles, étiquettes et marqueurs d'un autre logiciel restent, sauf si vous les changez dans Pelli Instant. |
 | **La copie de la sélection** | RAW, JPEG ou les deux, dans le dossier de votre choix, sous-dossiers compris. Pelli Instant vous dit combien de place prendra la copie. Chaque fichier est copié en entier ou pas du tout, et un nouvel export ne copie pas deux fois la même photo. |
@@ -81,14 +81,16 @@ Vous cherchez une alternative open source à Aftershoot, Narrative Select ou Fil
 | Touche | Action |
 | --- | --- |
 | <kbd>←</kbd> <kbd>→</kbd> | Photo précédente / suivante |
-| <kbd>⌥</kbd> <kbd>←</kbd> <kbd>→</kbd> | Photo précédente / suivante de la rafale |
+| <kbd>⌥</kbd> <kbd>←</kbd> <kbd>→</kbd> | Photo précédente / suivante de la rafale, sans la déplier |
 | <kbd>↑</kbd> / <kbd>↓</kbd> (loupe) | Garder / rejeter |
 | <kbd>P</kbd> / <kbd>X</kbd> / <kbd>U</kbd> | Garder / rejeter / retirer le marquage, partout |
+| <kbd>S</kbd> | Choisir cette photo de la rafale : la garder, rejeter les autres sélectionnées |
 | <kbd>1</kbd>–<kbd>5</kbd> | Étoiles |
 | <kbd>6</kbd>–<kbd>9</kbd> | Étiquette rouge, jaune, verte, bleue |
 | <kbd>Espace</kbd> | Loupe |
 | <kbd>C</kbd> | Comparer |
 | <kbd>Z</kbd> | Zoom 100 % |
+| <kbd>F</kbd> | Plein écran, la photo seule (<kbd>Échap</kbd> pour sortir) |
 | <kbd>⌘</kbd> <kbd>F</kbd> | Recherche IA (Plus) |
 | <kbd>⌘</kbd> <kbd>E</kbd> | Exporter |
 | <kbd>?</kbd> | Tous les raccourcis |

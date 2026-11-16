@@ -64,7 +64,7 @@ Looking for an open-source alternative to Aftershoot, Narrative Select or Filter
 | **Three sensitivities** | Strict, Balanced or Lenient. Switching re-sorts the shoot instantly, without analysing it again. |
 | **Your criteria** | Before the first analysis of a shoot, turn each check on or off: blur, motion blur, subject focus, closed eyes, under- and overexposure, similar shots, exact copies. *Respect artistic blur* is there for bokeh and blur on purpose. Each shoot keeps its own criteria; the defaults are in *Settings → Analysis*. |
 | **Standard precision, free** | The models that come with the app: fast, and already very fine. *Maximum*, with bigger models, is part of [Plus](#pelli-instant-plus). |
-| **Review at the keyboard** | Grid, loupe with zoom at 100 %, and side-by-side compare of a burst. All photos or one decision at a time, filtered by reason (Blurry, Eyes closed…). In the loupe, ↑ keeps and ↓ rejects, ⌥← / ⌥→ step through a burst; the Lightroom keys P, X and U work everywhere. |
+| **Review at the keyboard** | Grid, loupe with zoom at 100 % and full screen (F), and side-by-side compare of a burst. All photos or one decision at a time, filtered by reason (Blurry, Eyes closed…). In the loupe, ↑ keeps and ↓ rejects; ⌥← / ⌥→ step through a burst without unstacking it, and S chooses the frame you're on: it is kept, the burst's other selected frames are rejected. Inside a burst, frames follow the grid's sort (capture order by date). The Lightroom keys P, X and U work everywhere. |
 | **AI search** (Plus) | Type "bride bouquet" or "first dance" and the matching photos come first. Common wedding, event and portrait words, colours and clothing ("robe bleue", "haut rouge") also work in French, Spanish, German and Italian. |
 | **Ratings for Lightroom** | Writes stars, colour labels and Pick/Reject flags to an `.xmp` file next to each RAW, for Lightroom, Capture One, Bridge or darktable. You choose the stars and colour of each decision in the export (Selected ★★★ green, To review yellow, Rejected by default), and the colour names are written in your Lightroom's language. Selected photos arrive flagged *Picked* and rejects *Rejected* in Lightroom Classic 13.2 and later. Stars you gave in the camera count as yours, an existing `.xmp` keeps all its settings, and stars, labels and flags from another app stay unless you change them in Pelli Instant. |
 | **Copy the selection** | RAW, JPEG or both, to the folder of your choice, sub-folders kept. Pelli Instant tells you how much disk space the copy needs. Each file is copied whole or not at all, and exporting again doesn't copy a photo twice. |
@@ -81,14 +81,16 @@ Looking for an open-source alternative to Aftershoot, Narrative Select or Filter
 | Key | Action |
 | --- | --- |
 | <kbd>←</kbd> <kbd>→</kbd> | Previous / next photo |
-| <kbd>⌥</kbd> <kbd>←</kbd> <kbd>→</kbd> | Previous / next photo of the burst |
+| <kbd>⌥</kbd> <kbd>←</kbd> <kbd>→</kbd> | Previous / next photo of the burst, without unstacking it |
 | <kbd>↑</kbd> / <kbd>↓</kbd> (loupe) | Keep / reject |
 | <kbd>P</kbd> / <kbd>X</kbd> / <kbd>U</kbd> | Keep / reject / remove the flag, everywhere |
+| <kbd>S</kbd> | Choose this photo of the burst: keep it, reject the other selected ones |
 | <kbd>1</kbd>–<kbd>5</kbd> | Stars |
 | <kbd>6</kbd>–<kbd>9</kbd> | Red, yellow, green, blue label |
 | <kbd>Space</kbd> | Loupe |
 | <kbd>C</kbd> | Compare |
 | <kbd>Z</kbd> | Zoom 100 % |
+| <kbd>F</kbd> | Full screen, the photo alone (<kbd>Esc</kbd> to leave) |
 | <kbd>⌘</kbd> <kbd>F</kbd> | AI search (Plus) |
 | <kbd>⌘</kbd> <kbd>E</kbd> | Export |
 | <kbd>?</kbd> | All shortcuts |
