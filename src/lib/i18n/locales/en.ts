@@ -334,7 +334,7 @@ export const en: Catalogue<typeof fr> = {
     title: 'Export the cull',
     cards: {
       xmp: 'Ratings for Lightroom',
-      xmpBody: 'Stars and colour labels in an .xmp file next to each RAW. Your photos are never modified.',
+      xmpBody: 'Stars, colour labels and flags in an .xmp file next to each RAW. Your photos are never modified.',
       copy: { one: 'Copy the selected photo', other: 'Copy the {count} selected photos' },
       copyBody: 'RAW and JPEG, to the folder of your choice. The originals stay where they are.',
       copySize: '{size} to copy',
@@ -349,7 +349,9 @@ export const en: Catalogue<typeof fr> = {
       title: 'Written in the XMP for each decision',
       edit: 'Edit',
       reject: 'Reject',
-      userMarksWin: 'Your own stars and labels always win.',
+      userMarksWin: 'Your own stars, labels and flags always win.',
+      labelNames: 'Colour names',
+      labelNamesHelp: 'They must match the language of your Lightroom: Metadata › Color Label Set.',
     },
     copy: {
       choose: 'Choose…',
@@ -409,7 +411,7 @@ export const en: Catalogue<typeof fr> = {
       gallery_not_found: 'This gallery no longer exists in Pelli. Choose another one or create a new one.',
     },
     relogin: 'Sign in again',
-    lightroomHint: 'In Lightroom: select the photos, then Metadata › Read Metadata from Files.',
+    lightroomHint: 'In Lightroom: select the photos, then Metadata › Read Metadata from Files. Synchronize Folder doesn’t read them again.',
   },
   settings: {
     title: 'Settings',

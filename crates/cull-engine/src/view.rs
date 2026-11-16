@@ -2,8 +2,8 @@
 //! change both together.
 
 use cull_types::{
-    Assessment, ColorLabel, CullSettings, FileKind, FinalDecision, NormRect, Precision, Reason, Scene, SimilarGroup,
-    UserMark,
+    Assessment, ColorLabel, CullSettings, FileKind, FinalDecision, LabelLanguage, NormRect, Precision, Reason, Scene,
+    SimilarGroup, UserMark,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -184,6 +184,11 @@ pub struct XmpExportOptions {
     pub enabled: bool,
     pub rating: PerDecision<i8>,
     pub label: PerDecision<ColorLabel>,
+    /// Language of the colour names in `xmp:Label`: Lightroom's, so that
+    /// they match its Color Label Set. Absent (options of the first
+    /// versions): the app language.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label_language: Option<LabelLanguage>,
     pub keep_user_marks: bool,
 }
 

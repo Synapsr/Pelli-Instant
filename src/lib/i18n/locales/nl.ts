@@ -334,7 +334,7 @@ export const nl: Catalogue<typeof fr> = {
     title: 'Selectie exporteren',
     cards: {
       xmp: 'Beoordelingen voor Lightroom',
-      xmpBody: 'Sterren en kleurlabels in een .xmp-bestand naast elk RAW-bestand. Je foto’s worden nooit aangepast.',
+      xmpBody: 'Sterren, kleurlabels en vlaggen in een .xmp-bestand naast elk RAW-bestand. Je foto’s worden nooit aangepast.',
       copy: { one: 'De geselecteerde foto kopiëren', other: 'De {count} geselecteerde foto’s kopiëren' },
       copyBody: 'RAW en JPEG, naar een map naar keuze. De originelen blijven waar ze zijn.',
       copySize: '{size} te kopiëren',
@@ -349,7 +349,9 @@ export const nl: Catalogue<typeof fr> = {
       title: 'Wat er per beslissing in de XMP komt',
       edit: 'Wijzigen',
       reject: 'Afwijzing',
-      userMarksWin: 'Je eigen sterren en labels gaan altijd voor.',
+      userMarksWin: 'Je eigen sterren, labels en vlaggen gaan altijd voor.',
+      labelNames: 'Kleurnamen',
+      labelNamesHelp: 'Ze moeten overeenkomen met de taal van je Lightroom: Metagegevens › Kleurlabelset.',
     },
     copy: {
       choose: 'Kiezen…',
@@ -409,7 +411,7 @@ export const nl: Catalogue<typeof fr> = {
       gallery_not_found: 'Deze galerij bestaat niet meer in Pelli. Kies een andere of maak een nieuwe aan.',
     },
     relogin: 'Opnieuw inloggen',
-    lightroomHint: 'In Lightroom: selecteer de foto’s en kies dan Metagegevens › Metagegevens lezen uit bestanden.',
+    lightroomHint: 'In Lightroom: selecteer de foto’s en kies dan Metagegevens › Metagegevens lezen uit bestanden. Map synchroniseren leest ze niet opnieuw.',
   },
   settings: {
     title: 'Instellingen',

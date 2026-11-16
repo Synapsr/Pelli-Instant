@@ -332,7 +332,7 @@ export const fr = {
     title: 'Exporter le tri',
     cards: {
       xmp: 'Notes pour Lightroom',
-      xmpBody: 'Étoiles et couleurs dans un fichier .xmp à côté de chaque RAW. Vos photos ne sont jamais modifiées.',
+      xmpBody: 'Étoiles, couleurs et marqueurs dans un fichier .xmp à côté de chaque RAW. Vos photos ne sont jamais modifiées.',
       copy: { one: 'Copier la photo sélectionnée', other: 'Copier les {count} sélectionnées' },
       copyBody: 'RAW et JPEG, dans le dossier de votre choix. Les originaux restent en place.',
       copySize: '{size} à copier',
@@ -347,7 +347,9 @@ export const fr = {
       title: 'Écrit dans les XMP pour chaque décision',
       edit: 'Modifier',
       reject: 'Rejet',
-      userMarksWin: 'Vos propres étoiles et étiquettes passent toujours avant.',
+      userMarksWin: 'Vos propres étoiles, étiquettes et marqueurs passent toujours avant.',
+      labelNames: 'Noms des couleurs',
+      labelNamesHelp: 'Ils doivent correspondre à la langue de votre Lightroom : Métadonnées › Ensemble de libellés des couleurs.',
     },
     copy: {
       choose: 'Choisir…',
@@ -407,7 +409,7 @@ export const fr = {
       gallery_not_found: 'Cette galerie n’existe plus dans Pelli. Choisissez-en une autre ou créez-en une nouvelle.',
     },
     relogin: 'Se reconnecter',
-    lightroomHint: 'Dans Lightroom : sélectionnez les photos, puis Métadonnées › Lire les métadonnées à partir des fichiers.',
+    lightroomHint: 'Dans Lightroom : sélectionnez les photos, puis Métadonnées › Lire les métadonnées à partir des fichiers. Synchroniser le dossier ne les relit pas.',
   },
   settings: {
     title: 'Réglages',

@@ -8,7 +8,7 @@
 use crate::view::{ExportError, ExportOptions, ExportReport};
 use crate::{Engine, EngineError, Result};
 use cull_analysis::{XmpPayload, XmpSource};
-use cull_types::{final_decision, ColorLabel, FileKind, FinalDecision, Flag, PhotoAsset, UserMark};
+use cull_types::{final_decision, ColorLabel, FileKind, FinalDecision, Flag, LabelLanguage, PhotoAsset, UserMark};
 use std::fs::Metadata;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -48,24 +48,35 @@ impl Engine {
         //    selection list covers it). A RAW + JPEG pair has the RAW as
         //    primary: its sidecar is the one Lightroom reads.
         if opts.xmp.enabled {
+            let label_language = opts
+                .xmp
+                .label_language
+                .unwrap_or_else(|| LabelLanguage::from_code(&self.language()).unwrap_or_default());
             for (asset, decision, mark, assessment) in items.iter().filter(|i| i.0.primary.kind == FileKind::Raw) {
-                // Stars and label set in Pelli are the photographer's; the
-                // others come from the decision and never replace those of
-                // another tool.
+                // Stars, label and flag set in Pelli are the photographer's;
+                // the others come from the decision and never replace those
+                // of another tool.
                 let use_user = opts.xmp.keep_user_marks;
                 let own_rating = use_user && mark.rating > 0;
                 let own_label = use_user && mark.label != ColorLabel::None;
+                let own_flag = use_user && mark.flag != Flag::None;
                 let rating = if own_rating { mark.rating as i8 } else { opts.xmp.rating.get(*decision) };
                 let label = if own_label { mark.label } else { opts.xmp.label.get(*decision) };
                 let source = |own: bool| if own { XmpSource::Photographer } else { XmpSource::Decision };
                 let payload = XmpPayload {
-                    mark: UserMark {
-                        flag: if rating < 0 { Flag::Reject } else { mark.flag },
-                        rating: rating.clamp(0, 5) as u8,
-                        label,
-                    },
+                    rating: rating.clamp(-1, 5),
                     rating_source: source(own_rating),
+                    label,
                     label_source: source(own_label),
+                    label_language,
+                    // Lightroom's flag follows the decision, which is the
+                    // photographer's own flag when there is one.
+                    flag: match decision {
+                        FinalDecision::Selected => Flag::Pick,
+                        FinalDecision::ToReview => Flag::None,
+                        FinalDecision::Rejected => Flag::Reject,
+                    },
+                    flag_source: source(own_flag),
                     assessment: assessment.clone(),
                 };
                 match cull_analysis::write_xmp_sidecar(&asset.primary.path, &payload) {

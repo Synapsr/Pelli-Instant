@@ -25,8 +25,8 @@ mod sharpness;
 mod xmp;
 
 use cull_types::{
-    Assessment, CullSettings, ExifInfo, ExposureMetrics, FaceObservation, ImageHashes, NormRect, Scene,
-    SharpnessMetrics, SimilarGroup, SubjectObservation, TechnicalMetrics, UserMark,
+    Assessment, ColorLabel, CullSettings, ExifInfo, ExposureMetrics, FaceObservation, Flag, ImageHashes, LabelLanguage,
+    NormRect, Scene, SharpnessMetrics, SimilarGroup, SubjectObservation, TechnicalMetrics,
 };
 use image::RgbImage;
 use std::path::Path;
@@ -458,7 +458,7 @@ pub fn assess(photos: &[PhotoFacts<'_>], groups: &[SimilarGroup], settings: &Cul
 // Writing results for other tools
 // ---------------------------------------------------------------------------
 
-/// Who chose a rating or label written to a sidecar.
+/// Who chose a rating, label or flag written to a sidecar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum XmpSource {
     /// The photographer, in Pelli Instant: always written.
@@ -471,11 +471,18 @@ pub enum XmpSource {
 /// What the XMP sidecar should carry.
 #[derive(Debug, Clone)]
 pub struct XmpPayload {
-    pub mark: UserMark,
-    /// Who chose `mark.rating` (with the reject flag, the `-1` rating).
+    /// Stars, 0..=5, or -1: Bridge's "Reject" (out of range: clamped).
+    pub rating: i8,
     pub rating_source: XmpSource,
-    /// Who chose `mark.label`.
+    pub label: ColorLabel,
     pub label_source: XmpSource,
+    /// The language whose names `xmp:Label` gets (Lightroom's own).
+    pub label_language: LabelLanguage,
+    /// Lightroom Classic's flag, `xmpDM:pick`: picked, rejected, or none.
+    pub flag: Flag,
+    /// [`XmpSource::Photographer`] when the photographer flagged the photo
+    /// (P or X) in Pelli Instant; it is also written as `pelli:Flag`.
+    pub flag_source: XmpSource,
     /// Pelli's own namespace (`pelli:`): score 0..100, verdict, reasons.
     pub assessment: Option<Assessment>,
 }
@@ -484,14 +491,15 @@ pub struct XmpPayload {
 /// One, Bridge, darktable conventions: `IMG_1.CR3` → `IMG_1.xmp`; if an
 /// existing sidecar is named `IMG_1.CR3.xmp`, update that one).
 ///
-/// Writes `xmp:Rating` (-1 for a rejected flag when `mark.flag == Reject`
-/// and no stars), `xmp:Label`, and `pelli:*`; preserves every other existing
-/// element and attribute (develop settings, keywords…), and the rating and
-/// label set in another tool unless the photographer chose them in Pelli.
-/// Atomic: write a temp file then rename. Returns the sidecar path.
+/// Writes `xmp:Rating`, `xmp:Label` (the colour's name in
+/// `label_language`), Lightroom's flag (`xmpDM:pick`, `xmpDM:good`) and
+/// `pelli:*`; preserves every other existing element and attribute (develop
+/// settings, keywords…), and the rating, label and flag set in another tool
+/// unless the photographer chose them in Pelli. Atomic: write a temp file
+/// then rename. Returns the sidecar path.
 ///
-/// See the `xmp` module docs for the exact rules (who owns the rating and
-/// label, `pelli:Flag`, attribute vs element form, unreadable and read-only
+/// See the `xmp` module docs for the exact rules (who owns the rating,
+/// label and flag, attribute vs element form, unreadable and read-only
 /// sidecars).
 pub fn write_xmp_sidecar(photo_path: &Path, payload: &XmpPayload) -> Result<std::path::PathBuf> {
     xmp::write_sidecar(photo_path, payload)

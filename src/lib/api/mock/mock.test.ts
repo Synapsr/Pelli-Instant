@@ -287,7 +287,7 @@ describe('mock engine', () => {
     const data = await api.getProject('prj-lea-thomas')
     const selected = data.photos.filter((p) => p.decision === 'selected').length
     const report = await api.exportProject('prj-lea-thomas', {
-      xmp: { enabled: true, rating: { selected: 3, toReview: 2, rejected: -1 }, label: { selected: 'green', toReview: 'yellow', rejected: 'red' }, keepUserMarks: true },
+      xmp: { enabled: true, rating: { selected: 3, toReview: 2, rejected: -1 }, label: { selected: 'green', toReview: 'yellow', rejected: 'red' }, labelLanguage: 'fr', keepUserMarks: true },
       copySelected: { enabled: true, destination: '/tmp/out', includeRaw: true, includeJpeg: false, keepStructure: true },
       moveRejected: { enabled: true, folderName: '_Rejets Pelli' },
       fileList: true,

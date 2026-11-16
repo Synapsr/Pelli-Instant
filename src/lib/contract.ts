@@ -362,7 +362,13 @@ export interface XmpExportOptions {
   rating: Record<FinalDecision, number>
   /** colour label written per final decision */
   label: Record<FinalDecision, ColorLabel>
-  /** user stars/labels override the mapping when set */
+  /**
+   * language of the colour names written in `xmp:Label`: Lightroom Classic
+   * shows a label in colour only when its name matches its Color Label Set,
+   * whose names follow Lightroom's language. Absent: the app language.
+   */
+  labelLanguage?: Language
+  /** user stars/labels/flags override the mapping when set */
   keepUserMarks: boolean
 }
 

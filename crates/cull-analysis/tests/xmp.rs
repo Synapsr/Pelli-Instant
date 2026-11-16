@@ -3,11 +3,12 @@
 
 use cull_analysis::internals::{xmp_properties, xmp_sidecar_path};
 use cull_analysis::{write_xmp_sidecar, AnalysisError, XmpPayload, XmpSource};
-use cull_types::{Assessment, ColorLabel, Flag, Reason, ScoreBreakdown, UserMark, Verdict};
+use cull_types::{Assessment, ColorLabel, Flag, LabelLanguage, Reason, ScoreBreakdown, Verdict};
 use std::path::{Path, PathBuf};
 
 const XMP: &str = "http://ns.adobe.com/xap/1.0/";
 const PELLI: &str = "https://pelli.io/ns/cull/1.0/";
+const DM: &str = "http://ns.adobe.com/xmp/1.0/DynamicMedia/";
 const CRS: &str = "http://ns.adobe.com/camera-raw-settings/1.0/";
 
 fn fixture(name: &str) -> Vec<u8> {
@@ -25,23 +26,36 @@ fn assessment(score: f32, verdict: Verdict, reasons: &[Reason]) -> Assessment {
     }
 }
 
-/// Rating and label chosen by the photographer.
-fn payload(flag: Flag, rating: u8, label: ColorLabel, a: Option<Assessment>) -> XmpPayload {
+/// Rating, label and flag chosen by the photographer (labels in English).
+fn payload(flag: Flag, rating: i8, label: ColorLabel, a: Option<Assessment>) -> XmpPayload {
     XmpPayload {
-        mark: UserMark { flag, rating, label },
+        rating,
         rating_source: XmpSource::Photographer,
+        label,
         label_source: XmpSource::Photographer,
+        label_language: LabelLanguage::En,
+        flag,
+        flag_source: if flag == Flag::None { XmpSource::Decision } else { XmpSource::Photographer },
         assessment: a,
     }
 }
 
-/// Rating and label mapped from Pelli's decision.
-fn decision(rating: u8, label: ColorLabel) -> XmpPayload {
+/// Rating and label mapped from Pelli's decision, no flag.
+fn decision(rating: i8, label: ColorLabel) -> XmpPayload {
     XmpPayload {
         rating_source: XmpSource::Decision,
         label_source: XmpSource::Decision,
         ..payload(Flag::None, rating, label, Some(assessment(64.0, Verdict::Keep, &[])))
     }
+}
+
+/// Lightroom's flag from Pelli's decision.
+fn flagged(flag: Flag) -> XmpPayload {
+    XmpPayload { flag, flag_source: XmpSource::Decision, ..decision(0, ColorLabel::None) }
+}
+
+fn props_of(path: &Path) -> Vec<(String, String, String)> {
+    xmp_properties(&std::fs::read(path).unwrap()).unwrap()
 }
 
 fn get(props: &[(String, String, String)], ns: &str, local: &str) -> Vec<String> {
@@ -85,8 +99,11 @@ fn creates_a_new_sidecar() {
     assert_eq!(one(&p, PELLI, "Verdict").as_deref(), Some("keep"));
     assert_eq!(one(&p, PELLI, "Reasons").as_deref(), Some(""));
     assert_eq!(one(&p, PELLI, "Flag").as_deref(), Some("pick"));
+    assert_eq!((one(&p, DM, "pick").as_deref(), one(&p, DM, "good").as_deref()), (Some("1"), Some("true")));
+    assert_eq!((one(&p, PELLI, "Label").as_deref(), one(&p, PELLI, "Pick").as_deref()), (Some("green"), Some("1")));
     let text = String::from_utf8(bytes).unwrap();
     assert!(text.contains("xmlns:pelli=\"https://pelli.io/ns/cull/1.0/\""));
+    assert!(text.contains("\n    xmlns:xmpDM=\"http://ns.adobe.com/xmp/1.0/DynamicMedia/\"\n"), "{text}");
     assert!(text.starts_with("<x:xmpmeta"));
 }
 
@@ -166,7 +183,7 @@ fn updates_darktable_raw_dot_xmp_name() {
     let dir = tempfile::tempdir().unwrap();
     let photo = setup(dir.path(), "IMG_0001.CR3.xmp", &fixture("darktable.xmp"));
     assert_eq!(xmp_sidecar_path(&photo), Some(dir.path().join("IMG_0001.CR3.xmp")));
-    let path = write_xmp_sidecar(&photo, &payload(Flag::Reject, 0, ColorLabel::None, None)).unwrap();
+    let path = write_xmp_sidecar(&photo, &payload(Flag::Reject, -1, ColorLabel::None, None)).unwrap();
     assert_eq!(path, dir.path().join("IMG_0001.CR3.xmp"));
     assert!(!dir.path().join("IMG_0001.xmp").exists());
     let after = std::fs::read_to_string(&path).unwrap();
@@ -175,24 +192,33 @@ fn updates_darktable_raw_dot_xmp_name() {
     assert!(after.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
     let p = xmp_properties(after.as_bytes()).unwrap();
     assert_eq!(one(&p, PELLI, "Flag").as_deref(), Some("reject"));
+    assert_eq!((one(&p, DM, "pick").as_deref(), one(&p, DM, "good").as_deref()), (Some("-1"), Some("false")));
 }
 
 #[test]
 fn reject_flag_and_stars() {
     let dir = tempfile::tempdir().unwrap();
     let photo = dir.path().join("a.NEF");
-    let path = write_xmp_sidecar(&photo, &payload(Flag::Reject, 0, ColorLabel::None, None)).unwrap();
-    let p = xmp_properties(&std::fs::read(&path).unwrap()).unwrap();
+    // Rejected: Bridge's -1 rating, Lightroom's reject flag.
+    let path = write_xmp_sidecar(&photo, &payload(Flag::Reject, -1, ColorLabel::None, None)).unwrap();
+    let p = props_of(&path);
     assert_eq!(one(&p, XMP, "Rating").as_deref(), Some("-1"));
-    // Stars set by the photographer win over the reject flag.
+    assert_eq!((one(&p, DM, "pick").as_deref(), one(&p, DM, "good").as_deref()), (Some("-1"), Some("false")));
+    // Stars and the flag are independent: rejected with 3 stars.
     write_xmp_sidecar(&photo, &payload(Flag::Reject, 3, ColorLabel::None, None)).unwrap();
-    let p = xmp_properties(&std::fs::read(&path).unwrap()).unwrap();
-    assert_eq!(one(&p, XMP, "Rating").as_deref(), Some("3"));
-    // Unflagged, no stars: rating 0.
+    let p = props_of(&path);
+    assert_eq!((one(&p, XMP, "Rating").as_deref(), one(&p, DM, "pick").as_deref()), (Some("3"), Some("-1")));
+    // A rating out of range is clamped.
+    write_xmp_sidecar(&photo, &payload(Flag::Reject, -4, ColorLabel::None, None)).unwrap();
+    assert_eq!(one(&props_of(&path), XMP, "Rating").as_deref(), Some("-1"));
+    // Unflagged, no stars: rating 0, and the flag Pelli wrote goes back to
+    // none, the way Lightroom writes it (pick 0, no good).
     write_xmp_sidecar(&photo, &payload(Flag::None, 0, ColorLabel::None, None)).unwrap();
-    let p = xmp_properties(&std::fs::read(&path).unwrap()).unwrap();
+    let p = props_of(&path);
     assert_eq!(one(&p, XMP, "Rating").as_deref(), Some("0"));
     assert_eq!(one(&p, PELLI, "Flag"), None);
+    assert_eq!((one(&p, DM, "pick").as_deref(), one(&p, DM, "good")), (Some("0"), None));
+    assert_eq!(one(&p, PELLI, "Pick").as_deref(), Some("0"));
 }
 
 #[test]
@@ -343,7 +369,7 @@ fn values_pelli_wrote_follow_the_decision() {
     let props = || xmp_properties(&std::fs::read(&path).unwrap()).unwrap();
     let p = props();
     assert_eq!((one(&p, XMP, "Rating").as_deref(), one(&p, XMP, "Label").as_deref()), (Some("3"), Some("Green")));
-    assert_eq!((one(&p, PELLI, "Rating").as_deref(), one(&p, PELLI, "Label").as_deref()), (Some("3"), Some("Green")));
+    assert_eq!((one(&p, PELLI, "Rating").as_deref(), one(&p, PELLI, "Label").as_deref()), (Some("3"), Some("green")));
     // Re-export after another decision: Pelli's values are updated.
     write_xmp_sidecar(&photo, &decision(2, ColorLabel::Yellow)).unwrap();
     let p = props();
@@ -402,4 +428,174 @@ fn read_only_sidecar_is_left_untouched() {
         perms.set_readonly(false);
         std::fs::set_permissions(&sidecar, perms).unwrap();
     }
+}
+
+#[test]
+fn labels_are_written_in_lightrooms_language() {
+    let dir = tempfile::tempdir().unwrap();
+    let photo = dir.path().join("IMG_0001.CR3");
+    let in_language = |language, rating, label| XmpPayload { label_language: language, ..decision(rating, label) };
+    let path = write_xmp_sidecar(&photo, &in_language(LabelLanguage::Fr, 3, ColorLabel::Green)).unwrap();
+    let p = props_of(&path);
+    assert_eq!((one(&p, XMP, "Label").as_deref(), one(&p, PELLI, "Label").as_deref()), (Some("Vert"), Some("green")));
+    // Writing again changes nothing.
+    let first = std::fs::read(&path).unwrap();
+    write_xmp_sidecar(&photo, &in_language(LabelLanguage::Fr, 3, ColorLabel::Green)).unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), first);
+    // Another language later: Pelli's label, in French, is Pelli's still.
+    write_xmp_sidecar(&photo, &in_language(LabelLanguage::De, 3, ColorLabel::Green)).unwrap();
+    assert_eq!(one(&props_of(&path), XMP, "Label").as_deref(), Some("Grün"));
+    write_xmp_sidecar(&photo, &in_language(LabelLanguage::Pl, 3, ColorLabel::Yellow)).unwrap();
+    assert_eq!(one(&props_of(&path), XMP, "Label").as_deref(), Some("Żółty"));
+    // A decision without label removes it, in whatever language it is.
+    write_xmp_sidecar(&photo, &in_language(LabelLanguage::It, 3, ColorLabel::None)).unwrap();
+    let p = props_of(&path);
+    assert_eq!((one(&p, XMP, "Label"), one(&p, PELLI, "Label")), (None, None));
+
+    // The photographer's own label in Pelli is written in the language too.
+    let own =
+        XmpPayload { label_source: XmpSource::Photographer, ..in_language(LabelLanguage::Nl, 0, ColorLabel::Purple) };
+    write_xmp_sidecar(&photo, &own).unwrap();
+    assert_eq!(one(&props_of(&path), XMP, "Label").as_deref(), Some("Paars"));
+}
+
+#[test]
+fn english_labels_of_earlier_versions_are_replaced() {
+    let dir = tempfile::tempdir().unwrap();
+    // What the first versions wrote: English name, recorded as such.
+    let xml = "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n  <rdf:Description rdf:about=\"\"\n    xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"\n    xmlns:pelli=\"https://pelli.io/ns/cull/1.0/\"\n   xmp:Rating=\"3\"\n   xmp:Label=\"Green\"\n   pelli:Rating=\"3\"\n   pelli:Label=\"Green\"/>\n </rdf:RDF>\n</x:xmpmeta>\n";
+    let photo = setup(dir.path(), "IMG_0001.xmp", xml.as_bytes());
+    let fr = XmpPayload { label_language: LabelLanguage::Fr, ..decision(3, ColorLabel::Green) };
+    write_xmp_sidecar(&photo, &fr).unwrap();
+    let after = std::fs::read_to_string(dir.path().join("IMG_0001.xmp")).unwrap();
+    assert!(after.contains("   xmp:Label=\"Vert\"\n   pelli:Rating=\"3\"\n   pelli:Label=\"green\"\n"), "{after}");
+}
+
+#[test]
+fn labels_that_are_not_pellis_are_kept() {
+    let dir = tempfile::tempdir().unwrap();
+    let fr = |label| XmpPayload { label_language: LabelLanguage::Fr, ..decision(2, label) };
+    let sidecar = |label: &str, record: &str| {
+        format!(
+            "<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description rdf:about=\"\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" xmlns:pelli=\"https://pelli.io/ns/cull/1.0/\" xmp:Label=\"{label}\"{record}/></rdf:RDF>"
+        )
+    };
+    let label_after = |xml: String, payload: XmpPayload| {
+        let photo = setup(dir.path(), "IMG_0001.xmp", xml.as_bytes());
+        write_xmp_sidecar(&photo, &payload).unwrap();
+        one(&props_of(&dir.path().join("IMG_0001.xmp")), XMP, "Label")
+    };
+    // Set in Lightroom before Pelli, whatever the text: a colour of a French
+    // Lightroom, a custom label set's name.
+    assert_eq!(label_after(sidecar("Rouge", ""), fr(ColorLabel::Green)).as_deref(), Some("Rouge"));
+    assert_eq!(label_after(sidecar("Client pick", ""), fr(ColorLabel::Green)).as_deref(), Some("Client pick"));
+    // Changed in Lightroom after Pelli: another colour, or other text.
+    let pellis = " pelli:Label=\"green\"";
+    assert_eq!(label_after(sidecar("Bleu", pellis), fr(ColorLabel::Yellow)).as_deref(), Some("Bleu"));
+    assert_eq!(label_after(sidecar("Client pick", pellis), fr(ColorLabel::Yellow)).as_deref(), Some("Client pick"));
+    assert_eq!(label_after(sidecar("Client pick", pellis), fr(ColorLabel::None)).as_deref(), Some("Client pick"));
+    // Still Pelli's green, in Italian: replaced.
+    assert_eq!(label_after(sidecar("Verde", pellis), fr(ColorLabel::Yellow)).as_deref(), Some("Jaune"));
+    // The photographer's own label in Pelli wins over Lightroom's.
+    let own = XmpPayload { label_source: XmpSource::Photographer, ..fr(ColorLabel::Blue) };
+    assert_eq!(label_after(sidecar("Client pick", ""), own).as_deref(), Some("Bleu"));
+}
+
+#[test]
+fn lightroom_flags_follow_the_ownership_rule() {
+    let dir = tempfile::tempdir().unwrap();
+    let flag_of = |p: &[(String, String, String)]| (one(p, DM, "pick"), one(p, DM, "good"));
+    let some = |pick: &str, good: Option<&str>| (Some(pick.to_string()), good.map(str::to_string));
+
+    // A new sidecar: the decision's flag, recorded.
+    let photo = dir.path().join("IMG_0001.CR3");
+    let path = write_xmp_sidecar(&photo, &flagged(Flag::Reject)).unwrap();
+    let p = props_of(&path);
+    assert_eq!(flag_of(&p), some("-1", Some("false")));
+    assert_eq!((one(&p, PELLI, "Pick").as_deref(), one(&p, PELLI, "Flag")), (Some("-1"), None), "no own flag");
+    // Another decision: Pelli's flag follows it.
+    write_xmp_sidecar(&photo, &flagged(Flag::Pick)).unwrap();
+    assert_eq!(flag_of(&props_of(&path)), some("1", Some("true")));
+    // To review: back to none, the way Lightroom writes it.
+    write_xmp_sidecar(&photo, &flagged(Flag::None)).unwrap();
+    assert_eq!(flag_of(&props_of(&path)), some("0", None));
+    // The photographer rejects it in Lightroom: a decision no longer touches it.
+    write_xmp_sidecar(&photo, &flagged(Flag::Pick)).unwrap();
+    let text = std::fs::read_to_string(&path).unwrap();
+    std::fs::write(&path, text.replace("xmpDM:pick=\"1\"", "xmpDM:pick=\"-1\"").replace("\"true\"", "\"false\""))
+        .unwrap();
+    write_xmp_sidecar(&photo, &flagged(Flag::Pick)).unwrap();
+    write_xmp_sidecar(&photo, &flagged(Flag::None)).unwrap();
+    assert_eq!(flag_of(&props_of(&path)), some("-1", Some("false")));
+    // Unless they flag it in Pelli Instant: their own flag always wins.
+    let own = XmpPayload { flag_source: XmpSource::Photographer, ..flagged(Flag::Pick) };
+    write_xmp_sidecar(&photo, &own).unwrap();
+    let p = props_of(&path);
+    assert_eq!(flag_of(&p), some("1", Some("true")));
+    assert_eq!(one(&p, PELLI, "Flag").as_deref(), Some("pick"));
+
+    // Sidecars Lightroom wrote before Pelli.
+    let lightroom = |attrs: &str| {
+        format!(
+            "<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description rdf:about=\"\" xmlns:xmpDM=\"http://ns.adobe.com/xmp/1.0/DynamicMedia/\"{attrs}/></rdf:RDF>"
+        )
+    };
+    let flag_after = |xml: String, payload: XmpPayload| {
+        let photo = setup(dir.path(), "IMG_0001.xmp", xml.as_bytes());
+        write_xmp_sidecar(&photo, &payload).unwrap();
+        flag_of(&props_of(&dir.path().join("IMG_0001.xmp")))
+    };
+    // Rejected in Lightroom: kept.
+    assert_eq!(
+        flag_after(lightroom(" xmpDM:pick=\"-1\" xmpDM:good=\"false\""), flagged(Flag::Pick)),
+        some("-1", Some("false"))
+    );
+    // Unflagged in Lightroom (pick 0): counts as none.
+    assert_eq!(flag_after(lightroom(" xmpDM:pick=\"0\""), flagged(Flag::Pick)), some("1", Some("true")));
+    // Picked in Lightroom desktop (good only): kept, nothing added.
+    assert_eq!(flag_after(lightroom(" xmpDM:good=\"True\""), flagged(Flag::Reject)), (None, Some("True".into())));
+    // To review, on a sidecar Pelli never flagged: nothing written.
+    assert_eq!(flag_after(lightroom(""), flagged(Flag::None)), (None, None));
+    let p = props_of(&dir.path().join("IMG_0001.xmp"));
+    assert_eq!(one(&p, PELLI, "Pick"), None);
+    // The photographer's reject in Pelli replaces Lightroom's pick.
+    let own = XmpPayload { flag_source: XmpSource::Photographer, ..flagged(Flag::Reject) };
+    assert_eq!(flag_after(lightroom(" xmpDM:pick=\"1\" xmpDM:good=\"true\""), own), some("-1", Some("false")));
+}
+
+#[test]
+fn flags_declare_the_dynamic_media_namespace_once() {
+    let dir = tempfile::tempdir().unwrap();
+    // A sidecar Lightroom Classic wrote without flags: xmpDM is not bound.
+    let original = fixture("lightroom-classic.xmp");
+    let photo = setup(dir.path(), "IMG_0001.xmp", &original);
+    let own = XmpPayload { flag_source: XmpSource::Photographer, ..payload(Flag::Pick, 4, ColorLabel::None, None) };
+    write_xmp_sidecar(&photo, &own).unwrap();
+    let after = std::fs::read_to_string(dir.path().join("IMG_0001.xmp")).unwrap();
+    assert!(
+        after.contains(
+            "crs:AlreadyApplied=\"False\"\n    xmlns:xmpDM=\"http://ns.adobe.com/xmp/1.0/DynamicMedia/\"\n    xmlns:pelli=\"https://pelli.io/ns/cull/1.0/\"\n   xmpDM:pick=\"1\"\n   xmpDM:good=\"true\"\n   pelli:Flag=\"pick\""
+        ),
+        "{after}"
+    );
+    assert_eq!(after.matches("xmlns:xmpDM=").count(), 1);
+    let before = String::from_utf8(original).unwrap();
+    assert_lines_preserved(&before, &after, &["xmp:Rating=", "crs:AlreadyApplied"]);
+    let p = xmp_properties(after.as_bytes()).unwrap();
+    assert_eq!((one(&p, DM, "pick").as_deref(), one(&p, XMP, "Label").as_deref()), (Some("1"), Some("Green")));
+    // Again, then rejected: updated in place, never declared twice.
+    write_xmp_sidecar(&photo, &own).unwrap();
+    let reject = XmpPayload { flag: Flag::Reject, ..own.clone() };
+    write_xmp_sidecar(&photo, &reject).unwrap();
+    let again = std::fs::read_to_string(dir.path().join("IMG_0001.xmp")).unwrap();
+    assert_eq!(again.matches("xmlns:xmpDM=").count(), 1, "{again}");
+    assert!(again.contains("   xmpDM:pick=\"-1\"\n   xmpDM:good=\"false\"\n"), "{again}");
+
+    // Element form, under another prefix, as some tools write it.
+    let xml = "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n  <rdf:Description rdf:about=\"\" xmlns:dm=\"http://ns.adobe.com/xmp/1.0/DynamicMedia/\">\n   <dm:pick>0</dm:pick>\n   <dm:videoFrameRate>25</dm:videoFrameRate>\n  </rdf:Description>\n </rdf:RDF>\n</x:xmpmeta>\n";
+    let photo = setup(dir.path(), "IMG_0001.xmp", xml.as_bytes());
+    write_xmp_sidecar(&photo, &flagged(Flag::Reject)).unwrap();
+    let after = std::fs::read_to_string(dir.path().join("IMG_0001.xmp")).unwrap();
+    assert!(after.contains("   <dm:pick>-1</dm:pick>\n   <dm:videoFrameRate>25</dm:videoFrameRate>\n"), "{after}");
+    assert!(after.contains(" dm:good=\"false\"") && !after.contains("xmlns:xmpDM"), "{after}");
 }

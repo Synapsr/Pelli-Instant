@@ -8,10 +8,10 @@ import type { ExportOptions, UploadRequest } from '@/lib/contract'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatBytes, formatNumber, shortenPath } from '@/lib/format'
-import { useT } from '@/lib/i18n'
+import { useI18nStore, useT } from '@/lib/i18n'
 import { useAppStore } from '@/store/app-store'
 import { useExportStore } from '@/store/export-store'
-import { DEFAULT_XMP_MAPPING, usePrefsStore } from '@/store/prefs-store'
+import { DEFAULT_XMP_MAPPING, usePrefsStore, xmpExportMapping } from '@/store/prefs-store'
 import { useReviewStore } from '@/store/review-store'
 import { ExportReportView, ExportRunning } from './ExportProgress'
 import { GallerySection, useGalleries, type GalleryChoice } from './GallerySection'
@@ -25,8 +25,8 @@ import { XmpMapping } from './XmpMapping'
 export const SHOW_GALLERY_EXPORT = false
 
 export const DEFAULT_EXPORT: ExportOptions = {
-  // Stars and labels per decision: the photographer's choice, kept in the preferences.
-  xmp: { enabled: true, ...DEFAULT_XMP_MAPPING, keepUserMarks: true },
+  // Stars, labels and their language: the photographer's choice, kept in the preferences.
+  xmp: { enabled: true, rating: DEFAULT_XMP_MAPPING.rating, label: DEFAULT_XMP_MAPPING.label, keepUserMarks: true },
   copySelected: { enabled: false, destination: null, includeRaw: true, includeJpeg: true, keepStructure: true },
   moveRejected: { enabled: false, folderName: '_Rejets Pelli' },
   fileList: false,
@@ -196,8 +196,8 @@ function ExportContent({ onClose }: { onClose: () => void }) {
           folderPerScene: gallery.folderPerScene,
         }
       : null
-    const { rating, label } = usePrefsStore.getState().xmpMapping
-    void run(project.id, { ...options, fileList: false, xmp: { ...options.xmp, rating, label, enabled: xmpOn } }, request)
+    const mapping = xmpExportMapping(usePrefsStore.getState().xmpMapping, useI18nStore.getState().language)
+    void run(project.id, { ...options, fileList: false, xmp: { ...options.xmp, ...mapping, enabled: xmpOn } }, request)
   }
 
   const pickDestination = async () => {

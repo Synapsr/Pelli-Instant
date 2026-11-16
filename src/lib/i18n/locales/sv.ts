@@ -334,7 +334,7 @@ export const sv: Catalogue<typeof fr> = {
     title: 'Exportera urvalet',
     cards: {
       xmp: 'Betyg för Lightroom',
-      xmpBody: 'Stjärnor och färgetiketter i en .xmp-fil bredvid varje RAW-fil. Dina bilder ändras aldrig.',
+      xmpBody: 'Stjärnor, färgetiketter och flaggor i en .xmp-fil bredvid varje RAW-fil. Dina bilder ändras aldrig.',
       copy: { one: 'Kopiera den valda bilden', other: 'Kopiera de {count} valda' },
       copyBody: 'RAW och JPEG, till valfri mapp. Originalen ligger kvar.',
       copySize: '{size} att kopiera',
@@ -349,7 +349,9 @@ export const sv: Catalogue<typeof fr> = {
       title: 'Det som skrivs i XMP för varje beslut',
       edit: 'Ändra',
       reject: 'Avvisning',
-      userMarksWin: 'Dina egna stjärnor och etiketter går alltid före.',
+      userMarksWin: 'Dina egna stjärnor, etiketter och flaggor går alltid före.',
+      labelNames: 'Färgnamn',
+      labelNamesHelp: 'De måste stämma med språket i ditt Lightroom: Metadata › Färgetikettsuppsättning.',
     },
     copy: {
       choose: 'Välj…',
@@ -409,7 +411,7 @@ export const sv: Catalogue<typeof fr> = {
       gallery_not_found: 'Det här galleriet finns inte längre i Pelli. Välj ett annat eller skapa ett nytt.',
     },
     relogin: 'Logga in igen',
-    lightroomHint: 'I Lightroom: markera bilderna och välj sedan Metadata › Läs metadata från filer.',
+    lightroomHint: 'I Lightroom: markera bilderna och välj sedan Metadata › Läs metadata från filer. Synkronisera mapp läser dem inte igen.',
   },
   settings: {
     title: 'Inställningar',

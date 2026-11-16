@@ -1,11 +1,13 @@
+import { Dropdown, DropdownItem, DropdownMenu, DropdownTrigger } from '@heroui/react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Ban, Star } from 'lucide-react'
+import { Ban, ChevronsUpDown, Star } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { DecisionDot } from '@/components/ui/Decision'
 import { LABEL_COLOR } from '@/components/ui/Marks'
-import type { ColorLabel, FinalDecision } from '@/lib/contract'
+import type { ColorLabel, FinalDecision, Language } from '@/lib/contract'
 import { cn } from '@/lib/cn'
-import { useT } from '@/lib/i18n'
+import { LANGUAGE_NAMES, LANGUAGES, useLanguage, useT } from '@/lib/i18n'
+import { labelName, labelNamesSample, resolveLabelLanguage } from '@/lib/label-names'
 import { usePrefsStore } from '@/store/prefs-store'
 
 const DECISIONS: FinalDecision[] = ['selected', 'toReview', 'rejected']
@@ -32,8 +34,8 @@ function Choice({ on, label, onPress, children, plain = false, className }: { on
   )
 }
 
-/** Stars (or "reject") and colour of one decision, as the summary line shows them. */
-function Written({ rating, label }: { rating: number; label: ColorLabel }) {
+/** Stars (or "reject") and colour of one decision, as the summary line shows them (`names`: the label set's language). */
+function Written({ rating, label, names }: { rating: number; label: ColorLabel; names: Language }) {
   const t = useT()
   if (rating === 0 && label === 'none') return <span className="text-default-400">–</span>
   return (
@@ -46,19 +48,72 @@ function Written({ rating, label }: { rating: number; label: ColorLabel }) {
         </span>
       )}
       {rating < 0 && <span className="text-default-500">{t('export.xmpMap.reject')}</span>}
-      {label !== 'none' && <span role="img" aria-label={t(`marks.labels.${label}`)} className="size-2.5 rounded-[3px]" style={{ background: LABEL_COLOR[label] }} />}
+      {label !== 'none' && <span role="img" aria-label={t(`marks.labels.${label}`)} title={labelName(label, names) ?? undefined} className="size-2.5 rounded-[3px]" style={{ background: LABEL_COLOR[label] }} />}
     </span>
   )
 }
 
 /**
- * What the XMP sidecars get for each decision, in one line, and a tiny editor
- * behind "Edit". Kept across sessions; the photographer's own stars and
- * labels always win (`keepUserMarks`).
+ * The language of the colour names written in the sidecars: Lightroom's own,
+ * or its labels show as white "custom labels". The app language until the
+ * photographer picks another one.
+ */
+function LabelLanguageChoice() {
+  const t = useT()
+  const appLanguage = useLanguage()
+  const chosen = usePrefsStore((s) => s.xmpMapping.labelLanguage)
+  const setLabelLanguage = usePrefsStore((s) => s.setLabelLanguage)
+  const value = resolveLabelLanguage(chosen, appLanguage)
+  const title = t('export.xmpMap.labelNames')
+  return (
+    <div className="mt-2">
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-default-600">
+        <span>{title}</span>
+        <Dropdown placement="bottom-start" radius="lg" classNames={{ content: 'min-w-[260px] p-1' }}>
+          <DropdownTrigger>
+            <button
+              type="button"
+              aria-label={`${title} · ${LANGUAGE_NAMES[value]}`}
+              className="focus-ring relative -mx-1 inline-flex h-7 min-w-0 items-center gap-1 rounded-md px-1.5 font-medium text-foreground transition-[background-color,scale] duration-150 ease-out after:absolute after:inset-x-0 after:-inset-y-1.5 hover:bg-default-200/50 active:scale-[0.96] dark:hover:bg-white/[0.06]"
+            >
+              <span lang={value} className="truncate">
+                {LANGUAGE_NAMES[value]} <span className="font-normal text-default-500">({labelNamesSample(value)})</span>
+              </span>
+              <ChevronsUpDown className="size-3 shrink-0 text-default-400" aria-hidden />
+            </button>
+          </DropdownTrigger>
+          <DropdownMenu
+            aria-label={title}
+            variant="flat"
+            selectionMode="single"
+            disallowEmptySelection
+            selectedKeys={new Set([value])}
+            onAction={(key) => setLabelLanguage(key as Language)}
+            classNames={{ list: 'max-h-[min(360px,50vh)] overflow-y-auto' }}
+          >
+            {LANGUAGES.map((language) => (
+              <DropdownItem key={language} textValue={LANGUAGE_NAMES[language]} lang={language}>
+                {LANGUAGE_NAMES[language]} <span className="text-default-500">· {labelNamesSample(language)}</span>
+              </DropdownItem>
+            ))}
+          </DropdownMenu>
+        </Dropdown>
+      </div>
+      <p className="mt-0.5 text-[11px] leading-snug text-default-400">{t('export.xmpMap.labelNamesHelp')}</p>
+    </div>
+  )
+}
+
+/**
+ * What the XMP sidecars get for each decision, in one line, the language of
+ * the colour names, and a tiny editor behind "Edit". Kept across sessions;
+ * the photographer's own stars, labels and flags always win (`keepUserMarks`).
  */
 export function XmpMapping() {
   const t = useT()
+  const appLanguage = useLanguage()
   const mapping = usePrefsStore((s) => s.xmpMapping)
+  const names = resolveLabelLanguage(mapping.labelLanguage, appLanguage)
   const setMapping = usePrefsStore((s) => s.setXmpMapping)
   const [editing, setEditing] = useState(false)
 
@@ -70,7 +125,7 @@ export function XmpMapping() {
             <span key={d} className="inline-flex items-center gap-1.5">
               <DecisionDot decision={d} size={6} />
               {t(`review.tabs.${d}`)}
-              <Written rating={mapping.rating[d]} label={mapping.label[d]} />
+              <Written rating={mapping.rating[d]} label={mapping.label[d]} names={names} />
             </span>
           ))}
         </div>
@@ -83,6 +138,7 @@ export function XmpMapping() {
           {editing ? t('common.done') : t('export.xmpMap.edit')}
         </button>
       </div>
+      <LabelLanguageChoice />
       <AnimatePresence initial={false}>
         {editing && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }} className="overflow-hidden">

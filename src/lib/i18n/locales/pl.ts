@@ -349,7 +349,7 @@ export const pl: Catalogue<typeof fr> = {
     title: 'Eksportuj selekcję',
     cards: {
       xmp: 'Oceny dla Lightrooma',
-      xmpBody: 'Gwiazdki i kolory w pliku .xmp obok każdego pliku RAW. Twoje zdjęcia nigdy nie są modyfikowane.',
+      xmpBody: 'Gwiazdki, kolory i flagi w pliku .xmp obok każdego pliku RAW. Twoje zdjęcia nigdy nie są modyfikowane.',
       copy: {
         one: 'Skopiuj wybrane zdjęcie',
         few: 'Skopiuj {count} wybrane zdjęcia',
@@ -374,7 +374,9 @@ export const pl: Catalogue<typeof fr> = {
       title: 'Co trafia do plików XMP dla każdej decyzji',
       edit: 'Zmień',
       reject: 'Odrzucenie',
-      userMarksWin: 'Twoje własne gwiazdki i etykiety zawsze mają pierwszeństwo.',
+      userMarksWin: 'Twoje własne gwiazdki, etykiety i flagi zawsze mają pierwszeństwo.',
+      labelNames: 'Nazwy kolorów',
+      labelNamesHelp: 'Muszą odpowiadać językowi Twojego Lightrooma: Metadane › Zestaw kolorowych etykiet.',
     },
     copy: {
       choose: 'Wybierz…',
@@ -464,7 +466,7 @@ export const pl: Catalogue<typeof fr> = {
       gallery_not_found: 'Ta galeria już nie istnieje w Pelli. Wybierz inną lub utwórz nową.',
     },
     relogin: 'Zaloguj się ponownie',
-    lightroomHint: 'W Lightroomie: zaznacz zdjęcia, a potem Metadane › Odczytaj metadane z plików.',
+    lightroomHint: 'W Lightroomie: zaznacz zdjęcia, a potem Metadane › Odczytaj metadane z plików. „Synchronizuj folder” nie odczytuje ich ponownie.',
   },
   settings: {
     title: 'Ustawienia',

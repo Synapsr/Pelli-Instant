@@ -587,17 +587,110 @@ pub enum ColorLabel {
     Purple,
 }
 
-impl ColorLabel {
-    /// Name written in `xmp:Label` (Lightroom / Bridge default label set).
-    pub fn xmp_name(self) -> Option<&'static str> {
+/// Language of the colour label names written in `xmp:Label`.
+///
+/// Lightroom Classic shows a label in colour only when its text is one of
+/// the names of the active Color Label Set, and the default set's names
+/// follow Lightroom's own language: a French Lightroom expects `Rouge`, and
+/// shows `Red` as a white "custom" label. Capture One reads English names,
+/// or its own language's when it runs in another one. The app's languages.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum LabelLanguage {
+    #[default]
+    En,
+    Fr,
+    Es,
+    De,
+    It,
+    Pt,
+    Nl,
+    Pl,
+    Sv,
+}
+
+impl LabelLanguage {
+    pub const ALL: [LabelLanguage; 9] = [
+        LabelLanguage::En,
+        LabelLanguage::Fr,
+        LabelLanguage::Es,
+        LabelLanguage::De,
+        LabelLanguage::It,
+        LabelLanguage::Pt,
+        LabelLanguage::Nl,
+        LabelLanguage::Pl,
+        LabelLanguage::Sv,
+    ];
+
+    /// From an app language code (`fr`, `pt`…).
+    pub fn from_code(code: &str) -> Option<LabelLanguage> {
+        Self::ALL.into_iter().find(|l| l.code() == code)
+    }
+
+    pub fn code(self) -> &'static str {
         match self {
-            ColorLabel::None => None,
-            ColorLabel::Red => Some("Red"),
-            ColorLabel::Yellow => Some("Yellow"),
-            ColorLabel::Green => Some("Green"),
-            ColorLabel::Blue => Some("Blue"),
-            ColorLabel::Purple => Some("Purple"),
+            LabelLanguage::En => "en",
+            LabelLanguage::Fr => "fr",
+            LabelLanguage::Es => "es",
+            LabelLanguage::De => "de",
+            LabelLanguage::It => "it",
+            LabelLanguage::Pt => "pt",
+            LabelLanguage::Nl => "nl",
+            LabelLanguage::Pl => "pl",
+            LabelLanguage::Sv => "sv",
         }
+    }
+
+    /// Red, yellow, green, blue and purple in Lightroom Classic's default
+    /// Color Label Set ("Lightroom Default", whose names are the menu items
+    /// of Photo › Set Color Label) in this language. Kept in sync with
+    /// `LABEL_NAMES` in `src/lib/export/label-names.ts`.
+    pub fn names(self) -> [&'static str; 5] {
+        match self {
+            LabelLanguage::En => ["Red", "Yellow", "Green", "Blue", "Purple"],
+            LabelLanguage::Fr => ["Rouge", "Jaune", "Vert", "Bleu", "Violet"],
+            LabelLanguage::Es => ["Rojo", "Amarillo", "Verde", "Azul", "Morado"],
+            LabelLanguage::De => ["Rot", "Gelb", "Grün", "Blau", "Lila"],
+            LabelLanguage::It => ["Rosso", "Giallo", "Verde", "Blu", "Viola"],
+            LabelLanguage::Pt => ["Vermelho", "Amarelo", "Verde", "Azul", "Roxo"],
+            LabelLanguage::Nl => ["Rood", "Geel", "Groen", "Blauw", "Paars"],
+            LabelLanguage::Pl => ["Czerwony", "Żółty", "Zielony", "Niebieski", "Fioletowy"],
+            LabelLanguage::Sv => ["Röd", "Gul", "Grön", "Blå", "Lila"],
+        }
+    }
+}
+
+impl ColorLabel {
+    /// The five colours, in Lightroom's order (keys 6 to 9, then purple).
+    pub const COLORS: [ColorLabel; 5] =
+        [ColorLabel::Red, ColorLabel::Yellow, ColorLabel::Green, ColorLabel::Blue, ColorLabel::Purple];
+
+    fn index(self) -> Option<usize> {
+        Self::COLORS.iter().position(|&c| c == self)
+    }
+
+    /// Language-neutral id (`red`…), as the contract spells it.
+    pub fn id(self) -> Option<&'static str> {
+        self.index().map(|i| ["red", "yellow", "green", "blue", "purple"][i])
+    }
+
+    /// Name written in `xmp:Label` for a Lightroom in `language`.
+    pub fn name_in(self, language: LabelLanguage) -> Option<&'static str> {
+        self.index().map(|i| language.names()[i])
+    }
+
+    /// The colour a label text stands for: its id, or its name in any of
+    /// the [`LabelLanguage`]s (case and surrounding spaces ignored). Other
+    /// text (a custom label set's "Client pick") is no colour.
+    pub fn from_name(text: &str) -> Option<ColorLabel> {
+        let text = text.trim().to_lowercase();
+        if text.is_empty() {
+            return None;
+        }
+        Self::COLORS.into_iter().find(|c| {
+            c.id() == Some(text.as_str())
+                || LabelLanguage::ALL.iter().any(|&l| c.name_in(l).is_some_and(|n| n.to_lowercase() == text))
+        })
     }
 }
 
@@ -681,6 +774,31 @@ mod tests {
     fn camel_case() {
         let s = serde_json::to_string(&Reason::SubjectOutOfFocus).unwrap();
         assert_eq!(s, "\"subjectOutOfFocus\"");
+    }
+
+    #[test]
+    fn label_names_in_every_language() {
+        assert_eq!(ColorLabel::Green.name_in(LabelLanguage::En), Some("Green"));
+        assert_eq!(ColorLabel::Red.name_in(LabelLanguage::Fr), Some("Rouge"));
+        assert_eq!(ColorLabel::Purple.name_in(LabelLanguage::De), Some("Lila"));
+        assert_eq!(ColorLabel::None.name_in(LabelLanguage::It), None);
+        assert_eq!(ColorLabel::Blue.id(), Some("blue"));
+        // Every name of every language reads back as its colour, ids and
+        // the English names of earlier versions too: no name means two colours.
+        for language in LabelLanguage::ALL {
+            for color in ColorLabel::COLORS {
+                let name = color.name_in(language).unwrap();
+                assert_eq!(ColorLabel::from_name(name), Some(color), "{language:?} {name}");
+                assert_eq!(ColorLabel::from_name(&format!(" {} ", name.to_uppercase())), Some(color));
+            }
+            assert_eq!(LabelLanguage::from_code(language.code()), Some(language));
+            let json = serde_json::to_string(&language).unwrap();
+            assert_eq!(json, format!("\"{}\"", language.code()));
+        }
+        assert_eq!(ColorLabel::from_name("purple"), Some(ColorLabel::Purple));
+        assert_eq!(ColorLabel::from_name("Client pick"), None);
+        assert_eq!(ColorLabel::from_name(""), None);
+        assert_eq!(LabelLanguage::from_code("ja"), None);
     }
 
     #[test]

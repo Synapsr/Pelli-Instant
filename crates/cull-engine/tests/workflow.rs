@@ -186,6 +186,7 @@ fn full_workflow_without_models() {
                         to_review: cull_engine::cull_types::ColorLabel::Yellow,
                         rejected: cull_engine::cull_types::ColorLabel::Red,
                     },
+                    label_language: None,
                     keep_user_marks: true,
                 },
                 copy_selected: CopySelectedOptions {
@@ -408,6 +409,7 @@ fn camera_ratings_become_the_photographers_marks() {
             enabled: true,
             rating: PerDecision { selected: 5, to_review: 5, rejected: 5 },
             label: PerDecision { selected: ColorLabel::None, to_review: ColorLabel::None, rejected: ColorLabel::None },
+            label_language: None,
             keep_user_marks: true,
         },
         copy_selected: CopySelectedOptions {
@@ -439,4 +441,101 @@ fn camera_ratings_become_the_photographers_marks() {
     let engine = Engine::open(config()).unwrap();
     assert_eq!(mark(&engine, "IMG_0001.jpg"), UserMark::default());
     assert_eq!(mark(&engine, "IMG_0002.jpg").flag, Flag::Reject);
+}
+
+#[test]
+fn sidecars_speak_lightrooms_language_and_carry_its_flags() {
+    use cull_engine::cull_types::{ColorLabel, FinalDecision, LabelLanguage};
+    use cull_engine::settings::SettingsPatch;
+    let tmp = tempfile::tempdir().unwrap();
+    let shoot = tmp.path().join("Shoot");
+    std::fs::create_dir_all(&shoot).unwrap();
+    // Three RAW + JPEG pairs (the RAWs unreadable: their twins are analysed).
+    for (i, img) in [scene(1, 600, 400), rings(600, 400), scene(50, 600, 400)].iter().enumerate() {
+        std::fs::write(shoot.join(format!("IMG_030{i}.dng")), b"II*\0not a real raw").unwrap();
+        save(img, &shoot.join(format!("IMG_030{i}.jpg")));
+    }
+    // The third already has Lightroom's sidecar: a custom label, rejected.
+    let lightroom = "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n  <rdf:Description rdf:about=\"\"\n    xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"\n    xmlns:xmpDM=\"http://ns.adobe.com/xmp/1.0/DynamicMedia/\"\n   xmp:Label=\"Client pick\"\n   xmpDM:pick=\"-1\"\n   xmpDM:good=\"false\"/>\n </rdf:RDF>\n</x:xmpmeta>\n";
+    std::fs::write(shoot.join("IMG_0302.xmp"), lightroom).unwrap();
+
+    let engine = engine_in(tmp.path());
+    engine.set_settings(SettingsPatch { language: Some("fr".into()), ..Default::default() }).unwrap();
+    let project = engine.open_folder(&shoot, true).unwrap();
+    engine.analyze_blocking(&project.id, CullSettings::default()).unwrap();
+    let id = |name: &str| {
+        engine.get_project(&project.id).unwrap().photos.into_iter().find(|p| p.file_name == name).unwrap().id
+    };
+    let flag = |name: &str, flag| {
+        let patch = MarkPatch { flag: Some(flag), rating: None, label: None };
+        engine.set_marks(&project.id, &[id(name)], patch).unwrap();
+    };
+    flag("IMG_0300.dng", Flag::Pick);
+    flag("IMG_0301.dng", Flag::Reject);
+    flag("IMG_0302.dng", Flag::Pick);
+    let mut options: ExportOptions = serde_json::from_value(serde_json::json!({
+        "xmp": { "enabled": true, "rating": { "selected": 3, "toReview": 0, "rejected": -1 },
+                 "label": { "selected": "green", "toReview": "yellow", "rejected": "red" }, "keepUserMarks": true },
+        "copySelected": { "enabled": false, "destination": null, "includeRaw": true, "includeJpeg": true,
+                          "keepStructure": false },
+        "moveRejected": { "enabled": false, "folderName": "_Rejets Pelli" },
+        "fileList": false
+    }))
+    .unwrap();
+    assert_eq!(options.xmp.label_language, None, "options saved by the first versions still load");
+    let export = |options: &ExportOptions| {
+        let report = engine.export_project(&project.id, options).unwrap();
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
+        assert_eq!(report.xmp_written, 3);
+    };
+    let read = |name: &str| std::fs::read_to_string(shoot.join(name)).unwrap();
+
+    // No language in the options: the app's, French.
+    export(&options);
+    let picked = read("IMG_0300.xmp");
+    for part in
+        ["xmp:Rating=\"3\"", "xmp:Label=\"Vert\"", "pelli:Label=\"green\"", "xmpDM:pick=\"1\"", "xmpDM:good=\"true\""]
+    {
+        assert!(picked.contains(part), "{part}: {picked}");
+    }
+    assert!(picked.contains("xmlns:xmpDM=\"http://ns.adobe.com/xmp/1.0/DynamicMedia/\""), "{picked}");
+    let rejected = read("IMG_0301.xmp");
+    for part in [
+        "xmp:Rating=\"-1\"",
+        "xmp:Label=\"Rouge\"",
+        "xmpDM:pick=\"-1\"",
+        "xmpDM:good=\"false\"",
+        "pelli:Flag=\"reject\"",
+    ] {
+        assert!(rejected.contains(part), "{part}: {rejected}");
+    }
+    // The photographer's own flag in Pelli wins over Lightroom's; their
+    // label from Lightroom stays.
+    let third = read("IMG_0302.xmp");
+    assert!(third.contains("xmp:Label=\"Client pick\"") && third.contains("xmpDM:pick=\"1\""), "{third}");
+    assert_eq!(third.matches("xmlns:xmpDM").count(), 1, "{third}");
+
+    // Another language: Pelli's names are replaced, the photographer's stay.
+    options.xmp.label_language = Some(LabelLanguage::De);
+    export(&options);
+    assert!(read("IMG_0300.xmp").contains("xmp:Label=\"Grün\""));
+    assert!(read("IMG_0301.xmp").contains("xmp:Label=\"Rot\""));
+    assert!(read("IMG_0302.xmp").contains("xmp:Label=\"Client pick\""));
+
+    // Unflagged in Pelli: the decision is the AI's again, and so is the flag.
+    let unflag = MarkPatch { flag: Some(Flag::None), rating: None, label: None };
+    engine.set_marks(&project.id, &[id("IMG_0300.dng")], unflag).unwrap();
+    export(&options);
+    let data = engine.get_project(&project.id).unwrap();
+    let decision = data.photos.iter().find(|p| p.file_name == "IMG_0300.dng").unwrap().decision;
+    let (pick, label) = match decision {
+        FinalDecision::Selected => ("1", ColorLabel::Green),
+        FinalDecision::ToReview => ("0", ColorLabel::Yellow),
+        FinalDecision::Rejected => ("-1", ColorLabel::Red),
+    };
+    let after = read("IMG_0300.xmp");
+    assert!(after.contains(&format!("xmpDM:pick=\"{pick}\"")), "{decision:?}: {after}");
+    let name = label.name_in(LabelLanguage::De).unwrap();
+    assert!(after.contains(&format!("xmp:Label=\"{name}\"")), "{after}");
+    assert!(!after.contains("pelli:Flag"), "{after}");
 }

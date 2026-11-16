@@ -334,7 +334,7 @@ export const es: Catalogue<typeof fr> = {
     title: 'Exportar la selección',
     cards: {
       xmp: 'Valoraciones para Lightroom',
-      xmpBody: 'Estrellas y colores en un archivo .xmp junto a cada RAW. Tus fotos nunca se modifican.',
+      xmpBody: 'Estrellas, colores e indicadores en un archivo .xmp junto a cada RAW. Tus fotos nunca se modifican.',
       copy: { one: 'Copiar la foto seleccionada', other: 'Copiar las {count} seleccionadas' },
       copyBody: 'RAW y JPEG, en la carpeta que elijas. Los originales se quedan en su sitio.',
       copySize: '{size} por copiar',
@@ -349,7 +349,9 @@ export const es: Catalogue<typeof fr> = {
       title: 'Lo que se escribe en los XMP para cada decisión',
       edit: 'Editar',
       reject: 'Descarte',
-      userMarksWin: 'Tus propias estrellas y etiquetas siempre tienen prioridad.',
+      userMarksWin: 'Tus propias estrellas, etiquetas e indicadores siempre tienen prioridad.',
+      labelNames: 'Nombres de los colores',
+      labelNamesHelp: 'Deben coincidir con el idioma de tu Lightroom: Metadatos › Conjunto de etiquetas de color.',
     },
     copy: {
       choose: 'Elegir…',
@@ -409,7 +411,7 @@ export const es: Catalogue<typeof fr> = {
       gallery_not_found: 'Esta galería ya no existe en Pelli. Elige otra o crea una nueva.',
     },
     relogin: 'Volver a iniciar sesión',
-    lightroomHint: 'En Lightroom: selecciona las fotos y luego Metadatos › Leer metadatos de archivos.',
+    lightroomHint: 'En Lightroom: selecciona las fotos y luego Metadatos › Leer metadatos de archivos. Sincronizar carpeta no los vuelve a leer.',
   },
   settings: {
     title: 'Ajustes',

@@ -105,15 +105,20 @@ engine through one contract.
    precision (ViT-B/32, or ViT-L/14 from the pack), and ranks the photos by
    cosine similarity with their stored embeddings.
 8. **Export.** `export_project` (`export.rs`) writes XMP sidecars next to the
-   RAW files only (stars, colour label, and Pelli's flag, score, verdict and
-   reasons in its own namespace; everything else in an existing sidecar is
-   kept byte for byte, ratings set in another tool are kept, and the file is
-   replaced atomically; the stars and colour of each decision come from the
-   export options), copies the selection (each file through a hidden
-   temporary file, one name suffix per photo when a name is taken, earlier
-   copies left alone), moves the rejects to `_Rejets Pelli` (a photo's
-   files all together or not at all), and leaves the export marker in the
-   folders it filled. Originals are never modified or deleted.
+   RAW files only: the stars and colour of each decision from the export
+   options, the colour named in the language of the photographer's
+   Lightroom (`labelLanguage`, the app language by default: Lightroom
+   Classic matches label names against its Color Label Set), Lightroom's
+   Pick/Reject flag from the final decision (`xmpDM:pick` and `xmpDM:good`,
+   read since Lightroom Classic 13.2), and Pelli's own flag, score, verdict
+   and reasons in its own namespace. Everything else in an existing sidecar
+   is kept byte for byte, ratings, labels and flags set in another tool are
+   kept, and the file is replaced atomically. The export then copies the
+   selection (each file through a hidden temporary file, one name suffix
+   per photo when a name is taken, earlier copies left alone), moves the
+   rejects to `_Rejets Pelli` (a photo's files all together or not at all),
+   and leaves the export marker in the folders it filled. Originals are
+   never modified or deleted.
 
 ## The interface
 

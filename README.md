@@ -66,7 +66,7 @@ Looking for an open-source alternative to Aftershoot, Narrative Select or Filter
 | **Standard precision, free** | The models that come with the app: fast, and already very fine. *Maximum*, with bigger models, is part of [Plus](#pelli-instant-plus). |
 | **Review at the keyboard** | Grid, loupe with zoom at 100 %, and side-by-side compare of a burst. All photos or one decision at a time, filtered by reason (Blurry, Eyes closed…). In the loupe, ↑ keeps and ↓ rejects, ⌥← / ⌥→ step through a burst; the Lightroom keys P, X and U work everywhere. |
 | **AI search** (Plus) | Type "bride bouquet" or "first dance" and the matching photos come first. Common wedding, event and portrait words, colours and clothing ("robe bleue", "haut rouge") also work in French, Spanish, German and Italian. |
-| **Ratings for Lightroom** | Writes stars and colour labels to an `.xmp` file next to each RAW, for Lightroom, Capture One, Bridge or darktable. You choose the stars and colour of each decision in the export (Selected ★★★ green, To review yellow, Rejected by default). Stars you gave in the camera count as yours, an existing `.xmp` keeps all its settings, and stars and labels from another app stay unless you change them in Pelli Instant. |
+| **Ratings for Lightroom** | Writes stars, colour labels and Pick/Reject flags to an `.xmp` file next to each RAW, for Lightroom, Capture One, Bridge or darktable. You choose the stars and colour of each decision in the export (Selected ★★★ green, To review yellow, Rejected by default), and the colour names are written in your Lightroom's language. Selected photos arrive flagged *Picked* and rejects *Rejected* in Lightroom Classic 13.2 and later. Stars you gave in the camera count as yours, an existing `.xmp` keeps all its settings, and stars, labels and flags from another app stay unless you change them in Pelli Instant. |
 | **Copy the selection** | RAW, JPEG or both, to the folder of your choice, sub-folders kept. Pelli Instant tells you how much disk space the copy needs. Each file is copied whole or not at all, and exporting again doesn't copy a photo twice. |
 | **Rejects filed away** | Moves the rejects to a `_Rejets Pelli` sub-folder next to the originals: a RAW, its JPEG and its `.xmp` move together. Nothing is deleted. |
 | **Gives way to your other apps** | A switch in *Settings → General* runs the analysis in the background, on fewer cores at a low priority: Lightroom and your browser stay smooth, sorting takes 3 to 5 times longer. Off by default, for the fastest sort. |
@@ -265,9 +265,16 @@ Only anonymous statistics, which you can turn off: how many photos you sort, how
 <details>
 <summary><b>Does it change my RAW files?</b></summary>
 
-No. Stars and colour labels go into an `.xmp` sidecar next to each RAW (`IMG_0001.xmp`, or `IMG_0001.CR3.xmp` when that one already exists), and every other setting in an existing sidecar is kept: develop settings, keywords, history. Stars and labels you set in Lightroom or Capture One stay too, unless you set them in Pelli Instant: the ratings that come from the AI's decisions only replace the ones Pelli Instant wrote itself. Stars you gave in the camera become your own stars in Pelli Instant (unless the RAW already has a sidecar), so the export keeps them.
+No. Stars, colour labels and flags go into an `.xmp` sidecar next to each RAW (`IMG_0001.xmp`, or `IMG_0001.CR3.xmp` when that one already exists), and every other setting in an existing sidecar is kept: develop settings, keywords, history. Stars, labels and flags you set in Lightroom or Capture One stay too, unless you set them in Pelli Instant: the values that come from the AI's decisions only replace the ones Pelli Instant wrote itself. Stars you gave in the camera become your own stars in Pelli Instant (unless the RAW already has a sidecar), so the export keeps them.
 
-In Lightroom Classic, select the photos, then **Metadata → Read Metadata from Files**. Lightroom has no XMP field for its Pick and Reject flags, so a rejected photo without stars gets −1 star, which Lightroom and Bridge show as *Rejected*. JPEG-only shoots get no sidecar, since Lightroom reads a JPEG's ratings inside the file.
+Lightroom Classic reads the sidecar of a photo when it imports it. For photos already in the catalogue, select them, then **Metadata → Read Metadata from Files**: *Synchronize Folder* imports the new photos but doesn't read the sidecars of the others again. Selected photos come in flagged *Picked* and rejected ones *Rejected*: Lightroom Classic reads its flags from the sidecar since version 13.2 (February 2024). Bridge has no flags; with the default ratings it shows a rejected photo's −1 star as *Reject*. JPEG-only shoots get no sidecar, since Lightroom reads a JPEG's ratings inside the file.
+
+</details>
+
+<details>
+<summary><b>Why are my colour labels white in Lightroom?</b></summary>
+
+Lightroom Classic shows a colour label only when its name matches its Color Label Set, whose names follow Lightroom's language: a French Lightroom expects *Rouge*, *Jaune*, *Vert*, *Bleu*, *Violet*, and shows *Red* as a white custom label. In the export, *Colour names* writes the names of your Lightroom's language (the app's language until you pick another); Lightroom lists its own under **Metadata → Color Label Set → Edit**. Export again, then **Metadata → Read Metadata from Files**: the labels Pelli Instant wrote are replaced by the new names, the ones you set yourself stay. Capture One reads English names, or those of its own language.
 
 </details>
 

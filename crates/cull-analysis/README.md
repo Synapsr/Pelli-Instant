@@ -208,14 +208,17 @@ rejected when nothing in it is sharp: for such work, turn the blur checks off.
 
 ### Lightroom, Capture One, Bridge, darktable
 
-Pelli Instant writes your stars, colour label and its own verdict into the
-**XMP sidecar** next to each RAW (`IMG_0001.xmp`, or `IMG_0001.CR3.xmp` when
-that already exists). Every other setting in the file is kept exactly as it
-was: develop settings, keywords, history. Lightroom has no XMP field for its
-Pick/Reject flags, so a photo you rejected without giving it stars gets
-**−1 stars** (shown as "Rejected" by Bridge and Lightroom's rating filters).
-In Lightroom Classic, use *Metadata › Read Metadata from Files* to pick
-changes up.
+Pelli Instant writes your stars, colour label, Lightroom's Pick/Reject flag
+and its own verdict into the **XMP sidecar** next to each RAW
+(`IMG_0001.xmp`, or `IMG_0001.CR3.xmp` when that already exists). Every
+other setting in the file is kept exactly as it was: develop settings,
+keywords, history. The colour label is written by name in the language of
+your Lightroom (*Rouge* for a French Lightroom, *Rot* for a German one):
+Lightroom Classic shows any other name as a white custom label. The flag
+(`xmpDM:pick`) is read by Lightroom Classic 13.2 and later; Bridge, which
+has no flags, shows the −1 star of a rejected photo as "Reject". For photos
+already in Lightroom Classic, use *Metadata › Read Metadata from Files* to
+pick changes up.
 
 ---
 

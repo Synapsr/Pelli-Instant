@@ -11,28 +11,45 @@
 //! form `<rdf:Description xmp:Rating="3">` and element form
 //! `<xmp:Rating>3</xmp:Rating>`:
 //!
-//! * `xmp:Rating` — the stars. Lightroom has no XMP field for its
-//!   pick/reject flags, so a photo the photographer rejected *without*
-//!   giving it stars is written `-1`, the "rejected" rating of Bridge and
-//!   Lightroom's "Rejected" rating filter; stars win over the reject flag.
-//! * `xmp:Label` — the colour label.
+//! * `xmp:Rating` — the stars, or `-1`, the "Reject" of Bridge, which reads
+//!   no flag (Lightroom Classic takes its Rejected flag from `xmpDM:pick`,
+//!   not from this rating).
+//! * `xmp:Label` — the colour label, by name. Lightroom Classic shows a
+//!   colour only when the text is a name of its active Color Label Set,
+//!   whose default names follow Lightroom's language (`Rouge` in French,
+//!   `Rot` in German), and any other text as a white "custom label": the
+//!   name is written in the payload's
+//!   [`LabelLanguage`](cull_types::LabelLanguage). `pelli:Label`
+//!   records the colour's id (`green`), whatever the language.
+//! * `xmpDM:pick` — Lightroom Classic's flag, read and written in XMP since
+//!   13.2 (February 2024): `1` picked, `-1` rejected, `0` none. With it,
+//!   `xmpDM:good`: `true` for a pick, `false` for a reject, absent
+//!   otherwise. That pair is what Lightroom Classic writes itself (Adobe
+//!   documents the flags in XMP, not the fields; Lightroom desktop read
+//!   picks from `xmpDM:good` before), so Pelli writes both. Bridge reads
+//!   neither.
 //!
-//!   Both may have been set in Lightroom, Capture One… A value the
+//!   All three may have been set in Lightroom, Capture One… A value the
 //!   photographer chose in Pelli Instant ([`XmpSource::Photographer`]) is
 //!   always written. A value mapped from Pelli's decision
 //!   ([`XmpSource::Decision`]) only replaces Pelli's own: every value Pelli
-//!   writes is recorded in `pelli:Rating` / `pelli:Label`, and a decision's
-//!   value is written when the sidecar still holds the one Pelli wrote last,
-//!   or when Pelli never wrote one and the sidecar has none (rating `0`
-//!   counts as none). A value set in another tool before Pelli, or changed
-//!   there since, is kept. A decision without label removes the label Pelli
-//!   wrote, if it is still there; the photographer's choice without label
+//!   writes is recorded in `pelli:Rating` / `pelli:Label` / `pelli:Pick`,
+//!   and a decision's value is written when the sidecar still holds the one
+//!   Pelli wrote last (for a label, a name of the recorded colour in any of
+//!   the languages, so choosing another language replaces Pelli's names),
+//!   or when Pelli never wrote one and the sidecar has none (rating `0` and
+//!   flag `0` count as none; a flag also needs no `xmpDM:good`). A value
+//!   set in another tool before Pelli, or changed there since, is kept, and
+//!   so is a label that is no colour name ("Client pick"). A decision
+//!   without label removes the label Pelli wrote, if it is still there; a
+//!   decision without flag (To review) sets the flag Pelli wrote back to
+//!   `0`, if it is still there; the photographer's choice without label
 //!   leaves the label alone.
-//! * `pelli:Flag` (`pick` / `reject`, removed when unflagged), `pelli:Score`
-//!   (0..100), `pelli:Verdict` (`keep` / `maybe` / `reject`), `pelli:Reasons`
-//!   (comma-separated, e.g. `blurry,eyesClosed`) in
-//!   `xmlns:pelli="https://pelli.io/ns/cull/1.0/"`; the last three are
-//!   removed when the payload has no assessment.
+//! * `pelli:Flag` (`pick` / `reject`: the photographer's own flag in Pelli
+//!   Instant, removed otherwise), `pelli:Score` (0..100), `pelli:Verdict`
+//!   (`keep` / `maybe` / `reject`), `pelli:Reasons` (comma-separated, e.g.
+//!   `blurry,eyesClosed`) in `xmlns:pelli="https://pelli.io/ns/cull/1.0/"`;
+//!   the last three are removed when the payload has no assessment.
 //!
 //! Existing values are updated in place, in the form they already have;
 //! new properties are added as attributes of the first `rdf:Description`
@@ -45,7 +62,7 @@
 //! untouched too, as a `PermissionDenied` I/O error.
 
 use crate::{AnalysisError, Result, XmpPayload, XmpSource};
-use cull_types::{Flag, Reason, Verdict};
+use cull_types::{ColorLabel, Flag, Reason, Verdict};
 use quick_xml::events::Event;
 use quick_xml::Reader;
 use std::ffi::OsString;
@@ -56,6 +73,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 pub(crate) const XMP_NS: &str = "http://ns.adobe.com/xap/1.0/";
 pub(crate) const RDF_NS: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 pub(crate) const PELLI_NS: &str = "https://pelli.io/ns/cull/1.0/";
+/// Adobe's Dynamic Media namespace: Lightroom Classic's flag (`pick`, `good`).
+pub(crate) const XMPDM_NS: &str = "http://ns.adobe.com/xmp/1.0/DynamicMedia/";
 const X_NS: &str = "adobe:ns:meta/";
 
 /// One owned property: `None` removes it.
@@ -93,51 +112,99 @@ fn value<'a>(existing: &'a [(String, String, String)], ns: &str, local: &str) ->
     existing.iter().find(|p| p.0 == ns && p.1 == local).map(|p| p.2.trim()).filter(|v| !v.is_empty())
 }
 
-/// Whether a value mapped from the decision may replace `xmp:<local>`: the
-/// sidecar still holds the one Pelli wrote last (`pelli:<local>`), or Pelli
-/// never wrote one and the sidecar has none (`unset`: values meaning none).
-fn decision_may_write(existing: &[(String, String, String)], local: &str, unset: &[&str]) -> bool {
-    let current = value(existing, XMP_NS, local);
-    match value(existing, PELLI_NS, local) {
+/// Whether a value mapped from the decision may replace `<ns>:<local>`:
+/// the sidecar still holds the one Pelli wrote last (`pelli:<record>`), or
+/// Pelli never wrote one and the sidecar has none (`unset`: values meaning
+/// none).
+fn decision_may_write(
+    existing: &[(String, String, String)],
+    ns: &str,
+    local: &str,
+    record: &str,
+    unset: &[&str],
+) -> bool {
+    let current = value(existing, ns, local);
+    match value(existing, PELLI_NS, record) {
         Some(written) => current == Some(written),
         None => current.is_none_or(|v| unset.contains(&v)),
     }
 }
 
+/// The same for `xmp:Label`: the colour Pelli recorded (its id, or the
+/// English name earlier versions recorded) still names the sidecar's label,
+/// in any of the languages.
+fn label_is_pellis(existing: &[(String, String, String)]) -> bool {
+    let current = value(existing, XMP_NS, "Label");
+    match value(existing, PELLI_NS, "Label") {
+        Some(written) => match ColorLabel::from_name(written) {
+            Some(color) => current.and_then(ColorLabel::from_name) == Some(color),
+            None => current == Some(written),
+        },
+        None => current.is_none(),
+    }
+}
+
+/// The same for Lightroom's flag: an unflagged sidecar has `xmpDM:pick` `0`
+/// or none, and no `xmpDM:good` (Lightroom desktop's pick).
+fn flag_is_pellis(existing: &[(String, String, String)]) -> bool {
+    decision_may_write(existing, XMPDM_NS, "pick", "Pick", &["0"])
+        && (value(existing, PELLI_NS, "Pick").is_some() || value(existing, XMPDM_NS, "good").is_none())
+}
+
 /// The properties to write over `existing` (the sidecar's current ones).
 pub(crate) fn props_for(payload: &XmpPayload, existing: &[(String, String, String)]) -> Vec<Prop> {
-    let m = &payload.mark;
     let mut props = Vec::new();
-    // `xmp:` values written, recorded in `pelli:` (after the others, so new
+    // Values written, recorded in `pelli:` (after the others, so new
     // attributes keep the order score, verdict, reasons).
     let mut written = Vec::new();
-    let mut write = |local: &'static str, value: Option<String>| {
-        props.push(Prop { ns: XMP_NS, local, value: value.clone() });
-        written.push(Prop { ns: PELLI_NS, local, value });
+    let mut record = |local: &'static str, value: Option<&str>| {
+        written.push(Prop { ns: PELLI_NS, local, value: value.map(str::to_string) })
     };
-    let rating: i32 = if m.flag == Flag::Reject && m.rating == 0 { -1 } else { m.rating.min(5) as i32 };
-    if payload.rating_source == XmpSource::Photographer || decision_may_write(existing, "Rating", &["0"]) {
-        write("Rating", Some(rating.to_string()));
+
+    let rating = payload.rating.clamp(-1, 5).to_string();
+    if payload.rating_source == XmpSource::Photographer
+        || decision_may_write(existing, XMP_NS, "Rating", "Rating", &["0"])
+    {
+        props.push(Prop { ns: XMP_NS, local: "Rating", value: Some(rating.clone()) });
+        record("Rating", Some(&rating));
     }
-    match (m.label.xmp_name(), payload.label_source) {
-        (Some(label), XmpSource::Photographer) => write("Label", Some(label.to_string())),
-        (Some(label), XmpSource::Decision) if decision_may_write(existing, "Label", &[]) => {
-            write("Label", Some(label.to_string()))
-        }
+
+    let name = payload.label.name_in(payload.label_language);
+    let write_label = match (name, payload.label_source) {
+        (Some(_), XmpSource::Photographer) => true,
+        (Some(_), XmpSource::Decision) => label_is_pellis(existing),
         // No label for this decision: the one Pelli wrote goes.
-        (None, XmpSource::Decision)
-            if value(existing, PELLI_NS, "Label").is_some() && decision_may_write(existing, "Label", &[]) =>
-        {
-            write("Label", None)
-        }
-        _ => {}
-    }
-    let flag = match m.flag {
-        Flag::None => None,
-        Flag::Pick => Some("pick".to_string()),
-        Flag::Reject => Some("reject".to_string()),
+        (None, XmpSource::Decision) => value(existing, PELLI_NS, "Label").is_some() && label_is_pellis(existing),
+        (None, XmpSource::Photographer) => false,
     };
-    props.push(Prop { ns: PELLI_NS, local: "Flag", value: flag });
+    if write_label {
+        props.push(Prop { ns: XMP_NS, local: "Label", value: name.map(str::to_string) });
+        record("Label", payload.label.id());
+    }
+
+    let write_flag = match (payload.flag, payload.flag_source) {
+        // Unflagged (To review): the flag Pelli wrote goes back to none.
+        (Flag::None, _) => value(existing, PELLI_NS, "Pick").is_some() && flag_is_pellis(existing),
+        (_, XmpSource::Photographer) => true,
+        (_, XmpSource::Decision) => flag_is_pellis(existing),
+    };
+    if write_flag {
+        let (pick, good) = match payload.flag {
+            Flag::Pick => ("1", Some("true")),
+            Flag::Reject => ("-1", Some("false")),
+            Flag::None => ("0", None),
+        };
+        props.push(Prop { ns: XMPDM_NS, local: "pick", value: Some(pick.to_string()) });
+        props.push(Prop { ns: XMPDM_NS, local: "good", value: good.map(str::to_string) });
+        record("Pick", Some(pick));
+    }
+
+    let own_flag = match (payload.flag, payload.flag_source) {
+        (Flag::Pick, XmpSource::Photographer) => Some("pick".to_string()),
+        (Flag::Reject, XmpSource::Photographer) => Some("reject".to_string()),
+        _ => None,
+    };
+    props.push(Prop { ns: PELLI_NS, local: "Flag", value: own_flag });
     let a = payload.assessment.as_ref();
     let score = a.map(|a| {
         let s = if a.score.is_finite() { a.score.clamp(0.0, 100.0) } else { 0.0 };
@@ -157,6 +224,7 @@ pub(crate) fn props_for(payload: &XmpPayload, existing: &[(String, String, Strin
 fn preferred_prefix(ns: &str) -> &'static str {
     match ns {
         XMP_NS => "xmp",
+        XMPDM_NS => "xmpDM",
         PELLI_NS => "pelli",
         RDF_NS => "rdf",
         _ => "ns",
@@ -265,7 +333,11 @@ pub(crate) fn new_xmp(props: &[Prop]) -> Vec<u8> {
     s.push_str(&format!("<x:xmpmeta xmlns:x=\"{X_NS}\" x:xmptk=\"Pelli Instant\">\n"));
     s.push_str(&format!(" <rdf:RDF xmlns:rdf=\"{RDF_NS}\">\n"));
     s.push_str("  <rdf:Description rdf:about=\"\"");
-    s.push_str(&format!("\n    xmlns:xmp=\"{XMP_NS}\"\n    xmlns:pelli=\"{PELLI_NS}\""));
+    s.push_str(&format!("\n    xmlns:xmp=\"{XMP_NS}\""));
+    if props.iter().any(|p| p.ns == XMPDM_NS && p.value.is_some()) {
+        s.push_str(&format!("\n    xmlns:xmpDM=\"{XMPDM_NS}\""));
+    }
+    s.push_str(&format!("\n    xmlns:pelli=\"{PELLI_NS}\""));
     for p in props {
         if let Some(v) = &p.value {
             s.push_str(&format!("\n   {}:{}=\"{}\"", preferred_prefix(p.ns), p.local, escape(v, true)));

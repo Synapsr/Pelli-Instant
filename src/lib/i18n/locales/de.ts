@@ -334,7 +334,7 @@ export const de: Catalogue<typeof fr> = {
     title: 'Auswahl exportieren',
     cards: {
       xmp: 'Bewertungen für Lightroom',
-      xmpBody: 'Sterne und Farben in einer .xmp-Datei neben jedem RAW. Ihre Fotos werden nie verändert.',
+      xmpBody: 'Sterne, Farben und Markierungen in einer .xmp-Datei neben jedem RAW. Ihre Fotos werden nie verändert.',
       copy: { one: 'Ausgewähltes Foto kopieren', other: 'Die {count} ausgewählten kopieren' },
       copyBody: 'RAW und JPEG in einen Ordner Ihrer Wahl. Die Originale bleiben an ihrem Platz.',
       copySize: '{size} zu kopieren',
@@ -349,7 +349,9 @@ export const de: Catalogue<typeof fr> = {
       title: 'Was je Entscheidung in die XMP geschrieben wird',
       edit: 'Ändern',
       reject: 'Abgelehnt',
-      userMarksWin: 'Ihre eigenen Sterne und Farbmarkierungen haben immer Vorrang.',
+      userMarksWin: 'Ihre eigenen Sterne, Farben und Markierungen haben immer Vorrang.',
+      labelNames: 'Farbnamen',
+      labelNamesHelp: 'Sie müssen der Sprache Ihres Lightroom entsprechen: Metadaten › Farbbeschriftungssatz.',
     },
     copy: {
       choose: 'Auswählen…',
@@ -409,7 +411,7 @@ export const de: Catalogue<typeof fr> = {
       gallery_not_found: 'Diese Galerie gibt es in Pelli nicht mehr. Wählen Sie eine andere oder erstellen Sie eine neue.',
     },
     relogin: 'Erneut anmelden',
-    lightroomHint: 'In Lightroom: Fotos auswählen, dann Metadaten › Metadaten aus Dateien lesen.',
+    lightroomHint: 'In Lightroom: Fotos auswählen, dann Metadaten › Metadaten aus Dateien lesen. „Ordner synchronisieren“ liest sie nicht erneut.',
   },
   settings: {
     title: 'Einstellungen',
