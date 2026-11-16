@@ -311,19 +311,19 @@ mod tests {
 
     /// The shape the release workflow writes to `latest.json`.
     const LATEST: &str = r#"{
-        "version": "0.2.0",
-        "notes": "https://github.com/Synapsr/Pelli-Instant/releases/tag/v0.2.0",
+        "version": "1.1.0",
+        "notes": "https://github.com/Synapsr/Pelli-Instant/releases/tag/v1.1.0",
         "pub_date": "2026-11-07T10:00:00Z",
         "platforms": {
-            "darwin-aarch64": {"signature": "c2lnLW1hYw==", "url": "https://github.com/Synapsr/Pelli-Instant/releases/download/v0.2.0/PelliInstant-macos-arm64.app.tar.gz"},
-            "windows-x86_64-nsis": {"signature": "c2lnLW5zaXM=", "url": "https://github.com/Synapsr/Pelli-Instant/releases/download/v0.2.0/PelliInstant-windows-x64-setup.exe"}
+            "darwin-aarch64": {"signature": "c2lnLW1hYw==", "url": "https://github.com/Synapsr/Pelli-Instant/releases/download/v1.1.0/PelliInstant-macos-arm64.app.tar.gz"},
+            "windows-x86_64-nsis": {"signature": "c2lnLW5zaXM=", "url": "https://github.com/Synapsr/Pelli-Instant/releases/download/v1.1.0/PelliInstant-windows-x64-setup.exe"}
         }
     }"#;
 
     #[test]
     fn the_release_manifest_reads_as_the_plugin_expects() {
         let release: tauri_plugin_updater::RemoteRelease = serde_json::from_str(LATEST).unwrap();
-        assert_eq!(release.version.to_string(), "0.2.0");
+        assert_eq!(release.version.to_string(), "1.1.0");
         assert!(release.download_url("darwin-aarch64").unwrap().as_str().ends_with(".app.tar.gz"));
         assert_eq!(release.signature("windows-x86_64-nsis").unwrap(), "c2lnLW5zaXM=");
         // No Intel Mac build: such a Mac is told, not offered a wrong bundle.
@@ -333,8 +333,8 @@ mod tests {
     #[test]
     fn statuses_read_as_the_contract() {
         let json =
-            serde_json::to_value(UpdateStatus::Downloading { version: "0.2.0".into(), progress: Some(0.5) }).unwrap();
-        assert_eq!(json, serde_json::json!({ "status": "downloading", "version": "0.2.0", "progress": 0.5 }));
+            serde_json::to_value(UpdateStatus::Downloading { version: "1.1.0".into(), progress: Some(0.5) }).unwrap();
+        assert_eq!(json, serde_json::json!({ "status": "downloading", "version": "1.1.0", "progress": 0.5 }));
         let json = serde_json::to_value(UpdateStatus::UpToDate).unwrap();
         assert_eq!(json, serde_json::json!({ "status": "upToDate" }));
         let error = Error::Network("unreachable".into());

@@ -23,7 +23,7 @@ import { preloadNarration, useNarration } from './voice'
 const STEPS = ['welcome', 'eye', 'keys', 'export', 'precision', 'ready'] as const
 type Step = (typeof STEPS)[number]
 
-/** The promise: free, unlimited, no account (the eyebrow), then three facts (copy facts of the 0.2.0 contract). */
+/** The promise: free, unlimited, no account (the eyebrow), then three facts (copy facts of the 1.0 contract). */
 const FACTS: { key: 'local' | 'offline' | 'fast'; icon: LucideIcon }[] = [
   { key: 'local', icon: Laptop },
   { key: 'offline', icon: WifiOff },

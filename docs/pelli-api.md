@@ -63,7 +63,7 @@ Currency from the visitor's country (`cf-ipcountry`, never stored): EU/EEA, Swit
 ### `plus/checkout` (no auth)
 
 ```json
-{ "device": "<64 hex>", "lang": "fr", "platform": "mac", "appVersion": "0.2.0" }
+{ "device": "<64 hex>", "lang": "fr", "platform": "mac", "appVersion": "1.0.0" }
 ```
 
 `platform`: `mac` | `windows` | `linux`. → `{ "id": "…", "claimToken": "…", "url": "https://checkout.stripe.com/…" }`. Creates a `pending` licence bound to `device` (the claim token is stored hashed) and a Stripe Checkout Session (one payment of 25 € or $25, metadata `kind: "cull_plus"`). The app keeps `{ id, claimToken }` in its library and opens `url` in the browser. Stripe then returns to the thank-you page `https://app.pelli.io/cull/plus?license=<id>&session_id=…` (`&cancelled=1` when cancelled), which shows the key once paid. Error: `503 plusUnavailable`.
@@ -125,7 +125,7 @@ The five files of the Maximum pack (`clip-vit-l14-vision-int8.onnx`, `clip-vit-l
 {
   "installId": "3f6c2a94-1b7e-4d0a-9c55-8e2f71b4a6d3",
   "event": "analysis_completed",
-  "appVersion": "0.2.0",
+  "appVersion": "1.0.0",
   "platform": "mac",
   "arch": "arm64",
   "locale": "fr",
@@ -153,7 +153,7 @@ An account is only a second way to Plus: a Pro or Ultra plan includes it.
 ### `auth/create-session` (no auth)
 
 ```json
-{ "deviceName": "MacBook Pro de Camille", "platform": "macos", "appVersion": "0.2.0" }
+{ "deviceName": "MacBook Pro de Camille", "platform": "macos", "appVersion": "1.0.0" }
 ```
 
 `deviceName`: 1–200 chars (shown on the consent page, trimmed to one line of 80 chars); `platform`: `macos` | `windows` | `linux`; `appVersion`: `[0-9A-Za-z][0-9A-Za-z.+-]{0,31}`.
