@@ -25,8 +25,10 @@ pub enum AccelerationSetting {
     Cpu,
 }
 
+/// Every field has a default, so the settings of an older version (fewer
+/// fields) still load, and those it no longer knows are ignored.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
     pub theme: Theme,
     /// One of [`LANGUAGES`]; empty until the app picks the computer's
@@ -39,16 +41,18 @@ pub struct AppSettings {
     /// every core, at user-initiated priority (fastest).
     pub background: bool,
     /// Models of the analyses: `Maximum` is kept while the Maximum pack is
-    /// missing (analyses then run in Standard).
+    /// missing or Plus is not active (analyses then run in Standard).
     pub precision: Precision,
     /// What the culling looks for by default: every project opened for the
     /// first time starts from these (the photographer can still change them
     /// before its analysis, and later in the review).
     pub cull: CullSettings,
+    /// Anonymous telemetry ([`crate::telemetry`]), opt-out.
+    pub telemetry: bool,
+    /// The welcome tour is done.
+    pub onboarded: bool,
     /// Filled when sent to the UI.
-    #[serde(default)]
     pub cache_dir: String,
-    #[serde(default)]
     pub cache_size_bytes: u64,
 }
 
@@ -61,6 +65,8 @@ impl Default for AppSettings {
             background: false,
             precision: Precision::Standard,
             cull: CullSettings::default(),
+            telemetry: true,
+            onboarded: false,
             cache_dir: String::new(),
             cache_size_bytes: 0,
         }
@@ -78,6 +84,8 @@ pub struct SettingsPatch {
     pub precision: Option<Precision>,
     /// Replaces the default culling criteria.
     pub cull: Option<CullSettings>,
+    pub telemetry: Option<bool>,
+    pub onboarded: Option<bool>,
 }
 
 const KEY: &str = "app_settings";
@@ -121,10 +129,15 @@ impl Engine {
         s
     }
 
+    /// Applies `patch`. Turning telemetry off after the welcome tour sends
+    /// `telemetry_disabled`, and always deletes the install id; the first `onboarded: true` sends
+    /// `onboarding_completed` (when telemetry is on).
     pub fn set_settings(&self, patch: SettingsPatch) -> Result<AppSettings> {
         let reload_models;
+        let (telemetry_was, onboarded_was);
         {
             let mut s = self.settings.write();
+            (telemetry_was, onboarded_was) = (s.telemetry, s.onboarded);
             if let Some(t) = patch.theme {
                 s.theme = t;
             }
@@ -145,12 +158,28 @@ impl Engine {
                 c.keep_per_group = c.keep_per_group.clamp(1, 5);
                 s.cull = c;
             }
+            if let Some(t) = patch.telemetry {
+                s.telemetry = t;
+            }
+            if let Some(o) = patch.onboarded {
+                s.onboarded = o;
+            }
             let mut stored = s.clone();
             stored.cache_size_bytes = 0;
             self.store.lock().kv_set(KEY, &serde_json::to_string(&stored)?)?;
         }
         if reload_models {
             self.reload_models();
+        }
+        // Telemetry first: declined during the welcome tour, nothing is sent,
+        // neither `telemetry_disabled` nor `onboarding_completed`.
+        match (telemetry_was, patch.telemetry) {
+            (true, Some(false)) => self.telemetry_turned_off(onboarded_was),
+            (false, Some(true)) => self.telemetry_turned_on(),
+            _ => {}
+        }
+        if !onboarded_was && patch.onboarded == Some(true) {
+            self.track("onboarding_completed", serde_json::json!({}));
         }
         Ok(self.get_settings())
     }
@@ -185,5 +214,38 @@ mod tests {
         assert!(json.get("threads").is_none());
         let p: SettingsPatch = serde_json::from_str(r#"{"precision":"maximum","background":true}"#).unwrap();
         assert_eq!((p.precision, p.background), (Some(Precision::Maximum), Some(true)));
+        assert!(d.telemetry && !d.onboarded, "telemetry on, welcome tour to do");
+        let p: SettingsPatch = serde_json::from_str(r#"{"telemetry":false,"onboarded":true}"#).unwrap();
+        assert_eq!((p.telemetry, p.onboarded), (Some(false), Some(true)));
+    }
+
+    /// Settings saved by 0.1 (no `telemetry` nor `onboarded`, a field since
+    /// removed) load with their values and the new defaults.
+    #[test]
+    fn settings_of_0_1_still_load() {
+        let mut old = serde_json::to_value(AppSettings {
+            theme: Theme::Light,
+            language: "fr".into(),
+            background: true,
+            precision: Precision::Maximum,
+            ..AppSettings::default()
+        })
+        .unwrap();
+        let obj = old.as_object_mut().unwrap();
+        obj.remove("telemetry");
+        obj.remove("onboarded");
+        obj.insert("noAccount".into(), true.into());
+        let tmp = tempfile::tempdir().unwrap();
+        let store = Store::open(&tmp.path().join("library.sqlite")).unwrap();
+        store.kv_set(KEY, &old.to_string()).unwrap();
+        let s = AppSettings::load(&store, Path::new("/cache"));
+        assert_eq!((s.theme, s.language.as_str(), s.background), (Theme::Light, "fr", true));
+        assert_eq!(s.precision, Precision::Maximum);
+        assert!(s.telemetry && !s.onboarded);
+        assert_eq!(s.cache_dir, "/cache");
+        // Even a partial file keeps what it has.
+        store.kv_set(KEY, r#"{"theme":"system"}"#).unwrap();
+        let s = AppSettings::load(&store, Path::new("/cache"));
+        assert_eq!((s.theme, s.precision, s.telemetry), (Theme::System, Precision::Standard, true));
     }
 }

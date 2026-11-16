@@ -1,16 +1,20 @@
-//! The optional **Maximum** pack (`precision: 'maximum'`): download,
-//! verification and installation of its models, and their loading for the
-//! analyses that use them.
+//! The optional **Maximum** pack (`precision: 'maximum'`), part of Pelli
+//! Instant Plus: download, verification and installation of its models, and
+//! their loading for the analyses that use them.
 //!
 //! The files (`bundle: "maximum"` in `models/manifest.json`, ~777 MB) go to
 //! `<data dir>/models/maximum/`, never the cache dir: clearing the preview
-//! cache keeps them. Each file is downloaded into `<file>.part` with HTTP
-//! range requests, so a cancelled or interrupted download (app quit,
-//! network lost) resumes where it stopped; once complete its SHA-256 is
-//! checked against the manifest compiled into the app and it is renamed
+//! cache keeps them. The manifest has no URL for them: Pelli hands out
+//! short-lived ones to Plus (`POST /api/cull/models`, with the licence token
+//! or the Bearer of a Pelli account whose plan includes Plus; `plusRequired`
+//! otherwise), and the app asks again when the storage refuses an expired
+//! one (HTTP 403), then resumes. Each file is downloaded into `<file>.part`
+//! with HTTP range requests, so a cancelled or interrupted download (app
+//! quit, network lost) resumes where it stopped; once complete its SHA-256
+//! is checked against the manifest compiled into the app and it is renamed
 //! into place atomically. A file that does not match is downloaded again
-//! (3 attempts per URL, then its mirrors), and the pack fails with code
-//! `checksum` when none matches.
+//! (3 attempts), and the pack fails with code `checksum` when none matches.
+//! A pack already installed stays on disk when Plus goes away (unused).
 //!
 //! States (`ModelPackState` in the contract): `absent` → `downloading` →
 //! `preparing` (each model loaded once and run on reference inputs, see
@@ -25,14 +29,15 @@
 //! (and released after it), the CLIP L/14 text tower only when a project
 //! analysed in Maximum is searched.
 //!
-//! Debug builds only: `PELLI_MODELS_BASE_URL` replaces the URL of every pack
-//! file by `<base>/<file name>` (a local server with range support serving
-//! the converted files), without mirrors.
+//! Debug builds only: `PELLI_MODELS_BASE_URL` downloads every pack file from
+//! `<base>/<file name>` (a local server with range support serving your own
+//! copy) instead of asking Pelli, and then needs no Plus.
 
 use crate::{Engine, EngineError, Result};
 use cull_ml::{MaximumModels, MaximumText, PackFile};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -47,9 +52,11 @@ const READY_KEY: &str = "model_pack.maximum";
 const DISK_MARGIN: u64 = 256 * 1024 * 1024;
 /// Minimum time between two `model-pack` events while downloading.
 const EMIT_EVERY: Duration = Duration::from_millis(250);
-/// Attempts per URL of a file (network errors resume; a checksum mismatch
-/// starts the file over).
-const ATTEMPTS_PER_URL: usize = 3;
+/// Attempts per file (network errors resume; a checksum mismatch starts the
+/// file over).
+const ATTEMPTS_PER_FILE: usize = 3;
+/// New URLs asked from Pelli per file when the storage says they expired.
+const MAX_REFRESHES: usize = 3;
 const READ_CHUNK: usize = 256 * 1024;
 
 /// State of the pack (contract `ModelPackState`).
@@ -228,16 +235,52 @@ fn free_space_of(_path: &Path) -> Option<u64> {
     None
 }
 
-/// URLs to try for `f`, best first.
-fn urls(f: &PackFile) -> Vec<String> {
+/// `PELLI_MODELS_BASE_URL` of a debug build (see the module docs).
+fn debug_base_url() -> Option<String> {
     #[cfg(debug_assertions)]
     if let Ok(base) = std::env::var("PELLI_MODELS_BASE_URL") {
         let base = base.trim().trim_end_matches('/');
         if base.starts_with("http://") || base.starts_with("https://") {
-            return vec![format!("{base}/{}", f.file)];
+            return Some(base.to_string());
         }
     }
-    std::iter::once(f.url.clone()).chain(f.mirrors.iter().cloned()).collect()
+    None
+}
+
+/// File name → URL.
+type Urls = HashMap<String, String>;
+
+/// Where the pack's files come from: the URLs Pelli handed out, and how to
+/// ask for new ones once they expire.
+pub(crate) struct PackSource {
+    urls: Urls,
+    fetch: Box<dyn Fn() -> Result<Urls> + Send>,
+}
+
+impl PackSource {
+    fn new(fetch: Box<dyn Fn() -> Result<Urls> + Send>) -> Result<PackSource> {
+        Ok(PackSource { urls: fetch()?, fetch })
+    }
+
+    /// Nothing left to download.
+    fn none() -> PackSource {
+        PackSource { urls: Urls::new(), fetch: Box::new(|| Ok(Urls::new())) }
+    }
+
+    fn refresh(&mut self) -> Result<()> {
+        self.urls = (self.fetch)()?;
+        Ok(())
+    }
+}
+
+/// A failure to get URLs, as the pack state shows it.
+fn source_stop(e: EngineError) -> Stop {
+    let code = match e.code() {
+        "plusRequired" => "plusRequired",
+        _ if crate::pelli::unreachable(&e) => "offline",
+        _ => "internal",
+    };
+    failed(code, e.to_string())
 }
 
 fn agent() -> ureq::Agent {
@@ -373,11 +416,39 @@ impl Engine {
         }
     }
 
+    /// Download URLs of the pack from Pelli (`POST /models`): for the
+    /// licence, else for the Pelli account whose plan includes Plus.
+    pub(crate) fn model_urls(&self) -> Result<Urls> {
+        let files = if let Some(license) = self.valid_license() {
+            self.pelli(None).models(Some(&license.token))?
+        } else if let Some(token) = self.token().filter(|_| self.account_plus()) {
+            self.pelli(Some(token)).models(None)?
+        } else {
+            return Err(EngineError::PlusRequired);
+        };
+        Ok(files.into_iter().map(|f| (f.file, f.url)).collect())
+    }
+
+    /// Where the missing files come from (see the module docs).
+    fn pack_source(self: &Arc<Self>) -> Result<PackSource> {
+        if let Some(base) = debug_base_url() {
+            let files: Vec<String> = self.pack.files.iter().map(|f| f.file.clone()).collect();
+            return PackSource::new(Box::new(move || {
+                Ok(files.iter().map(|f| (f.clone(), format!("{base}/{f}"))).collect())
+            }));
+        }
+        let engine = self.clone();
+        PackSource::new(Box::new(move || engine.model_urls()))
+    }
+
     /// Start or resume the download, in the background (progress through
-    /// `model-pack` events). Errors at once: `diskFull` when the disk cannot
-    /// hold what is left to download, `offline` when the first file cannot
-    /// be reached at all.
+    /// `model-pack` events). Errors at once: `plusRequired` without Plus,
+    /// `diskFull` when the disk cannot hold what is left to download,
+    /// `offline` when Pelli cannot be reached.
     pub fn download_model_pack(self: &Arc<Self>) -> Result<()> {
+        if !self.plus_active() && debug_base_url().is_none() {
+            return Err(EngineError::PlusRequired);
+        }
         let p = &self.pack;
         match *p.state.lock() {
             ModelPackState::Ready | ModelPackState::Downloading { .. } | ModelPackState::Preparing { .. } => {
@@ -409,33 +480,32 @@ impl Engine {
                 return Err(EngineError::DiskFull { needed, free });
             }
         }
-        if let Some(f) = p.files.iter().find(|f| stamp(&p.dir.join(&f.file)).is_none_or(|s| s.size != f.size)) {
-            // One quick request: no network at all is an immediate error.
-            let reachable = urls(f).iter().any(|u| {
-                agent()
-                    .get(u)
-                    .header("Range", "bytes=0-0")
-                    .header("Accept-Encoding", "identity")
-                    .config()
-                    .timeout_global(Some(Duration::from_secs(10)))
-                    .build()
-                    .call()
-                    .is_ok()
-            });
-            if !reachable {
-                self.pack_failed("offline", "the download server cannot be reached".into());
-                return Err(EngineError::Remote {
-                    code: "network".into(),
-                    message: "download server unreachable".into(),
-                });
+        let missing = p.files.iter().any(|f| stamp(&p.dir.join(&f.file)).is_none_or(|s| s.size != f.size));
+        let mut source = if missing {
+            // Asking Pelli for the URLs also tells at once when it cannot be
+            // reached.
+            match self.pack_source() {
+                Ok(source) => source,
+                // No Plus, or Pelli says so (a plan that lapsed meanwhile).
+                Err(e) if e.code() == "plusRequired" => return Err(e),
+                Err(e) if crate::pelli::unreachable(&e) => {
+                    self.pack_failed("offline", e.to_string());
+                    return Err(crate::pelli::offline_if_unreachable(e));
+                }
+                Err(e) => {
+                    self.pack_failed("internal", e.to_string());
+                    return Err(e);
+                }
             }
-        }
+        } else {
+            PackSource::none()
+        };
         self.set_pack_state(
             ModelPackState::Downloading { received_bytes: received, total_bytes: total, bytes_per_second: None },
             false,
         );
         let engine = self.clone();
-        self.spawn_pack_worker(move || match engine.download_files() {
+        self.spawn_pack_worker(move || match engine.download_files(&mut source) {
             Ok(()) => engine.prepare_model_pack(),
             Err(Stop::Cancelled) => engine.pack_failed("cancelled", "download paused".into()),
             Err(Stop::Failed { code, message }) => engine.pack_failed(code, message),
@@ -474,7 +544,7 @@ impl Engine {
     }
 
     /// Download every missing file (worker thread).
-    fn download_files(&self) -> std::result::Result<(), Stop> {
+    fn download_files(&self, source: &mut PackSource) -> std::result::Result<(), Stop> {
         let p = &self.pack;
         let agent = agent();
         let progress = Mutex::new(Progress {
@@ -488,34 +558,36 @@ impl Engine {
             if stamp(&dest).is_some_and(|s| s.size == f.size) {
                 continue; // complete (its checksum is verified when preparing)
             }
-            let mut last = failed("internal", format!("{}: no URL", f.file));
-            'urls: for url in urls(f) {
-                for attempt in 0..ATTEMPTS_PER_URL {
-                    if p.cancel.load(Ordering::SeqCst) {
-                        return Err(Stop::Cancelled);
-                    }
-                    if attempt > 0 {
-                        std::thread::sleep(p.retry_delay * attempt as u32);
-                    }
-                    match self.fetch(&agent, f, &url, &progress) {
-                        Ok(()) => break 'urls,
-                        Err(Stop::Cancelled) => return Err(Stop::Cancelled),
-                        Err(e) => {
-                            log::warn!("Maximum pack: {} from {url}: {e:?}", f.file);
-                            let next_url = matches!(&e, Stop::Failed { code: "notFound", .. });
-                            if matches!(&e, Stop::Failed { code: "diskFull", .. }) {
-                                return Err(e);
-                            }
-                            last = e;
-                            if next_url {
-                                continue 'urls;
-                            }
+            let (mut attempts, mut refreshes) = (0, 0);
+            loop {
+                if p.cancel.load(Ordering::SeqCst) {
+                    return Err(Stop::Cancelled);
+                }
+                let Some(url) = source.urls.get(&f.file).cloned() else {
+                    return Err(failed("internal", format!("{}: no URL from Pelli", f.file)));
+                };
+                match self.fetch(&agent, f, &url, &progress) {
+                    Ok(()) => break,
+                    Err(Stop::Cancelled) => return Err(Stop::Cancelled),
+                    // The URL expired: new ones, then resume from the part.
+                    Err(Stop::Failed { code: "expired", message }) => {
+                        if refreshes == MAX_REFRESHES {
+                            return Err(failed("notFound", message));
                         }
+                        refreshes += 1;
+                        log::info!("Maximum pack: {message}: asking Pelli for new URLs");
+                        source.refresh().map_err(source_stop)?;
+                    }
+                    Err(e @ Stop::Failed { code: "diskFull" | "notFound", .. }) => return Err(e),
+                    Err(e) => {
+                        log::warn!("Maximum pack: {}: {e:?}", f.file);
+                        attempts += 1;
+                        if attempts == ATTEMPTS_PER_FILE {
+                            return Err(e);
+                        }
+                        std::thread::sleep(p.retry_delay * attempts as u32);
                     }
                 }
-            }
-            if stamp(&dest).is_none_or(|s| s.size != f.size) {
-                return Err(last);
             }
         }
         Ok(())
@@ -555,8 +627,10 @@ impl Engine {
                     progress.lock().received -= have;
                     return Err(failed("internal", format!("HTTP 416 for {} at {have}", f.file)));
                 }
-                404 | 403 | 401 | 410 => return Err(failed("notFound", format!("HTTP {status} for {url}"))),
-                s => return Err(failed("internal", format!("HTTP {s} for {url}"))),
+                // What S3 answers once a presigned URL expired.
+                403 => return Err(failed("expired", format!("HTTP 403 for {}", f.file))),
+                404 | 401 | 410 => return Err(failed("notFound", format!("HTTP {status} for {}", f.file))),
+                s => return Err(failed("internal", format!("HTTP {s} for {}", f.file))),
             };
             if !append && have > 0 {
                 progress.lock().received -= have;
@@ -767,12 +841,16 @@ mod tests {
         assert!(p.dir.ends_with("models/maximum"));
     }
 
-    /// A tiny HTTP/1.1 server with range support serving `files`: the first
-    /// response of `drop_once` is cut after `drop_after` bytes, `corrupt`
-    /// is served with its bytes flipped, every chunk waits `pause`.
+    /// A tiny HTTP/1.1 server with range support serving `files` at
+    /// `/<name>` or `/<prefix>/<name>`: the first response of `drop_once` is
+    /// cut after `drop_after` bytes, `corrupt` is served with its bytes
+    /// flipped, every chunk waits `pause`. A prefix in `expired` answers 403,
+    /// like S3 once a presigned URL expired; cutting a response under a
+    /// prefix expires it.
     struct Server {
         port: u16,
         ranges: Arc<Mutex<Vec<(String, u64)>>>,
+        expired: Arc<Mutex<Vec<String>>>,
     }
 
     fn serve(
@@ -786,10 +864,12 @@ mod tests {
         let port = listener.local_addr().unwrap().port();
         let ranges = Arc::new(Mutex::new(Vec::new()));
         let seen = ranges.clone();
+        let expired = Arc::new(Mutex::new(Vec::<String>::new()));
+        let gone = expired.clone();
         let dropped = Arc::new(AtomicBool::new(false));
         std::thread::spawn(move || {
             for stream in listener.incoming().flatten() {
-                let (files, seen, dropped) = (files.clone(), seen.clone(), dropped.clone());
+                let (files, seen, dropped, gone) = (files.clone(), seen.clone(), dropped.clone(), gone.clone());
                 std::thread::spawn(move || {
                     let mut reader = BufReader::new(stream.try_clone().unwrap());
                     let mut out = stream;
@@ -810,6 +890,14 @@ mod tests {
                             }
                         }
                         seen.lock().push((path.clone(), start));
+                        let (prefix, path) = match path.split_once('/') {
+                            Some((prefix, name)) => (prefix.to_string(), name.to_string()),
+                            None => (String::new(), path),
+                        };
+                        if gone.lock().contains(&prefix) {
+                            let _ = out.write_all(b"HTTP/1.1 403 Forbidden\r\ncontent-length: 0\r\n\r\n");
+                            continue;
+                        }
                         let Some((_, data)) = files.iter().find(|(n, _)| *n == path) else {
                             let _ = out.write_all(b"HTTP/1.1 404 Not Found\r\ncontent-length: 0\r\n\r\n");
                             continue;
@@ -828,6 +916,9 @@ mod tests {
                         for (k, chunk) in body.chunks(8192).enumerate() {
                             if let Some((name, after)) = drop_once {
                                 if name == path && k * 8192 >= after && !dropped.swap(true, Ordering::SeqCst) {
+                                    if !prefix.is_empty() {
+                                        gone.lock().push(prefix);
+                                    }
                                     return; // connection closed mid-body
                                 }
                             }
@@ -840,18 +931,23 @@ mod tests {
                 });
             }
         });
-        Server { port, ranges }
+        Server { port, ranges, expired }
     }
 
-    fn pack_file(server: &Server, name: &str, data: &[u8]) -> PackFile {
+    fn pack_file(name: &str, data: &[u8]) -> PackFile {
         PackFile {
             id: name.into(),
             file: name.into(),
-            url: format!("http://127.0.0.1:{}/{name}", server.port),
-            mirrors: vec![],
             sha256: crate::sha256_hex_for_tests(data),
             size: data.len() as u64,
         }
+    }
+
+    /// The files at `<server>/<path>/<file>`, never asked again.
+    fn fixed(server: &Server, path: &str, files: &[&str]) -> PackSource {
+        let urls: Urls =
+            files.iter().map(|f| (f.to_string(), format!("http://127.0.0.1:{}/{path}{f}", server.port))).collect();
+        PackSource { urls: urls.clone(), fetch: Box::new(move || Ok(urls.clone())) }
     }
 
     fn engine_with(files: Vec<PackFile>) -> (tempfile::TempDir, Arc<Engine>) {
@@ -882,8 +978,8 @@ mod tests {
         let (a, b) = (data(300_000, 1), data(50_000, 2));
         let server =
             serve(vec![("a.onnx", a.clone()), ("b.onnx", b.clone())], Some(("a.onnx", 100_000)), None, Duration::ZERO);
-        let (_tmp, engine) = engine_with(vec![pack_file(&server, "a.onnx", &a), pack_file(&server, "b.onnx", &b)]);
-        engine.download_files().expect("download");
+        let (_tmp, engine) = engine_with(vec![pack_file("a.onnx", &a), pack_file("b.onnx", &b)]);
+        engine.download_files(&mut fixed(&server, "", &["a.onnx", "b.onnx"])).expect("download");
         let dir = &engine.pack.dir;
         assert_eq!(std::fs::read(dir.join("a.onnx")).unwrap(), a);
         assert_eq!(std::fs::read(dir.join("b.onnx")).unwrap(), b);
@@ -899,38 +995,111 @@ mod tests {
     fn a_corrupt_file_fails_with_checksum_and_leaves_no_part() {
         let a = data(40_000, 3);
         let server = serve(vec![("a.onnx", a.clone())], None, Some("a.onnx"), Duration::ZERO);
-        let (_tmp, engine) = engine_with(vec![pack_file(&server, "a.onnx", &a)]);
-        match engine.download_files() {
+        let (_tmp, engine) = engine_with(vec![pack_file("a.onnx", &a)]);
+        match engine.download_files(&mut fixed(&server, "", &["a.onnx"])) {
             Err(Stop::Failed { code: "checksum", .. }) => {}
             other => panic!("{other:?}"),
         }
-        assert_eq!(server.ranges.lock().len(), ATTEMPTS_PER_URL, "each attempt starts the file over");
+        assert_eq!(server.ranges.lock().len(), ATTEMPTS_PER_FILE, "each attempt starts the file over");
         assert!(!engine.pack.dir.join("a.onnx.part").exists() && !engine.pack.dir.join("a.onnx").exists());
-        // A missing file (404, or 401 for a missing Hugging Face repository)
-        // fails at once: one request per URL, no retry.
-        let (_tmp, engine) = engine_with(vec![PackFile {
-            url: format!("http://127.0.0.1:{}/zzz", server.port),
-            mirrors: vec![format!("http://127.0.0.1:{}/yyy", server.port)],
-            ..pack_file(&server, "a.onnx", &a)
-        }]);
+        // A missing file fails at once: one request, no retry.
+        let (_tmp, engine) = engine_with(vec![pack_file("zzz", &a)]);
         let before = server.ranges.lock().len();
-        match engine.download_files() {
+        match engine.download_files(&mut fixed(&server, "", &["zzz"])) {
             Err(Stop::Failed { code: "notFound", .. }) => {}
             other => panic!("{other:?}"),
         }
         let asked: Vec<String> = server.ranges.lock()[before..].iter().map(|r| r.0.clone()).collect();
-        assert_eq!(asked, ["zzz", "yyy"]);
+        assert_eq!(asked, ["zzz"]);
+    }
+
+    #[test]
+    fn an_expired_url_is_asked_again_and_the_file_resumes() {
+        let a = data(300_000, 5);
+        let server = serve(vec![("a.onnx", a.clone())], Some(("a.onnx", 100_000)), None, Duration::ZERO);
+        let (_tmp, engine) = engine_with(vec![pack_file("a.onnx", &a)]);
+        // Pelli's answers: `v1/` URLs, then `v2/` ones.
+        let asked = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let (n, port) = (asked.clone(), server.port);
+        let mut source = PackSource::new(Box::new(move || {
+            let k = n.fetch_add(1, Ordering::SeqCst) + 1;
+            Ok([("a.onnx".to_string(), format!("http://127.0.0.1:{port}/v{k}/a.onnx"))].into_iter().collect())
+        }))
+        .unwrap();
+        // The download is cut and its URL expires meanwhile.
+        engine.download_files(&mut source).expect("download");
+        assert_eq!(std::fs::read(engine.pack.dir.join("a.onnx")).unwrap(), a);
+        assert_eq!(asked.load(Ordering::SeqCst), 2, "asked once more");
+        let ranges = server.ranges.lock().clone();
+        let paths: Vec<&str> = ranges.iter().map(|r| r.0.as_str()).collect();
+        assert_eq!(paths, ["v1/a.onnx", "v1/a.onnx", "v2/a.onnx"], "{ranges:?}");
+        assert!(ranges[2].1 >= 90_000, "resumed from the part: {ranges:?}");
+
+        // URLs that keep expiring end the download.
+        let b = data(1000, 6);
+        let (_tmp, engine) = engine_with(vec![pack_file("b.onnx", &b)]);
+        server.expired.lock().push("old".into());
+        match engine.download_files(&mut fixed(&server, "old/", &["b.onnx"])) {
+            Err(Stop::Failed { code: "notFound", .. }) => {}
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_pack_needs_plus_and_its_urls_come_from_pelli() {
+        use crate::testing::{fake_pelli, sign_token, TEST_SEED};
+        use ring::signature::KeyPair;
+        let (_tmp, engine) = engine_with(vec![pack_file("a.onnx", b"a")]);
+        assert_eq!(engine.download_model_pack().unwrap_err().code(), "plusRequired");
+        assert_eq!(engine.model_urls().unwrap_err().code(), "plusRequired");
+        assert_eq!(engine.model_pack().state, ModelPackState::Absent, "nothing started");
+
+        let pelli = fake_pelli(|req| match (req.path.as_str(), req.authorization.as_deref()) {
+            ("/api/cull/models", Some("Bearer pro")) | ("/api/cull/models", None) => (
+                200,
+                serde_json::json!({ "files": [{ "file": "a.onnx", "url": "https://s3.example/a?sig=1", "size": 1,
+                                               "sha256": "x" }], "expiresAt": "2026-11-16T18:00:00Z" }),
+            ),
+            _ => (403, serde_json::json!({ "code": "plusRequired", "message": "no Plus" })),
+        });
+        *engine.api_url.write() = pelli.url.clone();
+        // A Pelli account whose plan includes Plus: its Bearer, no licence.
+        let account = crate::pelli::Account { plus: true, ..Default::default() };
+        engine.kv_set("pelli.token", "pro").unwrap();
+        engine.kv_set("pelli.account", &serde_json::to_string(&account).unwrap()).unwrap();
+        let urls = engine.model_urls().unwrap();
+        assert_eq!(urls["a.onnx"], "https://s3.example/a?sig=1");
+        let req = pelli.requests().last().cloned().unwrap();
+        assert_eq!((req.authorization.as_deref(), &req.body), (Some("Bearer pro"), &serde_json::json!({})));
+        // A licence wins: the token in the body, no Bearer.
+        *engine.plus.public_key.write() =
+            ring::signature::Ed25519KeyPair::from_seed_unchecked(&TEST_SEED).unwrap().public_key().as_ref().to_vec();
+        let token = sign_token(&serde_json::json!({ "v": 1, "lid": "l", "dev": engine.device_hash(), "iat": 1 }));
+        engine.kv_set("plus.license", &serde_json::json!({ "key": "K", "token": token }).to_string()).unwrap();
+        engine.auth_logout().unwrap();
+        engine.model_urls().unwrap();
+        let req = pelli.requests().last().cloned().unwrap();
+        assert_eq!((req.authorization, req.body), (None, serde_json::json!({ "license": token })));
+        // Pelli says no (the plan lapsed meanwhile): plusRequired, and the
+        // pack state stays as it was.
+        engine.kv_set("pelli.token", "lapsed").unwrap();
+        engine.kv_set("pelli.account", &serde_json::to_string(&account).unwrap()).unwrap();
+        engine.kv_delete("plus.license").unwrap();
+        assert_eq!(engine.model_urls().unwrap_err().code(), "plusRequired");
+        assert_eq!(engine.download_model_pack().unwrap_err().code(), "plusRequired");
+        assert_eq!(engine.model_pack().state, ModelPackState::Absent);
     }
 
     #[test]
     fn cancel_keeps_the_part_and_reports_cancelled() {
         let a = data(400_000, 4);
         let server = serve(vec![("a.onnx", a.clone())], None, None, Duration::from_millis(5));
-        let (_tmp, engine) = engine_with(vec![pack_file(&server, "a.onnx", &a)]);
+        let (_tmp, engine) = engine_with(vec![pack_file("a.onnx", &a)]);
         *engine.pack.state.lock() =
             ModelPackState::Downloading { received_bytes: 0, total_bytes: 1, bytes_per_second: None };
         let e2 = engine.clone();
-        let worker = std::thread::spawn(move || e2.download_files());
+        let mut source = fixed(&server, "", &["a.onnx"]);
+        let worker = std::thread::spawn(move || e2.download_files(&mut source));
         let part = engine.pack.dir.join("a.onnx.part");
         let t = Instant::now();
         while stamp(&part).is_none_or(|s| s.size < 50_000) && t.elapsed() < Duration::from_secs(10) {
@@ -949,7 +1118,7 @@ mod tests {
         }
         // The engine reopened on the same folder offers to resume.
         engine.pack.cancel.store(false, Ordering::SeqCst);
-        engine.download_files().expect("resume");
+        engine.download_files(&mut fixed(&server, "", &["a.onnx"])).expect("resume");
         assert_eq!(std::fs::read(engine.pack.dir.join("a.onnx")).unwrap(), a);
         assert!(server.ranges.lock().last().unwrap().1 >= 50_000);
     }

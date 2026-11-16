@@ -2,7 +2,7 @@ import { Button, Modal, ModalBody, ModalContent, ModalFooter } from '@heroui/rea
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check, FolderInput, FolderOpen, HardDrive, Images, Tags, UploadCloud, type LucideIcon } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { PELLI_LINKS } from '@/lib/plans'
+import { PELLI_PRICING_URL } from '@/lib/links'
 import { DECISION_BG } from '@/components/ui/Decision'
 import type { ExportOptions, UploadRequest } from '@/lib/contract'
 import { api } from '@/lib/api'
@@ -137,8 +137,8 @@ function ExportContent({ onClose }: { onClose: () => void }) {
     title: project?.name ?? '',
   })
   // Signed in but behind the Pelli paywall: local exports work, galleries do not.
-  const planBlocked = auth.status === 'signedIn' && !auth.account.entitlements.sendToGallery
-  const signedIn = auth.status === 'signedIn' && auth.account.entitlements.sendToGallery
+  const planBlocked = auth.status === 'signedIn' && auth.account.entitlements?.sendToGallery === false
+  const signedIn = auth.status === 'signedIn' && auth.account.entitlements?.sendToGallery !== false
   const { galleries } = useGalleries(uploadOn && gallery.mode === 'existing')
 
   useEffect(() => {
@@ -268,7 +268,7 @@ function ExportContent({ onClose }: { onClose: () => void }) {
                   {t('export.gallery.planRequired')}{' '}
                   <span role="link" tabIndex={0} className="cursor-pointer font-semibold text-[#a599f5] hover:underline" onClick={(e) => {
                     e.stopPropagation()
-                    void api().openExternal(PELLI_LINKS.billing)
+                    void api().openExternal(PELLI_PRICING_URL)
                   }}>
                     {t('export.gallery.choosePlan')}
                   </span>

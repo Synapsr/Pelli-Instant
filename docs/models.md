@@ -31,10 +31,12 @@ and whether their eyes are open. It doesn't tell who anyone is.
 
 ## Maximum: the optional pack
 
-The photographer picks it in *Settings → Analysis → Precision*, or in the
-precision step of the welcome tour. Choosing Maximum starts the download in
-the background (about 777 MB); until the pack is ready, analyses run in
-Standard. Going back to Standard pauses a download in progress, and
+The Maximum pack is part of Pelli Instant Plus. With Plus, the photographer
+picks it in *Settings → Analysis → Precision*, or in the precision step of
+the welcome tour (without Plus, that choice opens the Plus offer). Choosing
+Maximum starts the download in the background (about 777 MB); until the pack
+is ready, and whenever Plus is not active, analyses run in Standard. A pack
+already installed stays on disk when Plus goes away, unused. Going back to Standard pauses a download in progress, and
 *Delete* removes the pack from the computer.
 
 | Model | id | File | Size | Licence | What it does here |
@@ -55,23 +57,29 @@ below 12 GB of memory or 8 cores. Details and measures:
 [`crates/cull-ml/README.md`](../crates/cull-ml/README.md#maximum-precision-optional-pack).
 
 The models used are part of every analysis (`models_id`): switching
-precision analyses the photos again, which never counts on the monthly
-quota. A project analysed in Maximum is searched with the ViT-L/14 text
-model.
+precision analyses the photos again. A project analysed in Maximum is
+searched with the ViT-L/14 text model.
 
 ### How the app downloads and checks it
 
 [`crates/cull-engine/src/modelpack.rs`](../crates/cull-engine/src/modelpack.rs)
-does it, from the URLs and checksums of the manifest compiled into the app.
+does it, with the sizes and checksums of the manifest compiled into the app.
+The manifest has no URL for these files: the app asks Pelli
+(`POST /api/cull/models`, [docs/pelli-api.md](pelli-api.md#models-licence-or-bearer))
+with the Plus licence token, or the Bearer of a Pelli account whose plan
+includes Plus, and gets links valid 12 hours. Without Plus the answer is
+`plusRequired` and nothing is downloaded.
 
 1. **Before starting**, it checks that the disk holds what is left to
-   download plus 256 MB, and sends one quick request for the first missing
-   file, so that no network fails at once.
+   download plus 256 MB, and asks Pelli for the links, so that a missing
+   network or licence fails at once.
 2. **Each file** downloads into `<file>.part` with HTTP range requests: a
    paused, interrupted or quit download resumes where it stopped. Once
    complete, its SHA-256 is checked against the manifest and the file is
    renamed into place. A file that doesn't match is deleted and fetched
-   again: 3 attempts per URL, with growing pauses, then the next URL.
+   again: 3 attempts, with growing pauses. When the storage answers 403 (the
+   link expired, the download took long), the app asks Pelli for new links
+   and resumes from the part (3 times at most per file).
 3. **Preparing**: each model is loaded once (its SHA-256 checked again) and
    run on synthetic inputs, and its outputs are compared with reference
    values computed when the pack was built
@@ -98,36 +106,40 @@ the `failed` state with a code, and the downloaded bytes stay on disk:
 | `offline` | No network, or the connection was lost. |
 | `diskFull` | Not enough free space for what is left (plus 256 MB). |
 | `checksum` | A file never matched its SHA-256, or failed the check when loaded. |
-| `notFound` | The server answered 401, 403, 404 or 410 for every URL of a file, or a file is missing when the pack is prepared. |
+| `plusRequired` | Pelli refused the links: Plus is no longer active (licence released or refunded, plan changed). |
+| `notFound` | The storage answered 401, 404 or 410, or still 403 after new links, or a file is missing when the pack is prepared. |
 | `internal` | Any other error: another HTTP status, a file that can't be written, a model failing its reference check. |
 
 **Debug builds only:** `PELLI_MODELS_BASE_URL=http://localhost:8000 pnpm tauri dev`
-replaces the URL of every file of the pack with `<base>/<file name>`,
-without mirrors: a local copy (for instance from `pnpm models --maximum`)
-served by any static server with HTTP range support. Release builds ignore
-the variable.
+downloads every file of the pack from `<base>/<file name>` instead of asking
+Pelli, and then needs no Plus: a local copy served by any static server with
+HTTP range support. Release builds ignore the variable. The fake Pelli
+(`pnpm fake-pelli`, see [docs/contributing.md](contributing.md#a-fake-pelli-plus-telemetry-sign-in))
+also serves a local copy, behind its fake Plus.
 
 ## Where they come from
 
 [`models/manifest.json`](../models/manifest.json) is the single source of
-truth: for each file, its download URL, its size, SHA-256, licence, source,
-purpose and bundle (`default`, `gpu` or `maximum`). The manifest is compiled
-into the app.
+truth: for each file, its size, SHA-256, licence, source, purpose and bundle
+(`default`, `gpu` or `maximum`), and the download URL of the Standard and
+GPU files. The manifest is compiled into the app.
 
 - **Hugging Face, at pinned revisions**: YuNet (`opencv/face_detection_yunet`,
-  with a GitHub mirror), CLIP ViT-B/32 (`Xenova/clip-vit-base-patch32`), CLIP
-  ViT-L/14 (`Xenova/clip-vit-large-patch14`) and DINOv2
-  (`onnx-community/dinov2-base-ONNX`). Each of these URLs names a commit, so
-  the file behind it never changes; YuNet's mirror follows a branch, which
-  the SHA-256 check covers.
+  with a GitHub mirror) and CLIP ViT-B/32 (`Xenova/clip-vit-base-patch32`).
+  Each of these URLs names a commit, so the file behind it never changes;
+  YuNet's mirror follows a branch, which the SHA-256 check covers.
 - **Face Mesh** comes from PINTO_model_zoo's storage, inside a `.tar.gz` whose
   size and SHA-256 are checked too.
-- **The three files converted by Pelli**, which have no upstream ONNX
-  (`face_blendshapes_v2.onnx`, `rfdetr-seg-small-384-w16.onnx`,
-  `retinaface-r50-w16.onnx`), are hosted at
-  `https://pelli.s3.fr-par.scw.cloud/pelli-instant/models/<file>`, next to a
-  `README.txt` with their sources, licences and SHA-256. A hosted file never
-  changes: a new conversion gets a new file name.
+- **The Face Blendshapes**, converted by Pelli (no upstream ONNX), are
+  hosted at
+  `https://pelli.s3.fr-par.scw.cloud/pelli-instant/models/face_blendshapes_v2.onnx`.
+  A hosted file never changes: a new conversion gets a new file name.
+- **The Maximum pack** comes through Pelli, for Plus: CLIP ViT-L/14
+  (`Xenova/clip-vit-large-patch14`) and DINOv2
+  (`onnx-community/dinov2-base-ONNX`) exported upstream, RF-DETR-Seg and
+  RetinaFace converted by Pelli. The manifest records each file's source,
+  licence, size and SHA-256; where Pelli stores them is its own
+  configuration.
 - **The LAION heads** are compiled into the app
   ([`crates/cull-ml/assets/`](../crates/cull-ml/assets/)); the manifest
   records the original files they were converted from and their SHA-256.
@@ -137,7 +149,7 @@ How each set reaches the computer:
 - **In the installers**, the Standard models are inside the app, put there by
   the release workflow after `scripts/fetch-models.mjs --strict` downloaded
   and verified them. The app downloads nothing else on its own: the Maximum
-  pack only comes when the photographer asks for it.
+  pack only comes when a photographer with Plus asks for it.
 - **Building from source**, `pnpm models` runs that same script.
 - **At every launch**, `cull-ml` checks each Standard file's SHA-256 against
   the manifest before loading it. A file that doesn't match is not used. The
@@ -157,7 +169,7 @@ members.
 | --- | --- |
 | `pnpm models` | The Standard set (`bundle: "default"`) into `models/`. |
 | `pnpm models --gpu` | Adds the fp16 CLIP image model (the Windows installer). |
-| `pnpm models --maximum` | Adds the Maximum pack into `models/maximum/`, for development: `pelli-cull analyze --precision maximum` reads it there (`--maximum-dir` elsewhere). The app downloads its own copy. |
+| `pnpm models --maximum` | Adds the Maximum pack into `models/maximum/`, for development: `pelli-cull analyze --precision maximum` reads it there (`--maximum-dir` elsewhere). Part of Plus: needs `PELLI_INSTANT_LICENSE=<licence token>` (links from Pelli) or `PELLI_MODELS_BASE_URL=<your copy>`. The app downloads its own copy. |
 | `pnpm models --all` | Everything in the manifest. |
 | `pnpm models --only yunet,face-mesh` | Only these ids. |
 | `pnpm models --check` | Verifies only; exits with 1 when a file is missing or corrupt. |

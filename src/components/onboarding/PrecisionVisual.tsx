@@ -2,14 +2,17 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Check } from 'lucide-react'
 import { PackBar, PackStatus } from '@/components/precision/PackStatus'
 import { PRECISIONS, usePrecision } from '@/components/precision/PrecisionChoice'
+import { PlusBadge } from '@/components/plus/PlusBadge'
 import { Toggle } from '@/components/ui/Toggle'
 import { cn } from '@/lib/cn'
 import { formatBytes } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { useAppStore } from '@/store/app-store'
+import { usePlusStore } from '@/store/plus-store'
 
 /**
- * Precision step: Standard or Maximum as two big cards. Picking Maximum
+ * Precision step: Standard (free) or Maximum (Plus) as two big cards.
+ * Without Plus, Maximum opens the Plus dialog; with it, picking Maximum
  * starts its download right away, in the background, while the tour goes
  * on. Under them, the switch that leaves the computer to the other apps.
  */
@@ -18,6 +21,7 @@ export function PrecisionVisual() {
   const precision = usePrecision()
   const background = useAppStore((s) => s.settings?.background ?? false)
   const update = useAppStore((s) => s.updateSettings)
+  const plus = usePlusStore((s) => s.status.active)
   if (!precision) return null
   const { current, pack, choose } = precision
   // An engine without the pack: Standard only, nothing to pick.
@@ -27,7 +31,8 @@ export function PrecisionVisual() {
     <div className="flex w-[616px] max-w-full flex-col items-center short:scale-[0.85]">
       <div role="radiogroup" aria-label={t('settings.analysis.precision.title')} className="flex gap-4">
         {options.map(({ value, icon: Icon }, i) => {
-          const active = current === value || options.length === 1
+          // Maximum chosen but Plus gone: Standard is what runs.
+          const active = options.length === 1 || (plus ? current === value : value === 'standard')
           const maximum = value === 'maximum'
           return (
             <motion.button
@@ -71,11 +76,15 @@ export function PrecisionVisual() {
               </span>
               <span className="mt-5 flex items-center gap-2">
                 <span className="text-[20px] font-semibold tracking-[-0.01em] text-white">{t(`settings.analysis.precision.${value}.title`)}</span>
-                {!maximum && <span className="rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-semibold text-success">{t('settings.analysis.precision.recommended')}</span>}
+                {maximum ? (
+                  !plus && <PlusBadge />
+                ) : (
+                  <span className="rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-semibold text-success">{t('settings.analysis.precision.free')}</span>
+                )}
               </span>
               <span className="mt-1 text-pretty text-[13px] leading-snug text-white/55">{t(`onboarding.precision.${value}Caption`)}</span>
               <span className="mt-auto flex items-center gap-3">
-                {maximum && pack && pack.state.status !== 'absent' && pack.state.status !== 'ready' ? (
+                {maximum && plus && pack && pack.state.status !== 'absent' && pack.state.status !== 'ready' ? (
                   <PackBar state={pack.state} className="flex-1" />
                 ) : (
                   <span className="rounded-full bg-white/[0.06] px-2.5 py-1 text-[11px] font-medium text-white/55">
@@ -87,7 +96,7 @@ export function PrecisionVisual() {
           )
         })}
       </div>
-      {pack && <PackStatus pack={pack} wanted={current === 'maximum'} className="w-[616px] max-w-full px-2" />}
+      {pack && plus && <PackStatus pack={pack} wanted={current === 'maximum'} className="w-[616px] max-w-full px-2" />}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}

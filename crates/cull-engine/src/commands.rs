@@ -56,8 +56,6 @@ struct AppInfo {
     /// Total memory of the computer (bytes), `null` when unknown.
     memory_bytes: Option<u64>,
     cpu_cores: usize,
-    /// Built with `PELLI_INSTANT_NO_ACCOUNT=1` (see the crate docs).
-    no_account: bool,
 }
 
 fn arg<T: DeserializeOwned>(args: &Value, name: &str) -> Result<T> {
@@ -68,6 +66,15 @@ fn arg<T: DeserializeOwned>(args: &Value, name: &str) -> Result<T> {
 
 fn ok<T: Serialize>(v: T) -> Result<Value> {
     Ok(serde_json::to_value(v)?)
+}
+
+/// Only web links (and e-mail) are opened in the browser.
+fn check_external(url: &str) -> Result<()> {
+    if url.starts_with("https://") || url.starts_with("http://") || url.starts_with("mailto:") {
+        Ok(())
+    } else {
+        Err(EngineError::Remote { code: "invalidArgument".into(), message: "url scheme".into() })
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -95,18 +102,7 @@ pub enum UploadWhich {
 }
 
 /// Run one command. Blocking: hosts call it from a worker thread.
-/// Commands that talk to Pelli. A build without account never sends them, so
-/// it never contacts Pelli at all (the UI does not offer them either).
-const PELLI_COMMANDS: &[&str] =
-    &["auth_start", "auth_poll", "refresh_account", "get_offers", "list_galleries", "upload_to_pelli"];
-
 pub fn dispatch(engine: &Arc<Engine>, host: &dyn Host, command: &str, args: &Value) -> Result<Value> {
-    if crate::no_account_build() && PELLI_COMMANDS.contains(&command) {
-        return Err(EngineError::Remote {
-            code: "noAccount".into(),
-            message: "this build runs without a Pelli account".into(),
-        });
-    }
     match command {
         "app_info" => {
             let (caps, _err) = engine.models_status();
@@ -127,7 +123,6 @@ pub fn dispatch(engine: &Arc<Engine>, host: &dyn Host, command: &str, args: &Val
                 cpu_threads: engine.worker_threads(),
                 memory_bytes: crate::system::total_memory_bytes(),
                 cpu_cores: crate::system::cpu_cores(),
-                no_account: crate::no_account_build(),
             })
         }
         "get_settings" => ok(engine.get_settings()),
@@ -159,7 +154,20 @@ pub fn dispatch(engine: &Arc<Engine>, host: &dyn Host, command: &str, args: &Val
         "auth_poll" => ok(engine.auth_poll()?),
         "auth_logout" => ok(engine.auth_logout()?),
         "refresh_account" => ok(engine.refresh_account()?),
-        "get_offers" => ok(engine.get_offers(&arg::<String>(args, "lang")?)?),
+
+        "plus_status" => ok(engine.plus_status()),
+        "plus_offer" => ok(engine.plus_offer(&arg::<Option<String>>(args, "lang")?.unwrap_or_default())?),
+        "plus_checkout" => {
+            let url = engine.plus_checkout(&arg::<Option<String>>(args, "lang")?.unwrap_or_default())?;
+            check_external(&url)?;
+            host.open_external(&url)?;
+            ok(json!({ "url": url }))
+        }
+        "plus_poll" => ok(engine.plus_poll()?),
+        "plus_cancel_checkout" => ok(engine.plus_cancel_checkout()?),
+        "plus_activate" => ok(engine.plus_activate(&arg::<String>(args, "key")?)?),
+        "plus_release" => ok(engine.plus_release()?),
+        "telemetry_preview" => ok(engine.telemetry_preview()),
 
         "pick_folder" => ok(host.pick_folder().map(|p| p.to_string_lossy().into_owned())),
         "list_projects" => {
@@ -237,9 +245,7 @@ pub fn dispatch(engine: &Arc<Engine>, host: &dyn Host, command: &str, args: &Val
         }
         "open_external" => {
             let url: String = arg(args, "url")?;
-            if !(url.starts_with("https://") || url.starts_with("http://") || url.starts_with("mailto:")) {
-                return Err(EngineError::Remote { code: "invalidArgument".into(), message: "url scheme".into() });
-            }
+            check_external(&url)?;
             host.open_external(&url)?;
             Ok(Value::Null)
         }
@@ -247,12 +253,7 @@ pub fn dispatch(engine: &Arc<Engine>, host: &dyn Host, command: &str, args: &Val
     }
 }
 
-/// `{ "code", "message", "details"? }` error payload of the contract
-/// (`details` for the quota errors).
+/// `{ "code", "message" }` error payload of the contract.
 pub fn error_json(e: &EngineError) -> Value {
-    let mut v = json!({ "code": e.code(), "message": e.to_string() });
-    if let Some(details) = e.details() {
-        v["details"] = details;
-    }
-    v
+    json!({ "code": e.code(), "message": e.to_string() })
 }

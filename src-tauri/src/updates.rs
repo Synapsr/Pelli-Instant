@@ -8,8 +8,7 @@
 //! way ([`Engine::busy`]: analysis, export, upload, Maximum pack) and restarts
 //! the app on the new version.
 //!
-//! Only official release builds look for updates: not debug builds, nor
-//! builds without the Pelli account (`PELLI_INSTANT_NO_ACCOUNT`).
+//! Only release builds look for updates, not debug builds.
 //! `PELLI_INSTANT_DISABLE_UPDATER=1` turns them off, for packagers that update
 //! the app themselves.
 //!
@@ -126,9 +125,7 @@ fn progress(downloaded: u64, total: Option<u64>) -> Option<f64> {
 /// background.
 pub fn start(app: &AppHandle) {
     let switched_off = disabled_by(std::env::var("PELLI_INSTANT_DISABLE_UPDATER").ok().as_deref());
-    // A build without the account is someone's own build: never replace it
-    // with the official one, which needs a Pelli account.
-    let disabled = cfg!(debug_assertions) || switched_off || cull_engine::no_account_build();
+    let disabled = cfg!(debug_assertions) || switched_off;
     app.manage(Updates {
         status: Mutex::new(if disabled { UpdateStatus::Disabled } else { UpdateStatus::Idle }),
         pending: Mutex::new(None),

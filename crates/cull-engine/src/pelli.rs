@@ -13,11 +13,16 @@ pub const DEFAULT_API_URL: &str = "https://app.pelli.io";
 ///
 /// Release builds take `PELLI_API_URL` from the build environment and never
 /// read it at run time: an official build cannot be pointed at another
-/// server (a fake Pelli would lift the monthly quota); doing so means
-/// building from source. Debug builds (`pnpm tauri dev`, `pnpm
-/// app:fake-pelli`, the dev bridge) read it at run time.
+/// server (a fake Pelli would hand out Plus); doing so means building from
+/// source. Debug builds (`pnpm tauri dev`, `pnpm app:fake-pelli`, the dev
+/// bridge) read it at run time.
 pub fn api_url() -> String {
     origin(configured_api_url().as_deref())
+}
+
+/// `PELLI_API_URL` names a Pelli (else the production one is used).
+pub fn api_url_configured() -> bool {
+    configured_api_url().is_some_and(|u| !u.trim().is_empty())
 }
 
 #[cfg(debug_assertions)]
@@ -43,6 +48,18 @@ fn origin(configured: Option<&str>) -> String {
 pub fn platform() -> &'static str {
     if cfg!(target_os = "macos") {
         "macos"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else {
+        "linux"
+    }
+}
+
+/// The platform as the Plus and telemetry routes name it: `mac`, `windows`,
+/// `linux`.
+pub fn os() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "mac"
     } else if cfg!(target_os = "windows") {
         "windows"
     } else {
@@ -79,7 +96,7 @@ struct ErrorBody {
 
 impl ErrorBody {
     /// The stable machine code: `code`, else `error` when it is one
-    /// (`quota_exceeded`, not a sentence).
+    /// (`subscription_required`, not a sentence).
     fn code(&self) -> Option<&str> {
         let is_code = |s: &&str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_lowercase() || b == b'_');
         self.code.as_deref().or_else(|| self.error.as_deref().filter(is_code))
@@ -101,6 +118,16 @@ pub fn unreachable(e: &EngineError) -> bool {
         if code == "network" || code == "bad_response" || code.starts_with("http_5"))
 }
 
+/// Pelli unreachable reads as `offline` in the UI, whatever the cause.
+pub fn offline_if_unreachable(e: EngineError) -> EngineError {
+    match e {
+        EngineError::Remote { message, .. } if unreachable(&e) => {
+            EngineError::Remote { code: "network".into(), message }
+        }
+        other => other,
+    }
+}
+
 /// Status and body of a response (HTTP errors are responses, see [`agent`]).
 fn body_text(mut resp: ureq::http::Response<ureq::Body>) -> Result<(u16, String)> {
     let status = resp.status().as_u16();
@@ -111,11 +138,6 @@ fn body_text(mut resp: ureq::http::Response<ureq::Body>) -> Result<(u16, String)
         .read_to_string()
         .map_err(|e| remote("network", e.to_string()))?;
     Ok((status, text))
-}
-
-/// Error code of an error response body, if it carries one.
-fn error_code(text: &str) -> Option<String> {
-    serde_json::from_str::<ErrorBody>(text).ok()?.code().map(str::to_owned)
 }
 
 /// Decodes a 2xx body, or turns an error response into
@@ -164,16 +186,15 @@ impl<'de> Deserialize<'de> for Plan {
     }
 }
 
-/// What the account may do.
+/// What the account may do, as Pelli sends it (sorting is free and
+/// unlimited: the app no longer reads the quota fields, Pelli keeps them for
+/// 0.1 apps).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Entitlements {
-    /// The account may sort photos (not suspended).
     pub analyze: bool,
-    /// Photos sorted per calendar month (UTC); `None` = unlimited.
     pub monthly_quota: Option<u32>,
     pub used_this_month: u32,
-    /// First instant of next month (UTC, epoch ms), when the count resets.
     pub resets_at: i64,
     /// `false` behind the Pelli paywall (no plan, no running trial).
     pub send_to_gallery: bool,
@@ -181,13 +202,7 @@ pub struct Entitlements {
 
 impl Default for Entitlements {
     fn default() -> Self {
-        Entitlements {
-            analyze: true,
-            monthly_quota: None,
-            used_this_month: 0,
-            resets_at: crate::usage::next_month_utc(crate::now_ms()),
-            send_to_gallery: false,
-        }
+        Entitlements { analyze: true, monthly_quota: None, used_this_month: 0, resets_at: 0, send_to_gallery: false }
     }
 }
 
@@ -209,6 +224,11 @@ pub struct Account {
     /// Lifetime deal (no subscription).
     pub lifetime: bool,
     pub entitlements: Entitlements,
+    /// The plan includes Pelli Instant Plus: Pro or Ultra, lifetime deals
+    /// and running Pro/Ultra trials included. Absent from an account cached
+    /// by 0.1.
+    #[serde(default)]
+    pub plus: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -229,73 +249,52 @@ pub struct SessionCheck {
 }
 
 // ---------------------------------------------------------------------------
-// Monthly usage
+// Pelli Instant Plus
 // ---------------------------------------------------------------------------
 
-/// Monthly usage as Pelli counts it (`usage/reserve` answers and
-/// `quota_exceeded` errors).
-#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase", default)]
-pub struct QuotaUsage {
-    /// Photos per calendar month (UTC); `None` = unlimited.
-    pub monthly_quota: Option<u32>,
-    pub used_this_month: u32,
-    /// Photos left this month; `None` = unlimited.
-    pub remaining: Option<u32>,
-    /// First instant of next month (UTC, epoch ms).
-    pub resets_at: i64,
-}
-
-/// Answer of `usage/reserve`.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Reserve {
-    /// The photos are counted; `unlimited` when the plan has no quota.
-    Granted { unlimited: bool, usage: QuotaUsage },
-    /// The quota left is too small: nothing was counted.
-    Refused(QuotaUsage),
-}
-
-// ---------------------------------------------------------------------------
-// Offers
-// ---------------------------------------------------------------------------
-
-/// Pelli's current offers (`offers`), passed through to the UI so prices
-/// and links stay right when Pelli changes them.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase", default)]
-pub struct Offers {
-    /// ISO 4217 code of the prices.
+/// Price of Plus where the computer is (`plus/offer`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlusOffer {
+    /// Minor units (2500).
+    pub amount: u32,
+    /// `eur` or `usd`.
     pub currency: String,
-    pub trial_days: u32,
-    pub plans: Vec<PlanOffer>,
-    pub links: OfferLinks,
+    /// Formatted by Pelli: "25 €", "$25".
+    pub label: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase", default)]
-pub struct PlanOffer {
-    /// `free`, `lite`, `pro`, `ultra` (passed through as Pelli sends it).
-    pub slug: String,
-    pub name: String,
-    /// Price per month, billed monthly.
-    pub monthly_price: f64,
-    /// Price of a year, billed yearly.
-    pub yearly_price: f64,
-    /// The same, per month.
-    pub yearly_price_per_month: f64,
-    /// Photos sorted per month; `None` = unlimited.
-    pub photos_per_month: Option<u32>,
-    /// What the plan brings in Pelli itself, localised.
-    pub highlights: Vec<String>,
+/// A Stripe Checkout waiting for payment (`plus/checkout`).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Checkout {
+    pub id: String,
+    pub claim_token: String,
+    pub url: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase", default)]
-pub struct OfferLinks {
-    pub register: String,
-    pub pricing: String,
-    pub trial: String,
-    pub billing: String,
+/// `plus/claim`: `pending`, `active` (with the licence) or `expired`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Claim {
+    pub status: String,
+    pub key: Option<String>,
+    pub license: Option<String>,
+}
+
+/// A licence key and its token for this device (`plus/activate`).
+#[derive(Debug, Clone, Deserialize)]
+pub struct IssuedLicense {
+    pub key: String,
+    pub license: String,
+}
+
+/// A file of the Maximum pack and where to download it for a while
+/// (`models`). Its size and checksum come from the manifest compiled in, not
+/// from here.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ModelUrl {
+    pub file: String,
+    pub url: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -328,6 +327,7 @@ pub struct FolderRef {
 // ---------------------------------------------------------------------------
 
 pub struct PelliClient {
+    /// Pelli's origin ([`api_url`]).
     base: String,
     token: Option<String>,
     /// App language, sent as `Accept-Language` (localises `planLabel` and
@@ -337,8 +337,13 @@ pub struct PelliClient {
 }
 
 impl PelliClient {
-    pub fn new(token: Option<String>, language: &str) -> PelliClient {
-        PelliClient { base: api_url(), token, language: language.to_string(), agent: agent(Duration::from_secs(30)) }
+    pub fn new(base: &str, token: Option<String>, language: &str) -> PelliClient {
+        PelliClient {
+            base: base.to_string(),
+            token,
+            language: language.to_string(),
+            agent: agent(Duration::from_secs(30)),
+        }
     }
 
     pub fn base_url(&self) -> &str {
@@ -357,6 +362,14 @@ impl PelliClient {
 
     fn post<B: Serialize, T: DeserializeOwned>(&self, path: &str, body: &B) -> Result<T> {
         let (status, text) = self.send(path, body)?;
+        decode(status, &text)
+    }
+
+    /// `GET /api/cull/{path}?lang=` (no token).
+    fn get<T: DeserializeOwned>(&self, path: &str, lang: &str) -> Result<T> {
+        let url = format!("{}/api/cull/{path}?lang={}", self.base, utf8_percent_encode(lang, NON_ALPHANUMERIC));
+        let resp = self.agent.get(url).header("Accept-Language", lang).call().map_err(net)?;
+        let (status, text) = body_text(resp)?;
         decode(status, &text)
     }
 
@@ -383,47 +396,61 @@ impl PelliClient {
         Ok(self.post::<_, R>("me", &serde_json::json!({}))?.account)
     }
 
-    /// `usage/reserve`: counts `photos` on the monthly quota, all or nothing.
-    pub fn reserve_usage(&self, photos: u32) -> Result<Reserve> {
-        #[derive(Deserialize)]
-        #[serde(rename_all = "camelCase")]
-        struct Reservation {
-            granted: bool,
-            #[serde(default)]
-            unlimited: bool,
-            #[serde(flatten)]
-            usage: QuotaUsage,
-        }
-        let (status, text) = self.send("usage/reserve", &serde_json::json!({ "photos": photos }))?;
-        if status == 403 && error_code(&text).as_deref() == Some("quota_exceeded") {
-            let usage = serde_json::from_str(&text).map_err(|e| remote("bad_response", e.to_string()))?;
-            return Ok(Reserve::Refused(usage));
-        }
-        let r: Reservation = decode(status, &text)?;
-        Ok(if r.granted {
-            Reserve::Granted { unlimited: r.unlimited, usage: r.usage }
-        } else {
-            Reserve::Refused(r.usage)
-        })
+    pub fn plus_offer(&self, lang: &str) -> Result<PlusOffer> {
+        self.get("plus/offer", lang)
     }
 
-    /// `usage/release`: gives back photos reserved but not analysed. Returns
-    /// the new `usedThisMonth`.
-    pub fn release_usage(&self, photos: u32) -> Result<u32> {
+    /// Starts a Stripe Checkout for Plus on `device` (its hash).
+    pub fn plus_checkout(&self, device: &str, lang: &str) -> Result<Checkout> {
+        self.post(
+            "plus/checkout",
+            &serde_json::json!({
+                "device": device,
+                "lang": lang,
+                "platform": os(),
+                "appVersion": env!("CARGO_PKG_VERSION"),
+            }),
+        )
+    }
+
+    pub fn plus_claim(&self, id: &str, claim_token: &str) -> Result<Claim> {
+        self.post("plus/claim", &serde_json::json!({ "id": id, "claimToken": claim_token }))
+    }
+
+    /// Errors `invalidKey`, `otherDevice` (bound to another device) and
+    /// `revoked` (refunded).
+    pub fn plus_activate(&self, key: &str, device: &str) -> Result<IssuedLicense> {
+        self.post("plus/activate", &serde_json::json!({ "key": key, "device": device }))
+    }
+
+    /// Unbinds the licence from its device.
+    pub fn plus_release(&self, license: &str) -> Result<()> {
+        self.post::<_, serde_json::Value>("plus/release", &serde_json::json!({ "license": license }))?;
+        Ok(())
+    }
+
+    /// `active`, `released`, `revoked` or `invalid`.
+    pub fn plus_verify(&self, license: &str) -> Result<String> {
         #[derive(Deserialize)]
-        #[serde(rename_all = "camelCase")]
         struct R {
-            used_this_month: u32,
+            status: String,
         }
-        Ok(self.post::<_, R>("usage/release", &serde_json::json!({ "photos": photos }))?.used_this_month)
+        Ok(self.post::<_, R>("plus/verify", &serde_json::json!({ "license": license }))?.status)
     }
 
-    /// `GET offers?lang=` (no token needed).
-    pub fn offers(&self, lang: &str) -> Result<Offers> {
-        let url = format!("{}/api/cull/offers?lang={}", self.base, utf8_percent_encode(lang, NON_ALPHANUMERIC));
-        let resp = self.agent.get(url).header("Accept-Language", lang).call().map_err(net)?;
-        let (status, text) = body_text(resp)?;
-        decode(status, &text)
+    /// Download URLs of the Maximum pack, for a licence token, or for the
+    /// Bearer of a Pelli account whose plan includes Plus (`license: None`).
+    /// 403 `plusRequired` otherwise.
+    pub fn models(&self, license: Option<&str>) -> Result<Vec<ModelUrl>> {
+        #[derive(Deserialize)]
+        struct R {
+            files: Vec<ModelUrl>,
+        }
+        let body = match license {
+            Some(l) => serde_json::json!({ "license": l }),
+            None => serde_json::json!({}),
+        };
+        Ok(self.post::<_, R>("models", &body)?.files)
     }
 
     pub fn list_galleries(&self) -> Result<Vec<GallerySummary>> {
@@ -492,6 +519,16 @@ mod tests {
             (a.plan, a.entitlements.monthly_quota, a.entitlements.used_this_month),
             (Plan::Lite, Some(1000), 12)
         );
+        assert!(!a.plus, "an account cached by 0.1 has no `plus`");
+        let b: Account = serde_json::from_value(json!({
+            "name": "Camille", "email": "c@example.com", "slug": "camille", "avatarUrl": null,
+            "plan": "pro", "planLabel": "Pro", "trialEndsAt": null, "trialAvailable": false, "lifetime": false,
+            "entitlements": { "analyze": true, "monthlyQuota": null, "usedThisMonth": 0, "resetsAt": 0,
+                              "sendToGallery": true },
+            "plus": true
+        }))
+        .unwrap();
+        assert!(b.plus);
     }
 
     #[test]
@@ -500,16 +537,22 @@ mod tests {
         assert_eq!(v["plan"], "ultra");
         assert!(v["entitlements"]["monthlyQuota"].is_null());
         assert!(v.get("trialEndsAt").is_some() && v["entitlements"].get("usedThisMonth").is_some());
+        assert_eq!(v["plus"], false);
     }
 
     #[test]
     fn error_codes() {
         let err = |status, text: &str| decode::<serde_json::Value>(status, text).unwrap_err().to_string();
-        assert_eq!(err(403, r#"{"code":"quota_exceeded","message":"m","error":"m"}"#), "quota_exceeded: m");
-        assert_eq!(err(403, r#"{"error":"quota_exceeded","message":"m"}"#), "quota_exceeded: m");
+        assert_eq!(err(403, r#"{"code":"plusRequired","message":"m"}"#), "plusRequired: m");
+        assert_eq!(err(409, r#"{"code":"otherDevice","message":"m","error":"m"}"#), "otherDevice: m");
+        assert_eq!(err(403, r#"{"error":"subscription_required","message":"m"}"#), "subscription_required: m");
         assert_eq!(err(404, r#"{"error":"Gallery not found."}"#), "not_found: Gallery not found.");
         assert_eq!(err(502, "<html>Bad gateway</html>"), "http_502: HTTP 502");
         assert!(unreachable(&decode::<serde_json::Value>(503, "").unwrap_err()));
         assert!(!unreachable(&decode::<serde_json::Value>(401, "").unwrap_err()));
+        let down = offline_if_unreachable(decode::<serde_json::Value>(502, "").unwrap_err());
+        assert_eq!(down.code(), "offline");
+        let refused = offline_if_unreachable(decode::<serde_json::Value>(410, r#"{"code":"revoked"}"#).unwrap_err());
+        assert_eq!(refused.code(), "revoked");
     }
 }

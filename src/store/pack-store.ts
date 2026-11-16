@@ -4,11 +4,13 @@ import type { ModelPack, Precision } from '@/lib/contract'
 import { t } from '@/lib/i18n'
 import { notify } from '@/lib/notify'
 import { useAppStore } from './app-store'
+import { usePlusStore } from './plus-store'
 
 /**
- * The optional Maximum pack: its download, and the precision the
- * photographer picked. Choosing 'maximum' starts (or resumes) the download;
- * going back to 'standard' pauses a download in progress.
+ * The optional Maximum pack, part of Plus: its download, and the precision
+ * the photographer picked. Choosing 'maximum' without Plus opens the Plus
+ * dialog; with Plus it starts (or resumes) the download; going back to
+ * 'standard' pauses a download in progress.
  */
 interface PackState {
   pack: ModelPack | null
@@ -47,6 +49,10 @@ export const usePackStore = create<PackState>((set, get) => ({
   },
 
   choose: async (precision) => {
+    if (precision === 'maximum' && !usePlusStore.getState().status.active) {
+      usePlusStore.getState().openDialog('precision')
+      return
+    }
     await useAppStore.getState().updateSettings({ precision })
     const { pack } = get()
     if (!pack) return
@@ -59,6 +65,10 @@ export const usePackStore = create<PackState>((set, get) => ({
       await api().downloadModelPack()
     } catch (error) {
       const e = toCullError(error)
+      if (e.code === 'plusRequired') {
+        usePlusStore.getState().openDialog('precision')
+        return
+      }
       const pack = get().pack
       if (pack) {
         const received = pack.state.status === 'failed' || pack.state.status === 'downloading' ? pack.state.receivedBytes : 0

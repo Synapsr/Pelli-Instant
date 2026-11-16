@@ -228,8 +228,7 @@ export interface ProjectSummary {
   /**
    * Precision of the last analysis, null before the first one. A project
    * analysed in 'standard' can be re-analysed in 'maximum' once the pack is
-   * ready: `startAnalysis` re-measures its photos (not counted on the quota,
-   * like any re-analysis).
+   * ready: `startAnalysis` re-measures its photos.
    */
   precision: Precision | null
 }
@@ -260,27 +259,28 @@ export interface SearchHit {
 }
 
 // ---------------------------------------------------------------------------
-// Account (Pelli)
+// Account (Pelli) and Pelli Instant Plus
 // ---------------------------------------------------------------------------
 
 export type Plan = 'free' | 'lite' | 'pro' | 'ultra'
 
 /**
- * What the account may do. Pelli Instant is free with a Pelli account; the
- * number of photos sorted per calendar month depends on the Pelli plan
- * (free 200, Lite 1,000, Pro and Ultra unlimited, unlimited during a trial).
+ * Left from 0.1.x, when the number of photos sorted per month depended on the
+ * Pelli plan. Sorting is now free and unlimited for everyone (Pelli answers
+ * `monthlyQuota: null`); the interface no longer reads these fields.
  */
 export interface Entitlements {
-  /** the account may sort (not suspended) */
   analyze: boolean
-  /** photos per calendar month (UTC); null = unlimited */
   monthlyQuota: number | null
   usedThisMonth: number
-  /** epoch ms: first instant of next month (UTC), when the count resets */
   resetsAt: number
   sendToGallery: boolean
 }
 
+/**
+ * A Pelli account, optional: signing in is only a second way to get Plus
+ * (Pro and Ultra plans include it, lifetime and trials too).
+ */
 export interface Account {
   name: string
   email: string
@@ -294,41 +294,47 @@ export interface Account {
   /** the account can start a Pelli trial now (absent from older Pelli versions) */
   trialAvailable?: boolean
   lifetime: boolean
-  entitlements: Entitlements
+  /** the plan includes Pelli Instant Plus (Pro or Ultra, lifetime and trials included) */
+  plus: boolean
+  entitlements?: Entitlements
 }
 
-/** A Pelli plan as offered in the onboarding and when the quota runs out. */
-export interface PlanOffer {
-  slug: Plan
-  name: string
-  /** price per month, billed monthly */
-  monthlyPrice: number
-  /** price per year, billed yearly */
-  yearlyPrice: number
-  /** price per month, billed yearly */
-  yearlyPricePerMonth: number
-  /** photos sorted per month; null = unlimited */
-  photosPerMonth: number | null
-  /** what the plan brings in Pelli itself (galleries, storage…), localised */
-  highlights: string[]
+export type PlusSource = 'license' | 'account'
+
+/**
+ * Pelli Instant Plus on this computer: the Maximum precision, AI search and
+ * no Pelli promotion. 25 € / $25 once, per device, or included in a Pelli Pro
+ * or Ultra plan.
+ */
+export interface PlusStatus {
+  active: boolean
+  /** where Plus comes from; the licence wins when both */
+  source: PlusSource | null
+  /** licence key ("XXXX-XXXX-XXXX-XXXX"), shown masked by the interface */
+  key: string | null
+  /** a checkout opened in the browser is waiting for its payment */
+  pending: boolean
 }
 
-/** Pelli's current offers (prices and links stay right when Pelli changes them). */
-export interface Offers {
-  currency: string
-  trialDays: number
-  plans: PlanOffer[]
-  links: { register: string; pricing: string; trial: string; billing: string }
+/** Price of Plus for this visitor (currency from the country), null offline. */
+export interface PlusOffer {
+  /** minor units: 2500 */
+  amount: number
+  currency: 'eur' | 'usd'
+  /** "25 €", "$25", formatted by Pelli in the requested language */
+  label: string
 }
 
-/** Details of the `quotaExceeded` / `quotaOffline` analysis errors. */
-export interface QuotaDetails {
-  monthlyQuota: number | null
-  usedThisMonth?: number
-  remaining?: number
-  resetsAt?: number
-  /** photos this analysis needed */
-  needed: number
+/**
+ * What anonymous telemetry sends, for "What is sent?". `installId`: the
+ * random id of this install, null while telemetry is off. `events`: the
+ * event names. UI addition, optional: `example`, an example payload (JSON
+ * text) built by the engine; the interface builds its own when absent.
+ */
+export interface TelemetryPreview {
+  installId: string | null
+  events: string[]
+  example?: string | null
 }
 
 export type AuthState =
@@ -448,17 +454,13 @@ export interface AppInfo {
   /** total memory of the computer in bytes, null when unknown */
   memoryBytes: number | null
   cpuCores: number
-  /**
-   * Built with PELLI_INSTANT_NO_ACCOUNT=1: no Pelli account, no quota (for
-   * developers who build the app themselves).
-   */
-  noAccount: boolean
 }
 
 /**
- * 'standard': the models shipped with the app. 'maximum': the optional
- * Maximum pack (bigger models, slower, finer results); only used when
- * `ModelPack.state.status === 'ready'`, otherwise analyses run in 'standard'.
+ * 'standard': the models shipped with the app, free. 'maximum': the optional
+ * Maximum pack (bigger models, slower, finer results), part of Plus; only
+ * used with Plus and when `ModelPack.state.status === 'ready'`, otherwise
+ * analyses run in 'standard'.
  */
 export type Precision = 'standard' | 'maximum'
 
@@ -526,6 +528,14 @@ export interface AppSettings {
   precision: Precision
   /** default criteria: every project opened for the first time starts from them */
   cull: CullSettings
+  /**
+   * anonymous usage statistics (random install id, never a photo, a file
+   * name or personal data); default true. Turning it off sends one last
+   * `telemetry_disabled` event, then nothing.
+   */
+  telemetry: boolean
+  /** the welcome was finished once (first launch); default false */
+  onboarded: boolean
   cacheDir: string
   cacheSizeBytes: number
 }
@@ -540,23 +550,38 @@ export interface CullApi {
   setSettings(patch: Partial<Omit<AppSettings, 'cacheDir' | 'cacheSizeBytes'>>): Promise<AppSettings>
   clearCache(): Promise<AppSettings>
 
+  /** optional Pelli account (a Pro or Ultra plan includes Plus) */
   authStatus(): Promise<AuthState>
   /** opens the browser on the Pelli consent page and returns the pending state */
   authStart(): Promise<AuthState>
   /** call every 2-5 s while pending */
   authPoll(): Promise<AuthState>
   authLogout(): Promise<AuthState>
-  /** refresh plan/quota */
+  /** refresh the account (its plan, so whether it includes Plus) */
   refreshAccount(): Promise<AuthState>
-  /** Pelli's offers in this language (cached for offline use) */
-  getOffers(lang: Language): Promise<Offers>
+
+  plusStatus(): Promise<PlusStatus>
+  /** price of Plus in this language; null offline */
+  plusOffer(lang: Language): Promise<PlusOffer | null>
+  /** creates the checkout, opens it in the browser and returns its URL */
+  plusCheckout(lang: Language): Promise<{ url: string }>
+  /** one check of the pending checkout (every 3 s while the waiting dialog is open, and on window focus) */
+  plusPoll(): Promise<PlusStatus>
+  /** forgets the pending checkout */
+  plusCancelCheckout(): Promise<PlusStatus>
+  /** errors `invalidKey`, `otherDevice`, `revoked`, `offline` */
+  plusActivate(key: string): Promise<PlusStatus>
+  /** frees the licence for another computer; error `offline` (nothing changes) */
+  plusRelease(): Promise<PlusStatus>
+  /** what anonymous telemetry sends */
+  telemetryPreview(): Promise<TelemetryPreview>
 
   /** state of the optional Maximum pack */
   modelPack(): Promise<ModelPack>
   /**
    * Starts or resumes the download, returns immediately; progress via
-   * `model-pack` events. Error `diskFull` when `freeBytes` is too small,
-   * `offline` without network.
+   * `model-pack` events. Error `plusRequired` without Plus, `diskFull` when
+   * `freeBytes` is too small, `offline` without network.
    */
   downloadModelPack(): Promise<void>
   /** stops the download and keeps the part already downloaded */
@@ -573,10 +598,7 @@ export interface CullApi {
   removeProject(projectId: string): Promise<void>
   getProject(projectId: string): Promise<ProjectData>
 
-  /**
-   * Returns immediately; progress via events. Photos never analysed before
-   * are counted on the monthly quota (error `quotaExceeded` / `quotaOffline`).
-   */
+  /** Returns immediately; progress via events. Never needs an account. */
   startAnalysis(projectId: string, settings: CullSettings): Promise<void>
   cancelAnalysis(projectId: string): Promise<void>
   /** re-run decisions on cached measures (instant, no re-analysis) */
@@ -585,6 +607,7 @@ export interface CullApi {
   setMarks(projectId: string, photoIds: string[], patch: Partial<UserMark>): Promise<PhotoView[]>
   /** large (2560 px) preview URL, generated on demand */
   largePreview(projectId: string, photoId: string): Promise<string>
+  /** AI search, part of Plus: error `plusRequired` without it */
   search(projectId: string, query: string): Promise<SearchHit[]>
 
   exportProject(projectId: string, options: ExportOptions): Promise<ExportReport>
@@ -614,7 +637,7 @@ export interface CullEvents {
   /** a photo finished (streamed so the grid fills in live) */
   'analysis-photo': { projectId: string; photo: PhotoView }
   'analysis-done': AnalysisSummary
-  'analysis-error': { projectId: string; code: string; message: string; details?: QuotaDetails }
+  'analysis-error': { projectId: string; code: string; message: string }
   'upload-progress': UploadProgress
   'upload-done': UploadReport & { projectId: string }
   'upload-error': { projectId: string; code: string; message: string }
@@ -628,6 +651,8 @@ export interface CullEvents {
   'photos-updated': { projectId: string; photos: PhotoView[] }
   /** every change of the app's updates, at most ~8 per second while downloading */
   'update-status': UpdateStatus
+  /** every change of Plus: activation, payment received, release, revocation, sign-in/out with a Plus account */
+  plus: PlusStatus
 }
 
 /**
@@ -645,16 +670,22 @@ export type ErrorCode =
   | 'noPhotos'
   /** AI models missing or corrupted (local analysis degraded) */
   | 'modelsMissing'
-  /** network unreachable (Pelli account, offers, upload, Maximum pack) */
+  /** network unreachable (Pelli account, Plus, upload, Maximum pack) */
   | 'offline'
   /** not enough free disk space (Maximum pack download) */
   | 'diskFull'
   /** a downloaded model does not match its checksum (Maximum pack) */
   | 'checksum'
-  /** not enough photos left this month for this analysis (details: QuotaDetails) */
-  | 'quotaExceeded'
-  /** limited plan and no network to count the photos (details: QuotaDetails) */
-  | 'quotaOffline'
+  /** the feature is part of Plus (AI search, Maximum pack) */
+  | 'plusRequired'
+  /** licence key unknown */
+  | 'invalidKey'
+  /** licence key bound to another computer: release it there first */
+  | 'otherDevice'
+  /** licence refunded */
+  | 'revoked'
+  /** the Plus checkout expired or was cancelled before any payment */
+  | 'expired'
   /** Pelli session expired or revoked */
   | 'unauthorized'
   /** operation cancelled by the user */
@@ -672,7 +703,14 @@ export const COMMANDS = {
   authPoll: 'auth_poll',
   authLogout: 'auth_logout',
   refreshAccount: 'refresh_account',
-  getOffers: 'get_offers',
+  plusStatus: 'plus_status',
+  plusOffer: 'plus_offer',
+  plusCheckout: 'plus_checkout',
+  plusPoll: 'plus_poll',
+  plusCancelCheckout: 'plus_cancel_checkout',
+  plusActivate: 'plus_activate',
+  plusRelease: 'plus_release',
+  telemetryPreview: 'telemetry_preview',
   modelPack: 'model_pack',
   downloadModelPack: 'download_model_pack',
   cancelModelPack: 'cancel_model_pack',
@@ -703,7 +741,8 @@ export const COMMANDS = {
  * Command arguments are sent as an object whose keys are the camelCase
  * parameter names above, e.g. `set_marks` ← `{ projectId, photoIds, patch }`,
  * `open_folder` ← `{ path, recursive }`, `start_analysis` ←
- * `{ projectId, settings }`, `get_offers` ← `{ lang }`. (Tauri converts camelCase argument keys
+ * `{ projectId, settings }`, `plus_offer` / `plus_checkout` ← `{ lang }`,
+ * `plus_activate` ← `{ key }`. (Tauri converts camelCase argument keys
  * to the Rust snake_case parameters.)
  */
 export type CommandName = (typeof COMMANDS)[keyof typeof COMMANDS]

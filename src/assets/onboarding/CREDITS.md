@@ -2,24 +2,29 @@
 
 ## Photos
 
-The welcome tour shows photos published on Flickr under CC BY 2.0 or CC0 1.0, found through [Openverse](https://openverse.org). They are resized and converted to WebP; `eyes-closed.webp` is also cropped.
+Photos: [Pexels](https://www.pexels.com). The welcome tour shows photos published on Pexels under the [Pexels licence](https://www.pexels.com/license/) (free to use and modify, attribution not required; credited here anyway). They are resized to 960 px at most and converted to WebP; `eyes-closed.webp` is a crop of `family-floor.webp`'s original.
 
-`portrait-blurry.webp` and `group-dark.webp` are deliberately degraded copies (blurred, under-exposed) of the originals listed below, made to show what Pelli Instant sets aside.
+`family-blurry.webp` (blurred), `too-dark.webp` (under-exposed) and `pumpkin-blurry.webp` (motion blur) are deliberately degraded copies of the originals listed below, made to show what Pelli Instant sets aside. `pumpkin-a.webp` and `pumpkin-b.webp` are a real near-identical pair, the kind of burst the analysis stacks.
 
-| File | Author | Licence | Source |
-| --- | --- | --- | --- |
-| `portrait-a.webp`, `portrait-blurry.webp` | Henry Söderlund | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/) | [Flickr](https://www.flickr.com/photos/46563758@N04/16337869271) |
-| `portrait-b.webp` | Henry Söderlund | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/) | [Flickr](https://www.flickr.com/photos/46563758@N04/16153446879) |
-| `eyes-closed.webp` | Tg-Pint | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/) | [Flickr](https://www.flickr.com/photos/61394991@N08/6423103149) |
-| `dress.webp` | exousiavampira | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/) | [Flickr](https://www.flickr.com/photos/11165134@N03/5379488762) |
-| `dance.webp` | Tobyotter | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/) | [Flickr](https://www.flickr.com/photos/78428166@N00/6151252251) |
-| `couple.webp` | WriteAwaybyKarylle | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/) | [Flickr](https://www.flickr.com/photos/93018262@N04/15827145726) |
-| `rings.webp` | firemedic58 | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/) | [Flickr](https://www.flickr.com/photos/50841708@N00/408909320) |
-| `rings-roses.webp` | apdk | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/) | [Flickr](https://www.flickr.com/photos/62337512@N00/2420103611) |
-| `drink.webp` | Henry Söderlund | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/) | [Flickr](https://www.flickr.com/photos/46563758@N04/16216246750) |
-| `mountains.webp` | pixellaphoto | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | [Flickr](https://www.flickr.com/photos/137643065@N06/24029434060) |
-| `city-night.webp` | d26b73 | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/) | [Flickr](https://www.flickr.com/photos/96106108@N07/16540648612) |
-| `group-dark.webp` | jarrodlombardo | [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/) | [Flickr](https://www.flickr.com/photos/62248962@N00/146683298) |
+| File | Photographer | Original |
+| --- | --- | --- |
+| `family-kiss.webp` | Andressa Chagas | `pexels-andressa-chagas-2152629641-33980309` |
+| `too-dark.webp` (degraded copy) | Arina Krasnikova | `pexels-arina-krasnikova-5416635` |
+| `family-floor.webp`, `eyes-closed.webp` | Arina Krasnikova | `pexels-arina-krasnikova-6338442` |
+| `family-blurry.webp` (degraded copy) | Arina Krasnikova | `pexels-arina-krasnikova-6338498` |
+| `wedding.webp` | Uday Ahir | `pexels-aumgraphy-39267906` |
+| `pregnancy.webp` | Book Hut | `pexels-book-hut-440747141-32592246` |
+| `pumpkin-a.webp` | Chris Shafer | `pexels-christafaari-14086496` |
+| `pumpkin-b.webp`, `pumpkin-blurry.webp` | Chris Shafer | `pexels-christafaari-14086497` |
+| `beach-sunset.webp` | Devyn Breslin | `pexels-devyn-breslin-368306288-15164846` |
+| `golden-field.webp` | Dmitry Rodionov | `pexels-dmitry-rodionov-30660763` |
+| `dish.webp` | Elizabeth Zernetska | `pexels-elizabeth-zernetska-86424040-9001223` |
+| `table.webp` | Jessika Arraes | `pexels-jessikaarraes-39238777` |
+| `road.webp` | Lorenzo Castellino | `pexels-lorenzo-castellino-61076802-39103195` |
+| `horse.webp` | Maddy Freddie | `pexels-maddyfreddie-38132851` |
+| `forest.webp` | mehmetakifarts | `pexels-mehmetakifarts-35596893` |
+
+The number at the end of each original's name is its Pexels photo id: `https://www.pexels.com/photo/<id>/`.
 
 ## Voice-over
 

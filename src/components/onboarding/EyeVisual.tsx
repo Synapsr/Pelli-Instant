@@ -117,8 +117,8 @@ function Shot({ src, index, focus, keep }: { src: string; index: number; focus?:
 function Burst({ index }: { index: number }) {
   const at = scanEnd(index) - 0.2
   const frames = [
-    { src: PHOTOS.portraitB, x: -20, rotate: -6 },
-    { src: PHOTOS.portraitBlurry, x: 20, rotate: 6 },
+    { src: PHOTOS.pumpkinB, x: -20, rotate: -6 },
+    { src: PHOTOS.pumpkinBlurry, x: 20, rotate: 6 },
   ]
   return (
     <div className="relative size-full">
@@ -139,7 +139,7 @@ function Burst({ index }: { index: number }) {
         animate={{ y: -6, scale: 1.03 }}
         transition={{ type: 'spring', duration: 0.7, bounce: 0, delay: at }}
       >
-        <Shot src={PHOTOS.portraitA} index={index} keep />
+        <Shot src={PHOTOS.pumpkinA} index={index} keep />
         <motion.div
           aria-hidden
           className="pointer-events-none absolute inset-0 rounded-[22px] shadow-[0_0_0_2px_rgba(52,199,89,0.75),0_0_40px_-6px_rgba(52,199,89,0.55)]"
@@ -161,24 +161,25 @@ const LABELS: Record<'blurry' | 'eyes' | 'best' | 'dark', TKey> = {
 
 /**
  * "A photographer's eye": four real photos, each scanned in turn, with
- * what the analysis sees: a blurry face, closed eyes, the best frame of a
- * burst, a photo too dark to keep.
+ * what the analysis sees: blurry faces, closed eyes, the best frame of a
+ * burst (a real near-duplicate pair and a shaken frame), a photo too dark to
+ * keep.
  */
 export function EyeVisual() {
   const t = useT()
   return (
     <div className="flex items-start gap-10 short:scale-[0.8]">
       <Card index={0} keep={false} label={t(LABELS.blurry)}>
-        <Shot src={PHOTOS.portraitBlurry} index={0} keep={false} focus={{ x: 22, y: 18, w: 60, h: 46 }} />
+        <Shot src={PHOTOS.familyBlurry} index={0} keep={false} focus={{ x: 20, y: 10, w: 62, h: 44 }} />
       </Card>
       <Card index={1} keep={false} label={t(LABELS.eyes)}>
-        <Shot src={PHOTOS.eyesClosed} index={1} keep={false} focus={{ x: 30, y: 33, w: 30, h: 16 }} />
+        <Shot src={PHOTOS.eyesClosed} index={1} keep={false} focus={{ x: 41, y: 40, w: 24, h: 15 }} />
       </Card>
       <Card index={2} keep label={t(LABELS.best)}>
         <Burst index={2} />
       </Card>
       <Card index={3} keep={false} label={t(LABELS.dark)}>
-        <Shot src={PHOTOS.groupDark} index={3} keep={false} />
+        <Shot src={PHOTOS.tooDark} index={3} keep={false} />
       </Card>
     </div>
   )

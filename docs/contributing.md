@@ -33,41 +33,55 @@ The first Rust build downloads a prebuilt ONNX Runtime (cached in
 `pnpm models` is idempotent: files already there with the right checksum are
 skipped. `pnpm models --gpu` adds the fp16 CLIP model that DirectML runs
 (+176 MB), `pnpm models --maximum` the Maximum pack into `models/maximum/`
-for the command line (+777 MB; the app downloads its own copy), and
-`pnpm models --check` only verifies. Every flag is in
+for the command line (+777 MB, part of Plus: see below; the app downloads
+its own copy), and `pnpm models --check` only verifies. Every flag is in
 [docs/models.md](models.md#scriptsfetch-modelsmjs). Without the models, the
 app still starts: sharpness and exposure are analysed, similar shots are
 grouped with a perceptual hash, but faces, eyes and search wait for the
 models.
 
-## Without a Pelli account
+## The Maximum pack and Plus, for developers
 
-```sh
-PELLI_INSTANT_NO_ACCOUNT=1 pnpm tauri dev
-PELLI_INSTANT_NO_ACCOUNT=1 pnpm tauri build
-```
+Sorting needs nothing: no account, no licence. The Maximum pack and AI
+search are part of Pelli Instant Plus, and the manifest has no URL for the
+pack's five files: Pelli hands out short-lived links to a licence or to an
+account whose plan includes Plus (`POST /api/cull/models`). To work on them:
 
-The variable is read when the app is compiled: the build it produces never
-asks for a Pelli account and has no monthly quota. Setting it when you launch
-an installed app does nothing. Without Pelli Instant's update key, a
-`pnpm tauri build` also needs the option described in
-[Building an installer yourself](#building-an-installer-yourself).
+- **With your Plus licence**: `PELLI_INSTANT_LICENSE=<token> pnpm models --maximum`
+  asks Pelli for the links with the token the app keeps once Plus is active
+  (the command to read it is at the top of `scripts/fetch-models.mjs`).
+- **With your own copy**: `PELLI_MODELS_BASE_URL=<url> pnpm models --maximum`
+  downloads `<url>/<file name>` instead (`http` allowed). In a debug build,
+  the same variable makes the app download the pack from there, without
+  Plus.
+- **Against the fake Pelli** (below): buy Plus with its fake Stripe page,
+  and the app downloads the pack from the fake, which serves the files of
+  `FAKE_PELLI_MODELS_DIR`.
+
+The command line's `analyze --precision maximum` reads the pack from
+`./models/maximum` and needs no licence.
 
 ## Working on the interface alone
 
 `pnpm dev`, then open <http://localhost:1420>: the interface runs in a
 browser against a simulated engine (`src/lib/api/mock`), with procedurally
 drawn photos. No Rust build needed. Query parameters pick the state:
-`mockAuth=signedIn` (or `signedOut`), `mockPlan=free` (`lite`, `pro`,
-`ultra`, `trial`), `mockUsed=950` (photos already sorted this month),
-`mockCount=5000` (size of the shoot), `mockTrial=1` (a free account that can
-still start the Pelli trial), `mockNoAccount=1` (a build without account),
-`mockModels=missing`, `mockPack=ready` (`paused`, `failed`; absent by
-default), `mockDisk=low` (not enough space for the Maximum pack),
+`mockPlus=active` (`none`, `pending`: a checkout waiting for its payment,
+`account`: a signed-in Pro account), `mockCheckout=paid` (`expired`,
+`never`) and `mockPolls=2` (how a checkout ends, after how many polls),
+`mockOffer=usd` (the price in dollars), `mockOffline=1` (Pelli unreachable),
+`mockOnboarded=0` (first launch: the welcome tour), `mockTelemetry=0`,
+`mockProjects=4` (recent projects), `mockAuth=signedIn` (or `signedOut`)
+and `mockPlan=pro` (`free`, `lite`, `ultra`, `trial`) for the optional
+account, `mockCount=5000` (size of the shoot), `mockModels=missing`,
+`mockPack=ready` (`paused`, `failed`; absent by default), `mockDisk=low`
+(not enough space for the Maximum pack),
 `mockUpdate=available` (`offline`, `disabled`), `mockLang=en` (`fr`, `es`,
 `de`, `it`, `pt`, `nl`, `pl`, `sv`), `mockTheme=light` (`dark`, `system`),
 `mockSpeed=4` (a faster analysis). They are all read in
-`src/lib/api/mock/index.ts`.
+`src/lib/api/mock/index.ts`. Licence keys typed in the mock: one starting
+with 0 is `invalidKey`, 1 `otherDevice`, 2 `revoked`; any other well-formed
+key activates Plus.
 
 ## The real engine in a browser
 
@@ -80,31 +94,59 @@ cargo run --release -p cull-cli -- serve --port 4317 &
 pnpm dev:bridge    # the interface, talking to http://127.0.0.1:4317 (.env.bridge)
 ```
 
-## Signing in without Pelli
+## A fake Pelli: Plus, telemetry, sign-in
 
 `scripts/fake-pelli.mjs` is a fake Pelli with no dependencies: it imitates
-the API the app calls (`/api/cull/*`) and the consent page you see in the
-browser when you sign in. You pick the account's plan on that page, and
-<http://localhost:3100> switches it live or resets everything.
+the API the app calls (`/api/cull/*`, see [docs/pelli-api.md](pelli-api.md)),
+a Stripe Checkout page and the consent page of the optional sign-in.
 
 ```sh
 pnpm fake-pelli        # terminal 1: http://localhost:3100
-pnpm app:fake-pelli    # terminal 2: the app, signed in against it
+pnpm app:fake-pelli    # terminal 2: the app against it
 ```
 
-Each plan has its own test account, and the fake's home page switches an
-account's plan, sets or resets its monthly count. `FAKE_PELLI_PLAN` picks the
-account signed in by `FAKE_PELLI_AUTO_APPROVE=1` (sign-in without the consent
-page, for scripts), `FAKE_PELLI_UPLOAD_FAIL` answers a share of uploads with
-errors, `FAKE_PELLI_STORAGE_GB` sets the storage limit, `FAKE_PELLI_PORT` and
+- **Plus.** Buying opens the fake's checkout page; the checkout is paid by
+  its button, or by itself at the second check of the app
+  (`FAKE_PELLI_PAY_AFTER`, `0` = only by the button). The key then shows in
+  the app and on <http://localhost:3100>, which also pays, releases or
+  refunds a licence. The price follows `FAKE_PELLI_COUNTRY` (`FR` by
+  default: euros; `US`: dollars). Licence tokens are signed with a **test
+  key**; `pnpm app:fake-pelli` sets `PELLI_LICENSE_PUBLIC_KEY` so that a
+  debug build accepts them (release builds only trust Pelli's key).
+- **The Maximum pack.** `models` hands out links to the fake itself, which
+  serves the files of `FAKE_PELLI_MODELS_DIR` (default `models/maximum`,
+  what `pnpm models --maximum` fills) with range requests. A short
+  `FAKE_PELLI_URL_TTL_S` tests the app asking for new links.
+- **Telemetry.** Every event is validated as strictly as Pelli does and
+  printed on the fake's output (`[telemetry] {…}`), with the line Pelli
+  would post to its chat; every API request is printed too
+  (`[request] POST /api/cull/…`), handy to check that the app sends nothing
+  when telemetry is off.
+- **Sign-in.** Each plan has its own test account; you pick it on the
+  consent page (Pro and Ultra include Plus), and the fake's home page
+  switches an account's plan. `FAKE_PELLI_AUTO_APPROVE=1` signs in without
+  the consent page (scripts), as `FAKE_PELLI_PLAN` (`pro` by default).
+
+`FAKE_PELLI_UPLOAD_FAIL` answers a share of gallery uploads with errors,
+`FAKE_PELLI_STORAGE_GB` sets the storage limit, `FAKE_PELLI_PORT` and
 `FAKE_PELLI_DIR` move it. The full list is at the top of the script.
 
 The app talks to `https://app.pelli.io`. In a development build
 (`pnpm tauri dev`), `PELLI_API_URL` points it elsewhere at run time; that is
-what `pnpm app:fake-pelli` does (the POSIX way: on Windows, set the variable in
-your shell first). A release build reads `PELLI_API_URL` only when it is
+what `pnpm app:fake-pelli` does (the POSIX way: on Windows, set the variables
+in your shell first). A release build reads `PELLI_API_URL` only when it is
 compiled, never at run time, so an installed app can't be pointed at another
 server.
+
+With the real engine in a browser, start the bridge the same way:
+
+```sh
+PELLI_API_URL=http://localhost:3100 PELLI_LICENSE_PUBLIC_KEY=6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw= \
+  cargo run -p cull-cli -- serve --port 4317 --data-dir /tmp/pelli-instant-dev
+```
+
+The bridge has no folder dialog: `PELLI_CULL_PICK=<folder>` is what
+"Choose a folder" opens.
 
 ## Sorting a folder in a terminal
 
@@ -123,8 +165,8 @@ see why a photo was rejected and to tune a threshold.
 `./models/maximum` (`pnpm models --maximum`; `--maximum-dir` to change it):
 the first run prepares it, and a pack that isn't ready falls back to
 Standard. `--threads N` sets the number of workers, `--background` runs them
-like the app's background mode. The command line needs no Pelli account and
-never counts photos.
+like the app's background mode. The command line never talks to Pelli: no
+telemetry, no licence.
 
 ## The welcome tour's voice-over
 
@@ -293,8 +335,7 @@ pnpm tauri build --config src-tauri/tauri.bundle.conf.json --config src-tauri/ta
 `src-tauri/tauri.bundle.conf.json` puts the models inside the installer.
 Without it, the app finds its models only in the `models/` folder of the
 source tree, which is fine for development but not for an installer you
-hand to someone. Add `PELLI_INSTANT_NO_ACCOUNT=1` in front to build without
-the account.
+hand to someone.
 
 `tauri.conf.json` asks for update bundles (`createUpdaterArtifacts`), which
 are signed with Pelli Instant's private update key

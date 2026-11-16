@@ -158,13 +158,12 @@ const _: () = {
     assert_send_sync::<MaximumModels>();
 };
 
-/// One file of the Maximum pack, for the downloader.
+/// One file of the Maximum pack, for the downloader (its URL comes from
+/// Pelli, its checksum from the manifest compiled in).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackFile {
     pub id: String,
     pub file: String,
-    pub url: String,
-    pub mirrors: Vec<String>,
     pub sha256: String,
     pub size: u64,
 }
@@ -174,14 +173,7 @@ pub fn maximum_pack_files() -> Vec<PackFile> {
     manifest::bundle("maximum")
         .map(|v| {
             v.into_iter()
-                .map(|e| PackFile {
-                    id: e.id.clone(),
-                    file: e.file.clone(),
-                    url: e.url.clone(),
-                    mirrors: e.mirrors.clone(),
-                    sha256: e.sha256.clone(),
-                    size: e.size,
-                })
+                .map(|e| PackFile { id: e.id.clone(), file: e.file.clone(), sha256: e.sha256.clone(), size: e.size })
                 .collect()
         })
         .unwrap_or_default()

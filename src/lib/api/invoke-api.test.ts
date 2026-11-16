@@ -21,6 +21,11 @@ describe('command transport', () => {
     await api.largePreview('p1', 'a')
     await api.appInfo()
     await api.installUpdate()
+    await api.plusOffer('fr')
+    await api.plusCheckout('en')
+    await api.plusActivate('K7QM-4ZTP-9XRA-7K2Q')
+    await api.plusRelease()
+    await api.telemetryPreview()
     expect(calls).toEqual([
       [COMMANDS.openFolder, { path: '/photos', recursive: true }],
       [COMMANDS.setMarks, { projectId: 'p1', photoIds: ['a', 'b'], patch: { flag: 'pick' } }],
@@ -29,6 +34,11 @@ describe('command transport', () => {
       [COMMANDS.largePreview, { projectId: 'p1', photoId: 'a' }],
       [COMMANDS.appInfo, {}],
       [COMMANDS.installUpdate, {}],
+      ['plus_offer', { lang: 'fr' }],
+      ['plus_checkout', { lang: 'en' }],
+      ['plus_activate', { key: 'K7QM-4ZTP-9XRA-7K2Q' }],
+      ['plus_release', {}],
+      ['telemetry_preview', {}],
     ])
   })
 

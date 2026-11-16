@@ -3,6 +3,7 @@ import { useAnalysisStore } from './analysis-store'
 import { useAppStore } from './app-store'
 import { useExportStore } from './export-store'
 import { usePackStore } from './pack-store'
+import { usePlusStore } from './plus-store'
 import { useReviewStore } from './review-store'
 import { useUpdateStore } from './update-store'
 
@@ -47,7 +48,6 @@ export function connectEvents(engine: CullApi): () => void {
         if (review.projectId === summary.projectId) review.load(data, { keepView: true })
       })
       void useAppStore.getState().refreshProjects()
-      void useAppStore.getState().refreshAccount()
     }),
     engine.on('analysis-error', (e) => useAnalysisStore.getState().onError(e)),
     engine.on('upload-progress', (p) => useExportStore.getState().onUploadProgress(p)),
@@ -56,6 +56,7 @@ export function connectEvents(engine: CullApi): () => void {
     engine.on('auth-changed', (auth) => useAppStore.getState().setAuth(auth)),
     engine.on('model-pack', (pack) => usePackStore.getState().onPack(pack)),
     engine.on('update-status', (status) => useUpdateStore.getState().onStatus(status)),
+    engine.on('plus', (status) => usePlusStore.getState().onStatus(status)),
   ]
   void usePackStore.getState().load()
   void useUpdateStore.getState().load()
@@ -63,11 +64,19 @@ export function connectEvents(engine: CullApi): () => void {
   const setOnline = () => useAppStore.getState().setOnline(navigator.onLine)
   window.addEventListener('online', setOnline)
   window.addEventListener('offline', setOnline)
+  // Back from the browser: a checkout waiting for its payment is checked once
+  // (the waiting dialog also checks every 3 s while it is open).
+  const onFocus = () => {
+    const plus = usePlusStore.getState()
+    if (plus.status.pending) void plus.poll()
+  }
+  window.addEventListener('focus', onFocus)
 
   return () => {
     offs.forEach((off) => off())
     window.removeEventListener('online', setOnline)
     window.removeEventListener('offline', setOnline)
+    window.removeEventListener('focus', onFocus)
     if (timer) clearTimeout(timer)
   }
 }

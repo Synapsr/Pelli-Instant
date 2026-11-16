@@ -31,7 +31,15 @@ export function createInvokeApi(rawInvoke: Invoke, on: Subscribe): CullApi {
     authPoll: () => call(COMMANDS.authPoll),
     authLogout: () => call(COMMANDS.authLogout),
     refreshAccount: () => call(COMMANDS.refreshAccount),
-    getOffers: (lang) => call(COMMANDS.getOffers, { lang }),
+
+    plusStatus: () => call(COMMANDS.plusStatus),
+    plusOffer: (lang) => call(COMMANDS.plusOffer, { lang }),
+    plusCheckout: (lang) => call(COMMANDS.plusCheckout, { lang }),
+    plusPoll: () => call(COMMANDS.plusPoll),
+    plusCancelCheckout: () => call(COMMANDS.plusCancelCheckout),
+    plusActivate: (key) => call(COMMANDS.plusActivate, { key }),
+    plusRelease: () => call(COMMANDS.plusRelease),
+    telemetryPreview: () => call(COMMANDS.telemetryPreview),
 
     modelPack: () => call(COMMANDS.modelPack),
     downloadModelPack: () => call(COMMANDS.downloadModelPack),

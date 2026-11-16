@@ -7,7 +7,7 @@ downloaded (and verified) by:
 ```sh
 node scripts/fetch-models.mjs            # desktop bundle set (~223 MB)
 node scripts/fetch-models.mjs --gpu      # + fp16 CLIP for DirectML/CUDA (+176 MB; Windows installer)
-node scripts/fetch-models.mjs --maximum  # + the Maximum pack into models/maximum/ (~777 MB, development)
+node scripts/fetch-models.mjs --maximum  # + the Maximum pack into models/maximum/ (~777 MB, development, Plus: see below)
 node scripts/fetch-models.mjs --check    # verify sizes + SHA-256, exit 1 on problems
 node scripts/fetch-models.mjs --strict   # an optional model that cannot be fetched is an error (installers)
 ```
@@ -18,21 +18,26 @@ mirrors, and extracts archive members (Face Mesh ships inside a `.tar.gz`).
 CI should run it before bundling.
 
 `manifest.json` is the single source of truth: per model its `id`, the
-`tag` written into each analysis (`models_id`), file name, download URL
-(pinned revisions on Hugging Face), SHA-256, size, license + license URL,
-source, purpose, `required` and `bundle` (`default` / `gpu` / `maximum`). It
-is compiled into cull-ml, which re-verifies every file at load (verification
-cached in `.verified.json` by size + mtime), and into the app, which
-downloads the `maximum` bundle itself (Range resume, SHA-256, see
-`crates/cull-engine/src/modelpack.rs`).
+`tag` written into each analysis (`models_id`), file name, SHA-256, size,
+license + license URL, source, purpose, `required`, `bundle` (`default` /
+`gpu` / `maximum`) and, for the `default` and `gpu` bundles, the download URL
+(pinned revisions on Hugging Face). It is compiled into cull-ml, which
+re-verifies every file at load (verification cached in `.verified.json` by
+size + mtime), and into the app, which downloads the `maximum` bundle itself
+(Range resume, SHA-256, see `crates/cull-engine/src/modelpack.rs`).
 
-The three files converted by Pelli (blendshapes, RF-DETR, RetinaFace) have
-no upstream ONNX: they are hosted by Pelli at
-`https://pelli.s3.fr-par.scw.cloud/pelli-instant/models/<file>`, next to a
-`README.txt` with their sources, licences and SHA-256. A hosted file never
-changes: a new conversion gets a new file name. A local copy of the files
-can be served to a debug build with `PELLI_MODELS_BASE_URL` (any static
-server with HTTP range support).
+The `maximum` bundle is the Maximum pack of Pelli Instant Plus: its entries
+have no URL. Pelli hands out short-lived links to a Plus licence or to an
+account whose plan includes Plus (`POST /api/cull/models`, see
+`docs/pelli-api.md`). For development, `fetch-models.mjs --maximum` needs
+`PELLI_INSTANT_LICENSE=<licence token>` (links from Pelli) or
+`PELLI_MODELS_BASE_URL=<your own copy>` (any static server with HTTP range
+support; the same variable makes a debug build of the app download the pack
+from there).
+
+The Face Blendshapes model, converted by Pelli (no upstream ONNX), is part
+of the default bundle and stays public at the URL in the manifest. A hosted
+file never changes: a new conversion gets a new file name.
 
 | id | file | size | license |
 |---|---|---|---|

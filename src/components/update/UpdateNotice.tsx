@@ -7,7 +7,7 @@ import { cn } from '@/lib/cn'
 import type { UpdateStatus } from '@/lib/contract'
 import { formatPercent } from '@/lib/format'
 import { useT, type Translate } from '@/lib/i18n'
-import { GITHUB_URL } from '@/lib/plans'
+import { GITHUB_URL } from '@/lib/links'
 import { useAnalysisStore } from '@/store/analysis-store'
 import { useUpdateStore } from '@/store/update-store'
 

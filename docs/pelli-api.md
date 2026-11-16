@@ -2,9 +2,11 @@
 
 The HTTP contract the desktop app relies on. The server side lives in Pelli (not part of this repository); `scripts/fake-pelli.mjs` implements the same contract for local development, and a change to the contract lands on both sides together.
 
-- Base URL: `https://app.pelli.io`. Routes are `POST {base}/api/cull/<route>` with a JSON body (send `{}` when a route takes no input), except `GET offers`; every answer is JSON.
-- Another Pelli (staging, local, the fake): set `PELLI_API_URL`. **Release builds read it when they are compiled, never at run time**, so an official build always talks to the Pelli it was built for; debug builds (`pnpm tauri dev`, `pnpm app:fake-pelli`, the dev bridge) also read it at run time (`cull_engine::pelli::api_url`).
-- `Accept-Language`: the app language (`en`, `fr`, `es`, `de`, `it`, `pt`, `nl`, `pl`, `sv`); it localises `account.planLabel` and the offers. Without it, the account language is used.
+Sorting never calls this API: the app sorts without an account, without a quota and offline. It talks to Pelli for Pelli Instant Plus, for anonymous telemetry (unless it is turned off) and for the optional Pelli account.
+
+- Base URL: `https://app.pelli.io`. Routes are `POST {base}/api/cull/<route>` with a JSON body (send `{}` when a route takes no input), except `GET plus/offer`; answers are JSON (`telemetry` answers `204` without body).
+- Another Pelli (staging, local, the fake): set `PELLI_API_URL`. **Release builds read it when they are compiled, never at run time**, so an official build always talks to the Pelli it was built for (a fake Pelli would hand out Plus); debug builds (`pnpm tauri dev`, `pnpm app:fake-pelli`, the dev bridge) also read it at run time (`cull_engine::pelli::api_url`).
+- Headers: `User-Agent: PelliInstant/<version> (<macos|windows|linux>)` and `Accept-Language`: the app language (`en`, `fr`, `es`, `de`, `it`, `pt`, `nl`, `pl`, `sv`), which localises `account.planLabel`, the price label and error messages.
 - Bearer routes take `Authorization: Bearer <accessToken>` (the token from `auth/check-session`, valid 30 days). There is no refresh token: on `401` sign in again.
 
 ## Errors
@@ -12,34 +14,146 @@ The HTTP contract the desktop app relies on. The server side lives in Pelli (not
 Every error is JSON with a meaningful HTTP status:
 
 ```json
-{ "code": "quota_exceeded", "message": "The monthly photo quota of this plan is reached.", "error": "…same text…", "type": "HTTPException" }
+{ "code": "otherDevice", "message": "This licence is active on another computer.", "error": "…same text…" }
 ```
 
-The machine code is `code`; `message` is an English developer hint, never UI text (`type` may be absent; some routes add fields, listed below). Codes:
+The machine code is `code`; `message` is an English developer hint, never UI text (some routes add fields, listed below). Codes:
 
 | Status | `code` | Meaning |
 |---|---|---|
 | 400 | `invalid_request` | Body failed validation; `message` names the field |
 | 401 | `missing_token`, `invalid_token` | No / bad / expired / non-Instant bearer token → sign in again |
+| 401 | `invalidLicense` | `plus/release`: the licence token is not one Pelli signed |
 | 403 | `account_unavailable` | Account banned, archived or pending review (every Bearer route) |
-| 403 | `quota_exceeded` | `usage/reserve`: not enough photos left this month; body has `monthlyQuota`, `usedThisMonth`, `remaining`, `resetsAt` |
-| 403 | `subscription_required` | Account behind the Pelli paywall (no plan, no trial): sorting works, sending to a gallery does not (`entitlements.sendToGallery` is `false`) |
+| 403 | `plusRequired` | `models`: neither a valid licence nor an account whose plan includes Plus |
+| 403 | `subscription_required` | Account behind the Pelli paywall (no plan, no trial): sending to a gallery does not work (`entitlements.sendToGallery` is `false`) |
 | 403 | `gallery_limit_reached` | The plan's gallery limit is reached |
+| 404 | `invalidKey` | `plus/activate`: no licence has this key |
 | 404 | `gallery_not_found` | Unknown, deleted or not owned by this account |
+| 409 | `otherDevice` | `plus/activate`: the key is active on another computer (release it there first) |
 | 409 | `request_conflict` | `requestId` reused with different values |
 | 409 | `folder_exists` | A folder with this name (case/accent-insensitive) already exists |
+| 410 | `revoked` | `plus/activate`, `plus/release`: the licence was refunded |
 | 429 | `rate_limited` | Body has `retryAfter` (seconds), header `Retry-After` |
+| 503 | `plusUnavailable` | `plus/checkout`: the payment could not be started; try again later |
 
-Rate limits: session creation 20 / hour / IP; `check-session` 60 / minute / session (poll every `interval` = 3 s); `offers` 120 / hour / IP; Bearer routes 180 reads and 120 writes (`galleries/create`, `folders/create`, `upload-token`, `usage/reserve`, `usage/release`) per minute per account.
+Rate limits, per IP (a keyed hash of the address, never the address itself): `plus/offer` 120 / hour, `plus/checkout` 20 / hour, `plus/claim` 40 / minute (the app polls every 3 s), `plus/activate` and `plus/release` 20 / hour, `plus/verify` and `models` 60 / hour, `telemetry` 600 / hour (and 120 / hour per install id); session creation 20 / hour; `check-session` 60 / minute / session (poll every `interval` = 3 s); Bearer routes 180 reads and 120 writes (`galleries/create`, `folders/create`, `upload-token`) per minute per account.
 
-What the app does with them (the `code` of command errors and `analysis-error` / `upload-error` events, see `src/lib/contract.ts`): `missing_token`, `invalid_token` and `account_unavailable` sign the app out and read as `unauthorized`; no network, a non-JSON answer or a 5xx read as `offline`; `quota_exceeded` becomes `quotaExceeded` with `details`; other codes are passed through.
+What the app does with them (the `code` of command errors and `upload-error` events, see `src/lib/contract.ts`): `missing_token`, `invalid_token` and `account_unavailable` sign the app out and read as `unauthorized`; no network, a non-JSON answer or a 5xx read as `offline`; other codes are passed through.
 
-## Sign-in
+## Pelli Instant Plus
+
+Plus is sold once per computer: 25 € in Europe, $25 elsewhere, paid on Pelli's Stripe. A Pelli account on a Pro or Ultra plan (lifetime deals and running Pro/Ultra trials included) gets it by signing in (`account.plus`). Pelli keeps no name, e-mail or country for a licence: its row holds the key, a hash of the device, the Stripe session id and the status; Stripe handles the payment and its receipt.
+
+### The licence
+
+- **Key**, what a human types: `XXXX-XXXX-XXXX-XXXX`, Crockford base32 (no I, L, O, U), 80 random bits, generated by Pelli. Input is case-insensitive and ignores spaces and dashes; the app reads I and L as 1, O as 0.
+- **Device hash**: lowercase hex SHA-256 of `"pelli-instant-device-v1:" + machine id` (macOS IOPlatformUUID, Windows `MachineGuid`, Linux `/etc/machine-id`; when none can be read, a random UUID created once in the data folder). 64 hex characters.
+- **Token**: `base64url(payload) + "." + base64url(signature)`, no padding. `payload` = `{"v":1,"lid":"<licence id>","dev":"<device hash>","iat":<unix seconds>}`; the Ed25519 signature covers the ASCII bytes of the first part. Pelli signs with `CULL_LICENSE_PRIVATE_KEY`; the app embeds the public key (raw 32 bytes, base64 `Dx2SeBSPVz9jHkz+D/R5ise2ZI2Ir/JcXbKGRfH+7Oo=`) and checks offline: signature, `v == 1`, `dev ==` this computer's hash. Debug builds accept another key from `PELLI_LICENSE_PUBLIC_KEY` (the fake's test key).
+- One key = one computer at a time. The same computer can activate the same key again any time (reinstall). Releasing frees it for another computer. A refund revokes it.
+
+### `GET plus/offer?lang=fr` (no auth)
+
+```json
+{ "amount": 2500, "currency": "eur", "label": "25 €" }
+```
+
+Currency from the visitor's country (`cf-ipcountry`, never stored): EU/EEA, Switzerland, the UK, the rest of Europe and the territories that pay in euros → `eur`; everywhere else, unknown included → `usd`. `label` is formatted in `lang` (`Intl.NumberFormat`, no decimals): `25 €`, `€25`, `$25`. Offline, the app shows the locale's guess.
+
+### `plus/checkout` (no auth)
+
+```json
+{ "device": "<64 hex>", "lang": "fr", "platform": "mac", "appVersion": "0.2.0" }
+```
+
+`platform`: `mac` | `windows` | `linux`. → `{ "id": "…", "claimToken": "…", "url": "https://checkout.stripe.com/…" }`. Creates a `pending` licence bound to `device` (the claim token is stored hashed) and a Stripe Checkout Session (one payment of 25 € or $25, metadata `kind: "cull_plus"`). The app keeps `{ id, claimToken }` in its library and opens `url` in the browser. Stripe then returns to the thank-you page `https://app.pelli.io/cull/plus?license=<id>&session_id=…` (`&cancelled=1` when cancelled), which shows the key once paid. Error: `503 plusUnavailable`.
+
+### `plus/claim` (no auth)
+
+```json
+{ "id": "…", "claimToken": "…" }
+```
+
+```json
+{ "status": "pending" }
+{ "status": "active", "key": "7K2Q-AB3D-9XYZ-0MNP", "license": "<token>" }
+{ "status": "expired" }
+```
+
+`active` once Stripe says paid (set by the webhook, or checked on demand against the Checkout Session, so a slow webhook never blocks the app); `expired` for an unpaid session that ended or an unknown id. The app polls every 3 s while its "waiting for payment" dialog is open, and once when its window comes back into focus.
+
+### `plus/activate` (no auth)
+
+```json
+{ "key": "7K2Q-AB3D-9XYZ-0MNP", "device": "<64 hex>" }
+```
+
+→ `{ "key": "7K2Q-AB3D-9XYZ-0MNP", "license": "<token>" }`. Activating on the computer the key is bound to returns a fresh token. Errors: `404 invalidKey`, `409 otherDevice`, `410 revoked`.
+
+### `plus/release` (no auth)
+
+```json
+{ "license": "<token>" }
+```
+
+→ `{ "ok": true }`: unbinds the computer; the key can then be activated anywhere. The app forgets the licence only after this answer (offline: nothing changes). Errors: `401 invalidLicense`, `410 revoked`.
+
+### `plus/verify` (no auth)
+
+`{ "license": "<token>" }` → `{ "status": "active" | "released" | "revoked" | "invalid" }`. The app asks at most once a day when online; anything but `active` removes the licence from the computer. Offline, the token keeps working.
+
+### `models` (licence or Bearer)
+
+`{ "license": "<token>" }`, or `{}` with the Bearer of an account whose plan includes Plus:
+
+```json
+{
+  "files": [
+    { "file": "dinov2-base-int8.onnx", "url": "https://…", "size": 90948899, "sha256": "…" }
+  ],
+  "expiresAt": 1798761600000
+}
+```
+
+The five files of the Maximum pack (`clip-vit-l14-vision-int8.onnx`, `clip-vit-l14-text-fp16.onnx`, `dinov2-base-int8.onnx`, `rfdetr-seg-small-384-w16.onnx`, `retinaface-r50-w16.onnx`) with download links valid 12 hours (`expiresAt`, unix ms). The app checks each file against the size and SHA-256 compiled into it (`models/manifest.json`), not against these fields. Downloads resume with range requests; when the storage answers `403` (a link expired), the app asks `models` again. Where the files are stored is Pelli's configuration, not this repository's. Error: `403 plusRequired`.
+
+## Telemetry
+
+### `telemetry` (no auth)
+
+```json
+{
+  "installId": "3f6c2a94-1b7e-4d0a-9c55-8e2f71b4a6d3",
+  "event": "analysis_completed",
+  "appVersion": "0.2.0",
+  "platform": "mac",
+  "arch": "arm64",
+  "locale": "fr",
+  "props": { "photos": 854, "raw": 854, "jpeg": 0, "seconds": 10.2, "precision": "standard", "selected": 512, "toReview": 201, "rejected": 141, "groups": 97 }
+}
+```
+
+→ `204`. `installId`: a random UUID v4, created when telemetry is on, deleted when it is turned off, never linked to the device hash, a licence or an account. `platform`: `mac` | `windows` | `linux`; `arch`: `arm64` | `x64`; `locale`: the app language only, never a region. Validated strictly: an unknown event, field or property is `400 invalid_request`.
+
+| `event` | When | `props` |
+|---|---|---|
+| `onboarding_completed` | The welcome tour was finished (counts as an install) | `{}` |
+| `app_opened` | At start, at most once a calendar day | `{}` |
+| `analysis_completed` | An analysis that analysed at least one photo ended | `photos`, `raw`, `jpeg` (this run), `seconds` (one decimal), `precision` (`standard` \| `maximum`), `selected`, `toReview`, `rejected`, `groups` (the project) |
+| `export_completed` | An export finished | `photos`, `xmp`, `copied`, `moved` (booleans: the outputs chosen) |
+| `plus_activated` | Plus just became active | `via`: `purchase` \| `key` \| `account` |
+| `telemetry_disabled` | Telemetry was turned off: the last event of this install id | `{}` |
+
+Pelli stores no IP address for these events and makes no contact out of them; it counts them and posts some to its team's chat. The app sends each one fire-and-forget (5 s timeout, no retry, nothing queued on disk). Turned off in the welcome tour, nothing is ever sent. The code: `crates/cull-engine/src/telemetry.rs`.
+
+## Sign-in (optional)
+
+An account is only a second way to Plus: a Pro or Ultra plan includes it.
 
 ### `auth/create-session` (no auth)
 
 ```json
-{ "deviceName": "MacBook Pro de Camille", "platform": "macos", "appVersion": "0.1.0" }
+{ "deviceName": "MacBook Pro de Camille", "platform": "macos", "appVersion": "0.2.0" }
 ```
 
 `deviceName`: 1–200 chars (shown on the consent page, trimmed to one line of 80 chars); `platform`: `macos` | `windows` | `linux`; `appVersion`: `[0-9A-Za-z][0-9A-Za-z.+-]{0,31}`.
@@ -74,7 +188,7 @@ Poll every `interval` seconds until a final status, for at most `expiresIn` seco
 
 ### `me` (Bearer)
 
-`{}` → `{ "account": Account }`. Call at start-up (plan and usage can change in Pelli).
+`{}` → `{ "account": Account }`. Called at start-up (the plan can change in Pelli).
 
 ```json
 {
@@ -82,15 +196,16 @@ Poll every `interval` seconds until a final status, for at most `expiresIn` seco
   "email": "camille@example.com",
   "slug": "camille",
   "avatarUrl": "https://pelli.s3.fr-par.scw.cloud/logo/…",
-  "plan": "lite",
-  "planLabel": "Lite",
+  "plan": "pro",
+  "planLabel": "Pro",
   "trialEndsAt": null,
   "trialAvailable": false,
   "lifetime": false,
+  "plus": true,
   "entitlements": {
     "analyze": true,
-    "monthlyQuota": 1000,
-    "usedThisMonth": 312,
+    "monthlyQuota": null,
+    "usedThisMonth": 0,
     "resetsAt": 1798761600000,
     "sendToGallery": true
   }
@@ -98,79 +213,11 @@ Poll every `interval` seconds until a final status, for at most `expiresIn` seco
 ```
 
 - `plan`: `free` | `lite` | `pro` | `ultra` (the app reads any other value as `free`). `planLabel`: localised (“Gratuit”, “Pro”, “Essai Ultra”, “Ultra à vie”, …). `avatarUrl` may be `null`.
+- `plus`: the plan includes Pelli Instant Plus (Pro or Ultra, lifetime deals and running Pro/Ultra trials included).
 - `trialEndsAt`: end of the running Pelli trial (unix ms), `null` without trial; `trialAvailable`: the account can still start one; `lifetime`: lifetime deal.
-- `analyze`: `false` for a blocked account. `monthlyQuota`: photos sorted per UTC calendar month — free 200, Lite 1 000, `null` (unlimited) for Pro, Ultra (lifetime deals included) and during any running trial. `usedThisMonth`: photos already counted this month; `resetsAt`: first instant of next month (UTC, unix ms).
-- `sendToGallery`: `false` when the account is behind the Pelli paywall (no plan, no running trial). Gallery limits of the plan still apply on creation.
+- `entitlements.sendToGallery`: `false` when the account is behind the Pelli paywall (no plan, no running trial). The quota fields stay for 0.1 apps: sorting is unlimited for everyone (`monthlyQuota: null`), and the 0.1 routes `usage/reserve` and `usage/release` always grant (`unlimited: true`). 0.2 never calls them.
 
 The app keeps the last account for offline use; every field is optional when it reads it back, so the account cached by an older version still loads.
-
-## Monthly quota
-
-Sorting runs on the photographer's computer, always; Pelli only counts how many photos are sorted. A photo counts **once**: the first time a project analyses it (a RAW + JPEG pair is one photo). Analysing it again — changed file, new models, previous error — review, export and sending to a gallery never count.
-
-How the app uses the two routes, for each analysis:
-
-1. After scanning the folder, it lists the photos it will analyse for the first time (no analysis stored for them yet). None: nothing is asked, no account needed.
-2. It reserves them all at once (`usage/reserve`). Signed out → error `unauthorized`. Refused → error `quotaExceeded`, nothing is analysed.
-3. Pelli unreachable: an account cached as unlimited (`monthlyQuota: null`) analyses without counting; a limited one cannot (error `quotaOffline`).
-4. When the run ends (done, cancelled or failed), photos reserved on a limited plan but not analysed (cancelled before them, unreadable files) are given back with `usage/release`, best effort.
-5. Each answer updates the cached account (`usedThisMonth`, `monthlyQuota`, `resetsAt`) and the app emits `auth-changed`.
-
-The `quotaExceeded` / `quotaOffline` errors carry `details`:
-
-```json
-{ "code": "quotaExceeded", "message": "…", "details": { "monthlyQuota": 200, "usedThisMonth": 190, "remaining": 10, "resetsAt": 1798761600000, "needed": 39 } }
-{ "code": "quotaOffline", "message": "…", "details": { "monthlyQuota": 200, "needed": 39 } }
-```
-
-### `usage/reserve` (Bearer)
-
-```json
-{ "photos": 39 }
-```
-
-`photos`: integer 1–50 000 (an analysis needing more asks for 50 000: no limited plan comes near). All or nothing.
-
-```json
-{ "granted": true, "unlimited": false, "monthlyQuota": 200, "usedThisMonth": 39, "remaining": 161, "resetsAt": 1798761600000 }
-```
-
-`usedThisMonth` already includes this reservation. Unlimited plans: `"unlimited": true`, `monthlyQuota` and `remaining` are `null`, the counter is not touched. Too few photos left: `403 quota_exceeded` with `monthlyQuota`, `usedThisMonth`, `remaining`, `resetsAt` (nothing counted). Errors: `403 account_unavailable`.
-
-### `usage/release` (Bearer)
-
-```json
-{ "photos": 12 }
-```
-
-`photos`: integer 1–50 000, photos reserved but not analysed. → `{ "usedThisMonth": 27 }` (never below 0; no effect on an unlimited plan).
-
-## Offers
-
-### `GET offers?lang=fr` (no auth)
-
-Pelli's plans as the app shows them (home screen, quota screens), so prices and links stay right when Pelli changes them. `lang`: an app language (default: `Accept-Language`). Cached 5 minutes by HTTP; the app keeps the last answer per language for offline use.
-
-```json
-{
-  "currency": "EUR",
-  "trialDays": 15,
-  "plans": [
-    { "slug": "free", "name": "Gratuit", "monthlyPrice": 0, "yearlyPrice": 0, "yearlyPricePerMonth": 0, "photosPerMonth": 200, "highlights": ["Essai de 15 jours de Pelli", "Sans carte bancaire"] },
-    { "slug": "lite", "name": "Lite", "monthlyPrice": 5, "yearlyPrice": 60, "yearlyPricePerMonth": 5, "photosPerMonth": 1000, "highlights": ["…"] },
-    { "slug": "pro", "name": "Pro", "monthlyPrice": 25, "yearlyPrice": 180, "yearlyPricePerMonth": 15, "photosPerMonth": null, "highlights": ["…"] },
-    { "slug": "ultra", "name": "Ultra", "monthlyPrice": 50, "yearlyPrice": 420, "yearlyPricePerMonth": 35, "photosPerMonth": null, "highlights": ["…"] }
-  ],
-  "links": {
-    "register": "https://app.pelli.io/register?utm_source=pelli-instant&utm_content=register",
-    "pricing": "https://app.pelli.io/dashboard/billing?utm_source=pelli-instant&utm_content=pricing#plans-section",
-    "trial": "https://app.pelli.io/register?utm_source=pelli-instant&utm_content=trial",
-    "billing": "https://app.pelli.io/dashboard/billing?utm_source=pelli-instant&utm_content=billing"
-  }
-}
-```
-
-Prices per month billed monthly (`monthlyPrice`), per year (`yearlyPrice`) and the yearly price per month; `photosPerMonth`: `null` = unlimited; `highlights`: what the plan brings in Pelli itself, localised.
 
 ## Galleries
 
@@ -281,9 +328,3 @@ Errors (`code`, or the legacy `error` string):
 | 408, 429, 5xx | `image_processing_timeout`, `server_error`… | Retry with growing delays (2 s, 5 s, 15 s) |
 
 When the whole body was sent but no response arrived, do **not** resend automatically: the photo may already be in the gallery (duplicate). Report it as unconfirmed instead.
-
-## Builds without account
-
-`PELLI_INSTANT_NO_ACCOUNT=1 pnpm tauri build` (or `tauri dev`, `cargo build`; `1`, `true` or `yes`) compiles an app that never asks to sign in to analyse and never calls `usage/*`: no quota. Everything else is identical (sending to a gallery still signs in). The switch is read at compile time; the app reports it as `app_info.noAccount`. Official builds are compiled without it and, like any release build, cannot be pointed at another Pelli at run time (see the base URL above): lifting the quota means building from source.
-
-The `pelli-cull analyze` command line (a developer tool) never counts photos either.

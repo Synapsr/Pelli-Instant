@@ -17,17 +17,19 @@ interface Floating {
   /** 0 far … 1 near: how much it follows the pointer. */
   depth: number
   keep: boolean
+  /** object-position of the photo in its frame */
+  pos?: string
 }
 
 const SHOOT: Floating[] = [
-  { src: PHOTOS.couple, x: -305, y: -72, w: 150, h: 100, rotate: -6, depth: 0.9, keep: true },
-  { src: PHOTOS.portraitBlurry, x: -168, y: -104, w: 76, h: 102, rotate: 5, depth: 0.5, keep: false },
-  { src: PHOTOS.dress, x: -196, y: 92, w: 92, h: 122, rotate: -3, depth: 0.7, keep: true },
-  { src: PHOTOS.groupDark, x: -368, y: 96, w: 104, h: 78, rotate: 4, depth: 0.35, keep: false },
-  { src: PHOTOS.mountains, x: 300, y: -78, w: 150, h: 100, rotate: 5, depth: 0.85, keep: true },
+  { src: PHOTOS.familyFloor, x: -305, y: -72, w: 150, h: 100, rotate: -6, depth: 0.9, keep: true },
+  { src: PHOTOS.familyBlurry, x: -168, y: -104, w: 78, h: 104, rotate: 5, depth: 0.5, keep: false },
+  { src: PHOTOS.wedding, x: -196, y: 92, w: 92, h: 122, rotate: -3, depth: 0.7, keep: true, pos: 'center 70%' },
+  { src: PHOTOS.tooDark, x: -368, y: 98, w: 80, h: 106, rotate: 4, depth: 0.35, keep: false },
+  { src: PHOTOS.road, x: 300, y: -78, w: 150, h: 100, rotate: 5, depth: 0.85, keep: true, pos: 'center 42%' },
   { src: PHOTOS.eyesClosed, x: 172, y: -100, w: 78, h: 104, rotate: -4, depth: 0.45, keep: false },
-  { src: PHOTOS.rings, x: 206, y: 96, w: 112, h: 84, rotate: 3, depth: 0.65, keep: true },
-  { src: PHOTOS.cityNight, x: 372, y: 92, w: 104, h: 60, rotate: -5, depth: 0.4, keep: true },
+  { src: PHOTOS.horse, x: 206, y: 96, w: 84, h: 112, rotate: 3, depth: 0.65, keep: true, pos: 'center 62%' },
+  { src: PHOTOS.forest, x: 372, y: 94, w: 108, h: 72, rotate: -5, depth: 0.4, keep: true },
 ]
 
 /** When the photos start receiving their verdict, and the gap between two. */
@@ -79,7 +81,7 @@ export function HeroVisual() {
                   animate={p.keep ? undefined : { opacity: 0.42, filter: 'saturate(0.35)' }}
                   transition={{ duration: 0.6, ease: 'easeOut', delay: sortAt }}
                 >
-                  <Photo src={p.src} />
+                  <Photo src={p.src} style={p.pos ? { objectPosition: p.pos } : undefined} />
                 </motion.div>
                 <motion.span
                   aria-hidden

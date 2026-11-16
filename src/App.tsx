@@ -10,7 +10,7 @@ import { PreAnalysisDialog } from './components/criteria/PreAnalysisDialog'
 import { ShortcutsDialog } from './components/review/ShortcutsDialog'
 import { Workspace } from './components/review/Workspace'
 import { SettingsDialog } from './components/settings/SettingsDialog'
-import { SignInScreen } from './components/signin/SignInScreen'
+import { PlusDialog } from './components/plus/PlusDialog'
 import { useApplyTheme } from './hooks/use-theme'
 import { api } from './lib/api'
 import { setNotifier } from './lib/notify'
@@ -58,7 +58,6 @@ export function App() {
 
   return (
     <div className="h-full bg-background text-foreground">
-      {screen === 'signIn' && <SignInScreen />}
       {screen === 'onboarding' && <Onboarding />}
       {screen === 'home' && <HomeScreen />}
       {screen === 'analysis' && <AnalysisScreen />}
@@ -68,6 +67,7 @@ export function App() {
       <SettingsDialog />
       <ExportDialog />
       <ShortcutsDialog />
+      <PlusDialog />
     </div>
   )
 }

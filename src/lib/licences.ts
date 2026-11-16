@@ -41,8 +41,8 @@ export const LICENCES: Licence[] = [
   {
     kind: 'photos',
     name: 'Welcome tour photos',
-    author: 'Henry Söderlund, Tg-Pint, exousiavampira, Tobyotter, WriteAwaybyKarylle, firemedic58, apdk, pixellaphoto, d26b73, jarrodlombardo (Flickr)',
-    licence: 'CC BY 2.0 / CC0',
+    author: 'Pexels: Andressa Chagas, Arina Krasnikova, Uday Ahir, Book Hut, Chris Shafer, Devyn Breslin, Dmitry Rodionov, Elizabeth Zernetska, Jessika Arraes, Lorenzo Castellino, Maddy Freddie, mehmetakifarts',
+    licence: 'Pexels licence',
     url: 'https://github.com/Synapsr/Pelli-Instant/blob/main/src/assets/onboarding/CREDITS.md',
   },
   {

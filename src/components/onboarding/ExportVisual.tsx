@@ -13,15 +13,15 @@ const MARKS: Record<FinalDecision, { stars: number; dot: string }> = {
   rejected: { stars: 0, dot: 'bg-danger' },
 }
 
-const LIBRARY: { src: string; decision: FinalDecision }[] = [
-  { src: PHOTOS.dress, decision: 'selected' },
-  { src: PHOTOS.portraitBlurry, decision: 'rejected' },
-  { src: PHOTOS.couple, decision: 'selected' },
-  { src: PHOTOS.rings, decision: 'toReview' },
-  { src: PHOTOS.eyesClosed, decision: 'rejected' },
-  { src: PHOTOS.dance, decision: 'selected' },
-  { src: PHOTOS.groupDark, decision: 'rejected' },
-  { src: PHOTOS.mountains, decision: 'toReview' },
+const LIBRARY: { src: string; decision: FinalDecision; pos?: string }[] = [
+  { src: PHOTOS.familyKiss, decision: 'selected', pos: 'center 22%' },
+  { src: PHOTOS.familyBlurry, decision: 'rejected', pos: 'center 25%' },
+  { src: PHOTOS.familyFloor, decision: 'selected' },
+  { src: PHOTOS.table, decision: 'toReview', pos: 'center 70%' },
+  { src: PHOTOS.eyesClosed, decision: 'rejected', pos: 'center 42%' },
+  { src: PHOTOS.goldenField, decision: 'selected', pos: 'center 62%' },
+  { src: PHOTOS.tooDark, decision: 'rejected', pos: 'center 60%' },
+  { src: PHOTOS.dish, decision: 'toReview', pos: 'center 64%' },
 ]
 
 const MARK_AT = 1
@@ -112,7 +112,7 @@ export function ExportVisual() {
                 animate={photo.decision === 'rejected' ? { opacity: 0.4, filter: 'saturate(0.4)' } : undefined}
                 transition={{ duration: 0.5, ease: 'easeOut', delay: at + 0.1 }}
               >
-                <Photo src={photo.src} />
+                <Photo src={photo.src} style={photo.pos ? { objectPosition: photo.pos } : undefined} />
               </motion.div>
               <Marks decision={photo.decision} at={at} />
             </motion.div>

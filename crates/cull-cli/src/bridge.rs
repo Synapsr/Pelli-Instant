@@ -82,6 +82,7 @@ pub fn serve(args: &Args) {
         format!("{base}/files?path={}", utf8_percent_encode(&p.to_string_lossy(), NON_ALPHANUMERIC))
     });
     let engine = crate::engine(args, mapper, Arc::new(BroadcastSink(tx.clone())), None);
+    engine.start_services();
     let host = Arc::new(BridgeHost { allowed: RwLock::new(Vec::new()) });
     let cache_dir = std::fs::canonicalize(engine.cache_dir()).unwrap_or_else(|_| engine.cache_dir().to_path_buf());
     let state = AppState { engine, host, events: tx, cache_dir };

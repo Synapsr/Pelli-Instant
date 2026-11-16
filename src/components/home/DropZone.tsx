@@ -92,7 +92,10 @@ function LandingRipple() {
   )
 }
 
-export function DropZone({ over, intro = false }: { over: boolean; intro?: boolean }) {
+/** Shared with the compact drop zone of the full project list: the orb glides between them. */
+export const DROP_ORB_LAYOUT_ID = 'drop-orb'
+
+export function DropZone({ over, intro = false, returning = false }: { over: boolean; intro?: boolean; returning?: boolean }) {
   const t = useT()
   // The surface ripples as the orb lands.
   const [landing, setLanding] = useState(false)
@@ -133,10 +136,12 @@ export function DropZone({ over, intro = false }: { over: boolean; intro?: boole
     >
       <DropFrame state={state} />
 
+      <motion.div layoutId={DROP_ORB_LAYOUT_ID} transition={{ layout: { type: 'spring', duration: 0.3, bounce: 0 } }} style={{ width: orb, height: orb }} className="relative">
       <motion.div
         className="relative flex items-center justify-center"
         style={{ width: orb, height: orb }}
-        initial="hidden"
+        // Back from the full list, the orb is already there: it glides in, no entrance.
+        initial={returning ? false : 'hidden'}
         animate="shown"
         variants={{
           // No CSS blur here: a filter would clip the orb's halo (drawn past this box) to a square.
@@ -162,13 +167,15 @@ export function DropZone({ over, intro = false }: { over: boolean; intro?: boole
           </AnimatePresence>
         </LiquidOrb>
       </motion.div>
+      </motion.div>
 
       <motion.div
         className="mt-10 flex min-h-16 w-full flex-col items-center short:mt-7"
         aria-live="polite"
         initial="hidden"
         animate="visible"
-        variants={{ visible: { transition: { staggerChildren: 0.1, delayChildren: intro ? ARRIVAL_S + 0.05 : 0.15 } } }}
+        exit={{ opacity: 0, transition: { duration: 0.12, ease: 'easeIn' } }}
+        variants={{ visible: { transition: { staggerChildren: returning ? 0.04 : 0.1, delayChildren: intro ? ARRIVAL_S + 0.05 : returning ? 0.08 : 0.15 } } }}
       >
         {[
           <SwapText key="title" id={state} className="block text-balance text-[28px] font-semibold leading-tight tracking-[-0.02em] text-white">

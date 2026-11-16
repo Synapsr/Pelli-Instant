@@ -14,20 +14,15 @@
     "voice": "Carla Blum",
     "bytes": 62736
   },
-  "de/plan": {
-    "hash": "11399ea775ea7467",
-    "voice": "Carla Blum",
-    "bytes": 29300
-  },
   "de/precision": {
     "hash": "cb8340f1dce12e17",
     "voice": "Carla Blum",
     "bytes": 79873
   },
-  "de/search": {
-    "hash": "536a4d7f9597b88b",
+  "de/ready": {
+    "hash": "11399ea775ea7467",
     "voice": "Carla Blum",
-    "bytes": 53750
+    "bytes": 29300
   },
   "de/welcome": {
     "hash": "31050ce27124fdd3",
@@ -49,20 +44,15 @@
     "voice": "Hope",
     "bytes": 55004
   },
-  "en/plan": {
-    "hash": "7f35e0dd4899dd07",
-    "voice": "Hope",
-    "bytes": 23030
-  },
   "en/precision": {
     "hash": "7e165fd4e2326592",
     "voice": "Hope",
     "bytes": 79246
   },
-  "en/search": {
-    "hash": "1c9c1f68cd0eccaf",
+  "en/ready": {
+    "hash": "7f35e0dd4899dd07",
     "voice": "Hope",
-    "bytes": 55004
+    "bytes": 23030
   },
   "en/welcome": {
     "hash": "28ddcaa2c339d62c",
@@ -84,20 +74,15 @@
     "voice": "Cristina",
     "bytes": 53123
   },
-  "es/plan": {
-    "hash": "8b8ce899df5939f9",
-    "voice": "Cristina",
-    "bytes": 20940
-  },
   "es/precision": {
     "hash": "774f8b2de2460672",
     "voice": "Cristina",
     "bytes": 72976
   },
-  "es/search": {
-    "hash": "dcfcfc5784f9754f",
+  "es/ready": {
+    "hash": "8b8ce899df5939f9",
     "voice": "Cristina",
-    "bytes": 49153
+    "bytes": 20940
   },
   "es/welcome": {
     "hash": "efe2da337b722731",
@@ -119,20 +104,15 @@
     "voice": "Victoria",
     "bytes": 47272
   },
-  "fr/plan": {
-    "hash": "aff8fe492a3aad1e",
-    "voice": "Victoria",
-    "bytes": 22403
-  },
   "fr/precision": {
     "hash": "c35566f78559e423",
     "voice": "Victoria",
     "bytes": 72140
   },
-  "fr/search": {
-    "hash": "fb150945864e78cf",
+  "fr/ready": {
+    "hash": "aff8fe492a3aad1e",
     "voice": "Victoria",
-    "bytes": 56885
+    "bytes": 22403
   },
   "fr/welcome": {
     "hash": "d14f2d373aff974c",
@@ -154,20 +134,15 @@
     "voice": "Tiziana",
     "bytes": 46645
   },
-  "it/plan": {
-    "hash": "cc756f7fc28f781d",
-    "voice": "Tiziana",
-    "bytes": 24911
-  },
   "it/precision": {
     "hash": "2e99f73846d3bd95",
     "voice": "Tiziana",
     "bytes": 73603
   },
-  "it/search": {
-    "hash": "b4cf62bc37e8ff7d",
+  "it/ready": {
+    "hash": "cc756f7fc28f781d",
     "voice": "Tiziana",
-    "bytes": 58766
+    "bytes": 24911
   },
   "it/welcome": {
     "hash": "1d7efbf148111d61",
@@ -189,20 +164,15 @@
     "voice": "Ruth",
     "bytes": 57512
   },
-  "nl/plan": {
-    "hash": "4ec52d4a5e3b5ab4",
-    "voice": "Ruth",
-    "bytes": 22403
-  },
   "nl/precision": {
     "hash": "37331170e8735e9b",
     "voice": "Ruth",
     "bytes": 73603
   },
-  "nl/search": {
-    "hash": "9905ec176f878ea4",
+  "nl/ready": {
+    "hash": "4ec52d4a5e3b5ab4",
     "voice": "Ruth",
-    "bytes": 53123
+    "bytes": 22403
   },
   "nl/welcome": {
     "hash": "9b6bcf67c1b6a07a",
@@ -224,20 +194,15 @@
     "voice": "Marta",
     "bytes": 60020
   },
-  "pl/plan": {
-    "hash": "d5b512ee1921145d",
-    "voice": "Marta",
-    "bytes": 28046
-  },
   "pl/precision": {
     "hash": "8a42f7a0db2d0d47",
     "voice": "Marta",
     "bytes": 84470
   },
-  "pl/search": {
-    "hash": "e557621b95dba2e9",
+  "pl/ready": {
+    "hash": "d5b512ee1921145d",
     "voice": "Marta",
-    "bytes": 56258
+    "bytes": 28046
   },
   "pl/welcome": {
     "hash": "517fc11025d5e9eb",
@@ -259,20 +224,15 @@
     "voice": "Carla",
     "bytes": 63363
   },
-  "pt/plan": {
-    "hash": "7d8686ccc9a63d27",
-    "voice": "Carla",
-    "bytes": 24284
-  },
   "pt/precision": {
     "hash": "af1c378752a59f4a",
     "voice": "Carla",
     "bytes": 82380
   },
-  "pt/search": {
-    "hash": "55dc39858aab26c1",
+  "pt/ready": {
+    "hash": "7d8686ccc9a63d27",
     "voice": "Carla",
-    "bytes": 59393
+    "bytes": 24284
   },
   "pt/welcome": {
     "hash": "34bd3d875bd805da",
@@ -294,20 +254,15 @@
     "voice": "Malin",
     "bytes": 52496
   },
-  "sv/plan": {
-    "hash": "91832c35cdd78b58",
-    "voice": "Malin",
-    "bytes": 26792
-  },
   "sv/precision": {
     "hash": "b116a3594fd4e28f",
     "voice": "Malin",
     "bytes": 72140
   },
-  "sv/search": {
-    "hash": "16ca9399731d0cad",
+  "sv/ready": {
+    "hash": "91832c35cdd78b58",
     "voice": "Malin",
-    "bytes": 55631
+    "bytes": 26792
   },
   "sv/welcome": {
     "hash": "ff31826e664b02b5",

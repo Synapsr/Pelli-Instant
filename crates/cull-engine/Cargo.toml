@@ -30,6 +30,10 @@ crossbeam-channel = "0.5"
 parking_lot = "0.12"
 percent-encoding = "2"
 ureq = { version = "3.5", default-features = false, features = ["rustls", "gzip", "json", "platform-verifier"] }
+# Plus licence: Ed25519 signature, SHA-256 of the device id, random ids.
+# Both already come with ureq's TLS stack.
+ring = "0.17"
+base64 = "0.23"
 
 # Thread priority and memory size (macOS), free disk space (every Unix).
 [target.'cfg(unix)'.dependencies]
@@ -45,6 +49,7 @@ windows-sys = { version = "0.61", features = [
   "Win32_Foundation",
   "Win32_Storage_FileSystem",
   "Win32_System_Power",
+  "Win32_System_Registry",
   "Win32_System_SystemInformation",
   "Win32_System_Threading",
 ] }

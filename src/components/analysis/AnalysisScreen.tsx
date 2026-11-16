@@ -1,8 +1,7 @@
 import { Button } from '@heroui/react'
 import { AnimatePresence, motion, useReducedMotion, useSpring, useTransform, type Variants } from 'framer-motion'
-import { ArrowRight, Check, ExternalLink, Share, WifiOff } from 'lucide-react'
+import { ArrowRight, Check, Share } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { PlanCards } from '@/components/plans/PlanCards'
 import { AnimatedNumber } from '@/components/ui/AnimatedNumber'
 import { Backdrop } from '@/components/ui/Backdrop'
 import { DECISION_BG } from '@/components/ui/Decision'
@@ -12,12 +11,10 @@ import { ReasonIcon } from '@/components/ui/ReasonIcon'
 import { WindowBar } from '@/components/ui/WindowBar'
 import { UpdateNotice } from '@/components/update/UpdateNotice'
 import { useMediaQuery } from '@/hooks/use-media-query'
-import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import type { DecisionCounts, FinalDecision, Progress, Reason } from '@/lib/contract'
-import { formatDuration, formatLongDay, formatNumber, formatPercent } from '@/lib/format'
+import { formatDuration, formatNumber, formatPercent } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import { billingUrl, upgradesFor } from '@/lib/plans'
 import { type RecentPhoto, useAnalysisStore } from '@/store/analysis-store'
 import { useAppStore } from '@/store/app-store'
 import { useReviewStore } from '@/store/review-store'
@@ -588,79 +585,12 @@ function Session({ phase }: { phase: 'running' | 'result' }) {
   )
 }
 
-/**
- * The analysis needs more photos than the month has left, or a limited plan
- * is offline: say it plainly, show what's left and when it resets, and the
- * way out (the Pelli trial for free accounts, the plans for everyone).
- */
-function QuotaReached() {
-  const t = useT()
-  const error = useAnalysisStore((s) => s.error)
-  const project = useAnalysisStore((s) => s.project)
-  const auth = useAppStore((s) => s.auth)
-  const offers = useAppStore((s) => s.offers)
-  const analyze = useAppStore((s) => s.analyze)
-  const goHome = useAppStore((s) => s.goHome)
-  const account = auth.status === 'signedIn' ? auth.account : null
-  const details = error?.details
-  const offline = error?.code === 'quotaOffline'
-  const canTry = account?.plan === 'free' && account.trialAvailable === true && offers !== null
-  const upgrades = offers ? upgradesFor(offers, account) : []
-  const needed = formatNumber(details?.needed ?? 0)
-
-  return (
-    <motion.div key="quota" className="flex w-full max-w-[680px] flex-col items-center text-center" initial={{ opacity: 0, y: 12, filter: 'blur(4px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} transition={{ duration: 0.5, ease: EASE }}>
-      {offline && (
-        <span className="glass mb-5 flex size-14 items-center justify-center rounded-full">
-          <WifiOff className="size-6 text-white/80" />
-        </span>
-      )}
-      <h1 className="text-balance text-[28px] font-semibold tracking-[-0.02em] text-white">{t(offline ? 'quota.offlineTitle' : 'quota.exceededTitle')}</h1>
-      <p className="mt-3 max-w-[520px] text-pretty text-[15px] leading-relaxed text-white/55">
-        {offline
-          ? t('quota.offlineBody', { plan: account?.planLabel ?? '' })
-          : t('quota.exceededBody', {
-              count: details?.needed ?? 0,
-              needed,
-              remaining: formatNumber(details?.remaining ?? 0),
-              quota: formatNumber(details?.monthlyQuota ?? 0),
-            })}
-        {!offline && details?.resetsAt ? ` ${t('quota.resets', { date: formatLongDay(details.resetsAt) })}` : ''}
-      </p>
-      <p className="mt-2 text-[13px] text-[#a599f5]">{t(offline ? 'quota.offlineHint' : 'quota.unlimitedHint')}</p>
-      {offers && upgrades.length > 0 && <PlanCards offers={offers} plans={upgrades} className="mt-7 w-full" />}
-      <div className="mt-7 flex flex-wrap justify-center gap-3">
-        {offline
-          ? project && (
-              <Button radius="full" className="btn-brand h-11 px-6 font-semibold" onPress={() => void analyze(project)}>
-                {t('common.retry')}
-              </Button>
-            )
-          : (
-              <Button
-                radius="full"
-                className="btn-brand h-11 pl-6 pr-5 font-semibold"
-                endContent={<ExternalLink className="size-3.5" />}
-                onPress={() => void api().openExternal(canTry && offers ? offers.links.trial : (offers?.links.pricing ?? billingUrl(offers)))}
-              >
-                {canTry && offers ? t('quota.tryPelli', { days: formatNumber(offers.trialDays) }) : t('quota.seePlans')}
-              </Button>
-            )}
-        <Button radius="full" className="glass glass-hover h-11 px-6 text-white/90" onPress={goHome}>
-          {t('analysisScreen.back')}
-        </Button>
-      </div>
-    </motion.div>
-  )
-}
-
 function Failed() {
   const t = useT()
   const error = useAnalysisStore((s) => s.error)
   const project = useAnalysisStore((s) => s.project)
   const analyze = useAppStore((s) => s.analyze)
   const goHome = useAppStore((s) => s.goHome)
-  if (error?.code === 'quotaExceeded' || error?.code === 'quotaOffline') return <QuotaReached />
   return (
     <motion.div key="failed" className="flex max-w-md flex-col items-center text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <h1 className="text-[22px] font-semibold text-white">{t('analysis.errorTitle')}</h1>

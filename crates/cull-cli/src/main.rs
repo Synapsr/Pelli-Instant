@@ -10,9 +10,10 @@
 //! `--maximum-dir <dir>` (the Maximum pack; `analyze` defaults to
 //! `<models-dir>/maximum`, `serve` to the data dir like the app).
 //!
-//! `analyze` is a developer tool: it needs no Pelli account and its photos
-//! are never counted on a monthly quota. The dev bridge behaves like the app
-//! (sign-in and quota, unless built with `PELLI_INSTANT_NO_ACCOUNT=1`).
+//! `analyze` stays on the computer: it never talks to Pelli (no telemetry,
+//! no licence check), and `--precision maximum` reads the pack from
+//! `--maximum-dir` without Plus. The dev bridge behaves like the app
+//! (telemetry, Plus).
 
 mod bridge;
 
@@ -64,7 +65,7 @@ fn takes_value(flag: &str) -> bool {
 
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  pelli-cull analyze <folder> [--sensitivity strict|balanced|lenient] [--keep N] [--json] [--flat]\n                     [--precision standard|maximum] [--threads N] [--background]\n      local batch analysis; no Pelli account, nothing counted on a quota\n  pelli-cull serve [--port 4317]\n      HTTP dev bridge for the UI (sign-in and quota like the app)\n\noptions: --data-dir <dir> --models-dir <dir> --maximum-dir <dir>"
+        "usage:\n  pelli-cull analyze <folder> [--sensitivity strict|balanced|lenient] [--keep N] [--json] [--flat]\n                     [--precision standard|maximum] [--threads N] [--background]\n      local batch analysis, never talks to Pelli\n  pelli-cull serve [--port 4317]\n      HTTP dev bridge for the UI (telemetry and Plus like the app)\n\noptions: --data-dir <dir> --models-dir <dir> --maximum-dir <dir>"
     );
     std::process::exit(2)
 }

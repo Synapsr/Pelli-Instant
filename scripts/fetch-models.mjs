@@ -16,6 +16,17 @@
 //   node scripts/fetch-models.mjs --dir /path/to/models
 //   node scripts/fetch-models.mjs --strict   # an optional model that cannot be fetched is an error
 //                                            #   (installers); otherwise a warning
+//
+// The Maximum pack is part of Pelli Instant Plus: the manifest has no URL for
+// it, so --maximum (and --all) needs one of
+//   PELLI_INSTANT_LICENSE=<licence token>   asks Pelli for short-lived URLs (POST /api/cull/models on
+//                                           PELLI_API_URL, default https://app.pelli.io). The token is
+//                                           the one the app keeps once Plus is active (the JSON value
+//                                           itself is accepted too):
+//                                           sqlite3 "$HOME/Library/Application Support/io.pelli.instant/library.sqlite" \
+//                                             "SELECT value FROM kv WHERE key = 'plus.license'"
+//   PELLI_MODELS_BASE_URL=<your own copy>   downloads <base>/<file name> (http allowed)
+// Without either, its files are skipped (an error with --strict or --only).
 
 import { createHash } from 'node:crypto'
 import {
@@ -115,21 +126,31 @@ function tunnel(proxy, url) {
   })
 }
 
-async function get(urlString, redirects = 0) {
-  const url = new URL(urlString)
-  if (url.protocol !== 'https:') throw new Error(`refusing non-https URL ${urlString}`)
-  const proxy = proxyFor(url)
+// HTTPS, or plain HTTP for a URL given in the environment (a local copy, a
+// local Pelli); the proxy only tunnels HTTPS.
+async function send(url, { method = 'GET', body } = {}) {
+  const secure = url.protocol === 'https:'
+  const proxy = secure ? proxyFor(url) : null
   const socket = proxy ? await tunnel(proxy, url) : null
-  const res = await new Promise((resolve, reject) => {
-    const req = https.request(url, {
-      headers: { 'User-Agent': 'pelli-cull-fetch-models/1 (+https://pelli.io)' },
+  const headers = { 'User-Agent': 'pelli-cull-fetch-models/1 (+https://pelli.io)' }
+  if (body) Object.assign(headers, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) })
+  return new Promise((resolve, reject) => {
+    const req = (secure ? https : http).request(url, {
+      method,
+      headers,
       ...(socket ? { createConnection: () => socket, agent: false } : {}),
     })
     req.once('response', resolve)
     req.once('error', reject)
     req.setTimeout(120_000, () => req.destroy(new Error('timeout')))
-    req.end()
+    req.end(body)
   })
+}
+
+async function get(urlString, redirects = 0) {
+  const url = new URL(urlString)
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error(`refusing URL ${urlString}`)
+  const res = await send(url)
   if ([301, 302, 303, 307, 308].includes(res.statusCode)) {
     res.resume()
     if (redirects > 8 || !res.headers.location) throw new Error(`too many redirects for ${urlString}`)
@@ -140,6 +161,32 @@ async function get(urlString, redirects = 0) {
     throw new Error(`HTTP ${res.statusCode} for ${url.origin}${url.pathname}`)
   }
   return res
+}
+
+// The Maximum pack's URLs (see the top of this file), asked once.
+let maximumUrls = null
+
+async function urlsOf(m) {
+  if (m.url) return [m.url, ...(m.mirrors ?? [])]
+  const base = process.env.PELLI_MODELS_BASE_URL?.trim()
+  if (base) return [`${base.replace(/\/+$/, '')}/${m.file}`]
+  let license = process.env.PELLI_INSTANT_LICENSE?.trim()
+  if (!license) {
+    throw new Error('part of Pelli Instant Plus: set PELLI_INSTANT_LICENSE or PELLI_MODELS_BASE_URL (see the top of this script)')
+  }
+  if (license.startsWith('{')) license = JSON.parse(license).token
+  maximumUrls ??= (async () => {
+    const api = (process.env.PELLI_API_URL?.trim() || 'https://app.pelli.io').replace(/\/+$/, '')
+    const res = await send(new URL(`${api}/api/cull/models`), { method: 'POST', body: JSON.stringify({ license }) })
+    const chunks = []
+    for await (const chunk of res) chunks.push(chunk)
+    const text = Buffer.concat(chunks).toString('utf8')
+    if (res.statusCode !== 200) throw new Error(`POST ${api}/api/cull/models: HTTP ${res.statusCode} ${text.slice(0, 200)}`)
+    return new Map(JSON.parse(text).files.map((f) => [f.file, f.url]))
+  })()
+  const url = (await maximumUrls).get(m.file)
+  if (!url) throw new Error(`Pelli gave no URL for ${m.file}`)
+  return [url]
 }
 
 // ---------------------------------------------------------------------------
@@ -190,7 +237,8 @@ async function download(urls, dest, size, sha256) {
     } catch (e) {
       rmSync(part, { force: true })
       lastErr = e
-      console.warn(`    ${url}: ${e.message}`)
+      const where = new URL(url)
+      console.warn(`    ${where.origin}${where.pathname}: ${e.message}`)
     }
   }
   throw lastErr ?? new Error('no URL')
@@ -246,7 +294,7 @@ async function fetchModel(m, dir) {
     return
   }
   if (state !== 'missing') console.log(`  ${state}: re-downloading ${m.file}`)
-  const urls = [m.url, ...(m.mirrors ?? [])]
+  const urls = await urlsOf(m)
   console.log(`  download  ${m.file} (${fmtMB(m.archive?.size ?? m.size)}, ${m.license})`)
   if (m.archive) {
     const archive = path.join(dir, `.${m.id}.${m.archive.format.replace(/\W/g, '')}`)

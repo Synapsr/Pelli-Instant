@@ -849,6 +849,7 @@ dependencies = [
 name = "cull-engine"
 version = "0.1.1"
 dependencies = [
+ "base64 0.23.1",
  "crossbeam-channel",
  "cull-analysis",
  "cull-decode",
@@ -862,6 +863,7 @@ dependencies = [
  "parking_lot",
  "percent-encoding",
  "rayon",
+ "ring",
  "rusqlite",
  "serde",
  "serde_json",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_SETTINGS, type CullEvents, type UpdateStatus } from '@/lib/contract'
+import { DEFAULT_SETTINGS, type CullEvents, type PlusStatus, type UpdateStatus } from '@/lib/contract'
 import { MOCK_UPDATE_VERSION, NEW_FOLDER } from './fixtures'
 import { createMockApi } from './index'
 import { concepts } from './search'
@@ -42,44 +42,87 @@ describe('mock engine', () => {
     expect(rejected).toBeGreaterThan(selected)
   })
 
-  it('signs in through the browser consent after a couple of polls', async () => {
-    const api = engine()
+  it('signs in through the browser consent, and a Pro account brings Plus', async () => {
+    const api = engine('mockPlan=pro')
     const changes: string[] = []
+    const plus: boolean[] = []
     api.on('auth-changed', (s) => changes.push(s.status))
+    api.on('plus', (s) => plus.push(s.active))
     expect((await api.authStart()).status).toBe('pending')
     expect((await api.authPoll()).status).toBe('pending')
     const signed = await api.authPoll()
     expect(signed.status).toBe('signedIn')
-    if (signed.status === 'signedIn') expect(signed.account.entitlements.analyze).toBe(true)
+    if (signed.status === 'signedIn') expect(signed.account.plus).toBe(true)
     expect(changes).toEqual(['pending', 'signedIn'])
+    expect(await api.plusStatus()).toMatchObject({ active: true, source: 'account', key: null })
     expect((await api.authLogout()).status).toBe('signedOut')
+    expect(plus).toEqual([true, false])
   })
 
-  it('refuses an analysis bigger than what is left of the monthly quota', async () => {
-    const api = engine('mockAuth=signedIn&mockPlan=free&mockUsed=150&mockCount=240')
+  it('sorts without account nor quota, whatever the size of the shoot', async () => {
+    const api = engine('mockCount=240')
+    expect((await api.authStatus()).status).toBe('signedOut')
     const project = await api.openFolder(NEW_FOLDER.rootPath, true)
-    const error = waitFor(api, 'analysis-error')
+    const done = waitFor(api, 'analysis-done')
     await api.startAnalysis(project.id, DEFAULT_SETTINGS)
-    const event = await error
-    expect(event.code).toBe('quotaExceeded')
-    expect(event.details).toMatchObject({ monthlyQuota: 200, usedThisMonth: 150, remaining: 50, needed: project.photoCount })
+    expect((await done).analyzed).toBe(project.photoCount)
   })
 
-  it('counts new photos on limited plans only', async () => {
-    const lite = engine('mockAuth=signedIn&mockPlan=lite&mockUsed=0&mockCount=240')
-    const project = await lite.openFolder(NEW_FOLDER.rootPath, true)
-    const usage = waitFor(lite, 'auth-changed')
-    await lite.startAnalysis(project.id, DEFAULT_SETTINGS)
-    const state = await usage
-    expect(state.status === 'signedIn' && state.account.entitlements.usedThisMonth).toBe(project.photoCount)
+  it('buys Plus: the checkout waits for its payment, then the licence arrives', async () => {
+    const api = engine('mockPlus=none&mockPolls=2&mockNoPopups=1')
+    const events: PlusStatus[] = []
+    api.on('plus', (s) => events.push(s))
+    expect(await api.plusStatus()).toEqual({ active: false, source: null, key: null, pending: false })
+    expect(await api.plusOffer('fr')).toMatchObject({ amount: 2500, currency: 'eur' })
+    expect((await api.plusCheckout('fr')).url).toMatch(/^https:\/\//)
+    expect((await api.plusPoll()).pending).toBe(true)
+    const paid = await api.plusPoll()
+    expect(paid).toMatchObject({ active: true, source: 'license', key: 'K7QM-4ZTP-9XRA-7K2Q', pending: false })
+    expect(events.map((e) => [e.active, e.pending])).toEqual([
+      [false, true],
+      [true, false],
+    ])
+    expect(await api.plusRelease()).toMatchObject({ active: false, key: null })
+  })
 
-    for (const query of ['mockAuth=signedIn&mockPlan=ultra&mockUsed=0&mockCount=240', 'mockNoAccount=1&mockPlan=free&mockUsed=199&mockCount=240']) {
-      const api = engine(query)
-      const p = await api.openFolder(NEW_FOLDER.rootPath, true)
-      const done = waitFor(api, 'analysis-done')
-      await api.startAnalysis(p.id, DEFAULT_SETTINGS)
-      expect((await done).analyzed).toBe(p.photoCount)
-    }
+  it('ends an abandoned checkout without Plus, and can cancel one', async () => {
+    const expired = engine('mockPlus=pending&mockCheckout=expired&mockPolls=1')
+    expect(await expired.plusPoll()).toMatchObject({ active: false, pending: false })
+    const api = engine('mockPlus=pending&mockCheckout=never')
+    expect((await api.plusPoll()).pending).toBe(true)
+    expect(await api.plusCancelCheckout()).toMatchObject({ active: false, pending: false })
+  })
+
+  it('activates a licence key, with an error code per refusal', async () => {
+    const api = engine('mockPlus=none')
+    await expect(api.plusActivate('0AAA-BBBB-CCCC-DDDD')).rejects.toMatchObject({ code: 'invalidKey' })
+    await expect(api.plusActivate('not a key')).rejects.toMatchObject({ code: 'invalidKey' })
+    await expect(api.plusActivate('1AAA-BBBB-CCCC-DDDD')).rejects.toMatchObject({ code: 'otherDevice' })
+    await expect(api.plusActivate('2AAA-BBBB-CCCC-DDDD')).rejects.toMatchObject({ code: 'revoked' })
+    expect(await api.plusActivate('k7qm 4ztp 9xra 7k2q')).toMatchObject({ active: true, key: 'K7QM-4ZTP-9XRA-7K2Q' })
+    const offline = engine('mockPlus=none&mockOffline=1')
+    await expect(offline.plusActivate('K7QM-4ZTP-9XRA-7K2Q')).rejects.toMatchObject({ code: 'offline' })
+    expect(await offline.plusOffer('en')).toBeNull()
+    await expect(offline.plusRelease()).rejects.toMatchObject({ code: 'offline' })
+  })
+
+  it('keeps AI search and the Maximum pack for Plus', async () => {
+    const api = engine('mockPlus=none')
+    await expect(api.search('prj-lea-thomas', 'mariée')).rejects.toMatchObject({ code: 'plusRequired' })
+    await expect(api.downloadModelPack()).rejects.toMatchObject({ code: 'plusRequired' })
+  })
+
+  it('remembers the welcome and the telemetry choice', async () => {
+    const api = engine('mockOnboarded=0')
+    const settings = await api.getSettings()
+    expect(settings).toMatchObject({ onboarded: false, telemetry: true })
+    const preview = await api.telemetryPreview()
+    expect(preview.installId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(preview.events).toEqual(expect.arrayContaining(['analysis_completed', 'telemetry_disabled']))
+    expect(await api.setSettings({ onboarded: true, telemetry: false })).toMatchObject({ onboarded: true, telemetry: false })
+    expect((await api.telemetryPreview()).installId).toBeNull()
+    await api.setSettings({ telemetry: true })
+    expect((await api.telemetryPreview()).installId).not.toBe(preview.installId)
   })
 
   it('opens a new folder as a pending project, then streams the analysis', async () => {
@@ -179,7 +222,7 @@ describe('mock engine', () => {
   })
 
   it('downloads the Maximum pack, pauses, resumes and removes it', async () => {
-    const api = engine()
+    const api = engine('mockPlus=active')
     const states: string[] = []
     api.on('model-pack', (pack) => states.push(pack.state.status))
     expect((await api.modelPack()).state.status).toBe('absent')
@@ -194,16 +237,23 @@ describe('mock engine', () => {
     expect((await api.removeModelPack()).state.status).toBe('absent')
   }, 30_000)
 
-  it('analyses in maximum precision only once the pack is ready', async () => {
-    const api = engine()
+  it('analyses in maximum precision only with Plus, once the pack is ready', async () => {
+    const api = engine('mockPlus=active')
     await api.setSettings({ precision: 'maximum' })
     const [project] = await api.listProjects()
     const done = waitFor(api, 'analysis-done')
     await api.startAnalysis(project.id, project.settings)
     expect((await done).precision).toBe('standard')
 
+    // Pack ready but no Plus: still Standard.
+    const free = engine('mockPack=ready&mockPlus=none')
+    await free.setSettings({ precision: 'maximum' })
+    const freeDone = waitFor(free, 'analysis-done', 25_000)
+    await free.startAnalysis(project.id, project.settings)
+    expect((await freeDone).precision).toBe('standard')
+
     // Pack ready: the models load (a stage of their own) before the first photo.
-    const ready = engine('mockPack=ready')
+    const ready = engine('mockPack=ready&mockPlus=active')
     await ready.setSettings({ precision: 'maximum' })
     const stages: string[] = []
     ready.on('analysis-progress', (p) => stages.at(-1) !== p.stage && stages.push(p.stage))
@@ -214,7 +264,7 @@ describe('mock engine', () => {
   }, 30_000)
 
   it('searches in natural language, in several languages', async () => {
-    const api = engine()
+    const api = engine('mockPlus=active')
     expect(concepts('Mariée et bouquet')).toEqual(['mariee', 'bouquet'])
     expect(concepts('bride')).toEqual(['mariee'])
     expect(concepts('coucher de soleil')).toEqual(['coucher de soleil'])

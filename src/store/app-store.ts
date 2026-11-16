@@ -1,16 +1,20 @@
 import { create } from 'zustand'
-import type { AppInfo, AppSettings, AuthState, CullSettings, Offers, ProjectSummary } from '@/lib/contract'
+import type { AppInfo, AppSettings, AuthState, CullSettings, ProjectSummary } from '@/lib/contract'
 import { api, initApi, toCullError } from '@/lib/api'
 import { detectLanguage, isLanguage, t, useI18nStore } from '@/lib/i18n'
 import { notify } from '@/lib/notify'
 import { useAnalysisStore } from './analysis-store'
+import { usePlusStore } from './plus-store'
 import { usePrefsStore } from './prefs-store'
 import { useReviewStore } from './review-store'
 import { useWorkspaceStore } from './workspace-store'
 
-export type Screen = 'signIn' | 'onboarding' | 'home' | 'analysis' | 'workspace'
+export type Screen = 'onboarding' | 'home' | 'analysis' | 'workspace'
 export type Dialog = 'settings' | 'export' | 'shortcuts' | 'preAnalysis'
-export type SettingsTab = 'account' | 'general' | 'analysis' | 'cache' | 'about'
+export type SettingsTab = 'plus' | 'general' | 'analysis' | 'privacy' | 'cache' | 'about'
+
+/** Settings the interface changes itself (the engine keeps the cache's own). */
+export type SettingsPatch = Partial<Pick<AppSettings, 'theme' | 'language' | 'acceleration' | 'background' | 'precision' | 'cull' | 'telemetry' | 'onboarded'>>
 
 export interface OpenError {
   code: string
@@ -24,9 +28,8 @@ export interface AppState {
   screen: Screen
   appInfo: AppInfo | null
   settings: AppSettings | null
+  /** optional Pelli account: only a second way to get Plus */
   auth: AuthState
-  /** Pelli's plans, prices and links (null until loaded, or offline) */
-  offers: Offers | null
   online: boolean
   projects: ProjectSummary[]
   projectsLoaded: boolean
@@ -41,14 +44,14 @@ export interface AppState {
   boot: () => Promise<void>
   setAuth: (auth: AuthState) => void
   setOnline: (online: boolean) => void
-  updateSettings: (patch: Partial<Pick<AppSettings, 'theme' | 'language' | 'acceleration' | 'background' | 'precision' | 'cull'>>) => Promise<void>
+  updateSettings: (patch: SettingsPatch) => Promise<void>
   clearCache: () => Promise<void>
   refreshProjects: () => Promise<void>
   refreshAccount: () => Promise<void>
-  loadOffers: () => Promise<void>
   /** show the welcome tour again (from the settings) */
   startOnboarding: () => void
-  finishOnboarding: () => void
+  /** end of the welcome: never shown again on its own; `telemetry` is the choice of its last step */
+  finishOnboarding: (telemetry: boolean) => void
   /** the home screen plays its arrival (orb from afar, sound): on launch and after the tour */
   homeIntro: boolean
   consumeHomeIntro: () => void
@@ -70,11 +73,6 @@ export interface AppState {
   signOut: () => Promise<void>
 }
 
-/** First screen once signed in: the welcome tour the first time, then home. */
-function afterSignIn(): Screen {
-  return usePrefsStore.getState().onboarded ? 'home' : 'onboarding'
-}
-
 /** Review starts where the photographer's eye is needed: "to review" first. */
 function openBestTab(): void {
   const review = useReviewStore.getState()
@@ -92,11 +90,10 @@ async function firstLanguage(engine: Awaited<ReturnType<typeof initApi>>): Promi
 export const useAppStore = create<AppState>((set, get) => ({
   phase: 'boot',
   bootError: null,
-  screen: 'signIn',
+  screen: 'home',
   appInfo: null,
   settings: null,
   auth: { status: 'signedOut' },
-  offers: null,
   online: typeof navigator === 'undefined' ? true : navigator.onLine,
   projects: [],
   projectsLoaded: false,
@@ -114,38 +111,20 @@ export const useAppStore = create<AppState>((set, get) => ({
       // First launch: no language chosen yet, the app speaks the computer's.
       const settings = isLanguage(stored.language) ? stored : await firstLanguage(engine)
       useI18nStore.getState().setLanguage(settings.language)
-      // A build without account (PELLI_INSTANT_NO_ACCOUNT=1) never signs in.
-      const ready = appInfo.noAccount || auth.status === 'signedIn'
-      const screen = ready ? afterSignIn() : 'signIn'
+      // No account, no gate: the welcome the first time, then the drop zone.
+      const screen: Screen = settings.onboarded === false ? 'onboarding' : 'home'
+      await usePlusStore.getState().load()
       set({ appInfo, settings, auth, phase: 'ready', screen, homeIntro: screen === 'home' })
-      // Without account the app never contacts Pelli (no offers to show).
-      if (!appInfo.noAccount) void get().loadOffers()
-      if (ready) void get().refreshProjects()
-      if (auth.status === 'signedIn' && !appInfo.noAccount) {
-        // The cached account works offline; online, check that the 30-day
-        // token is still valid (an expired one signs out here, before any
-        // export fails on it) and refresh the plan and quota.
-        void get().refreshAccount()
-      }
+      void get().refreshProjects()
+      // A cached Pelli account works offline; online, check that its token is
+      // still valid and refresh its plan (whether it includes Plus).
+      if (auth.status === 'signedIn') void get().refreshAccount()
     } catch (error) {
       set({ phase: 'error', bootError: toCullError(error).message })
     }
   },
 
-  setAuth: (auth) => {
-    const prev = get().auth
-    set({ auth })
-    if (get().appInfo?.noAccount) return
-    if (auth.status === 'signedIn' && prev.status !== 'signedIn') {
-      const screen = afterSignIn()
-      set({ screen, homeIntro: screen === 'home' })
-      void get().refreshProjects()
-    }
-    if (auth.status === 'signedOut' && prev.status === 'signedIn') {
-      useReviewStore.getState().reset()
-      set({ screen: 'signIn', dialog: null })
-    }
-  },
+  setAuth: (auth) => set({ auth }),
 
   setOnline: (online) => set({ online }),
 
@@ -156,7 +135,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const settings = await api().setSettings(patch)
       set({ settings })
-      if (patch.language && !get().appInfo?.noAccount) void get().loadOffers()
+      if (patch.language) void usePlusStore.getState().loadOffer()
     } catch (error) {
       if (prev) set({ settings: prev })
       if (prev && patch.language) useI18nStore.getState().setLanguage(prev.language)
@@ -188,22 +167,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  loadOffers: async () => {
-    const language = get().settings?.language ?? 'en'
-    try {
-      set({ offers: await api().getOffers(language) })
-    } catch {
-      /* offline on the first launch: the screens fall back to plain links */
-    }
-  },
-
   startOnboarding: () => set({ screen: 'onboarding', dialog: null }),
 
   homeIntro: false,
   consumeHomeIntro: () => set({ homeIntro: false }),
 
-  finishOnboarding: () => {
-    usePrefsStore.getState().setOnboarded(true)
+  finishOnboarding: (telemetry) => {
+    const settings = get().settings
+    // One change: the engine counts the install only when telemetry stays on.
+    if (settings && (!settings.onboarded || settings.telemetry !== telemetry)) void get().updateSettings({ onboarded: true, telemetry })
     set({ screen: 'home', homeIntro: true })
     void get().refreshProjects()
   },

@@ -12,7 +12,7 @@ interface Light {
  * Three lights per step, Pelli violets only: the brand violet, its lighter
  * tint and a deep indigo. Each step moves them where its visual is, so the
  * light travels with the story (the orb, the scanned photos, the keys, the
- * search field, the Lightroom window, the two precision cards, the plan).
+ * Lightroom window, the two precision cards, the last orb).
  */
 const MOODS: Light[][] = [
   // welcome: a halo around the orb, a faint lilac rising from below
@@ -33,12 +33,6 @@ const MOODS: Light[][] = [
     { x: 18, y: 18, size: 46, opacity: 0.2 },
     { x: 86, y: 70, size: 60, opacity: 0.32 },
   ],
-  // search: a wide light along the search field
-  [
-    { x: 50, y: 18, size: 80, opacity: 0.48 },
-    { x: 14, y: 70, size: 50, opacity: 0.2 },
-    { x: 88, y: 82, size: 56, opacity: 0.32 },
-  ],
   // export: towards the Lightroom window
   [
     { x: 62, y: 40, size: 66, opacity: 0.46 },
@@ -51,7 +45,7 @@ const MOODS: Light[][] = [
     { x: 66, y: 42, size: 50, opacity: 0.3 },
     { x: 50, y: 100, size: 80, opacity: 0.3 },
   ],
-  // plan: gathered and brighter, behind the orb or the ring
+  // ready: gathered and brighter, behind the orb
   [
     { x: 50, y: 28, size: 62, opacity: 0.6 },
     { x: 30, y: 80, size: 46, opacity: 0.22 },

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { AnalysisSummary, CullSettings, DecisionCounts, FinalDecision, PhotoView, Progress, ProjectSummary, QuotaDetails } from '@/lib/contract'
+import type { AnalysisSummary, CullSettings, DecisionCounts, FinalDecision, PhotoView, Progress, ProjectSummary } from '@/lib/contract'
 import { api, toCullError } from '@/lib/api'
 import { t } from '@/lib/i18n'
 import { notify } from '@/lib/notify'
@@ -26,19 +26,16 @@ export interface AnalysisState {
   progress: Progress | null
   startedAt: number | null
   lastSummary: AnalysisSummary | null
-  error: { code: string; message: string; details?: QuotaDetails } | null
+  error: { code: string; message: string } | null
   prepare: (project: ProjectSummary) => void
   start: (projectId: string, settings: CullSettings) => Promise<void>
   onPhotos: (projectId: string, photos: PhotoView[]) => void
   cancel: () => Promise<void>
   onProgress: (progress: Progress & { projectId: string }) => void
   onDone: (summary: AnalysisSummary) => void
-  onError: (event: { projectId: string; code: string; message: string; details?: QuotaDetails }) => void
+  onError: (event: { projectId: string; code: string; message: string }) => void
   dismissError: () => void
 }
-
-/** Errors the analysis screen explains itself (plans, offers), without a toast. */
-const QUOTA_CODES = new Set(['quotaExceeded', 'quotaOffline'])
 
 const ZERO: DecisionCounts = { selected: 0, toReview: 0, rejected: 0 }
 /** Decision of each photo of the current run, so a photo sent twice counts once. */
@@ -98,7 +95,7 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
       await api().startAnalysis(projectId, settings)
     } catch (error) {
       const e = toCullError(error)
-      get().onError({ projectId, code: e.code, message: e.message, details: e.details as QuotaDetails | undefined })
+      get().onError({ projectId, code: e.code, message: e.message })
     }
   },
 
@@ -133,8 +130,8 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
   onError: (event) => {
     const s = get()
     if (event.projectId !== s.projectId || event.code === 'cancelled') return
-    set({ running: false, progress: null, error: { code: event.code, message: event.message, details: event.details } })
-    if (!QUOTA_CODES.has(event.code)) notify({ title: t('analysis.errorTitle'), description: event.message, tone: 'danger' })
+    set({ running: false, progress: null, error: { code: event.code, message: event.message } })
+    notify({ title: t('analysis.errorTitle'), description: event.message, tone: 'danger' })
   },
 
   dismissError: () => set({ error: null }),

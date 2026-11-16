@@ -14,6 +14,7 @@ import {
   type ModelPack,
   type ModelPackState,
   type PhotoView,
+  type PlusStatus,
   type Precision,
   type ProjectData,
   type ProjectSummary,
@@ -36,15 +37,16 @@ import {
   daysAgo,
   MOCK_APP_INFO,
   MOCK_GALLERIES,
+  MOCK_LICENSE_KEY,
   MOCK_PROJECTS,
   MOCK_SETTINGS,
   MOCK_UPDATE_VERSION,
   mockAccount,
-  mockOffers,
+  mockPlusOffer,
   MOCK_PLANS,
   type MockPlan,
-  nextMonthStart,
   NEW_FOLDER,
+  TELEMETRY_EVENTS,
   SCENE_LABELS,
   shootDay,
   type MockProjectDef,
@@ -61,10 +63,17 @@ export interface MockOptions {
   /** persistence of auth/settings between reloads */
   storage?: Pick<Storage, 'getItem' | 'setItem'> | null
   /**
-   * overrides (`?mockAuth=signedIn&mockPlan=lite&mockUsed=950&mockCount=5000`,
-   * `mockTrial=1`: a free account that can still start the Pelli trial,
-   * `mockNoAccount=1`: a build without account, `mockUpdate=available`: a newer
-   * version is published)
+   * overrides (`?mockAuth=signedIn&mockPlan=pro&mockCount=5000`,
+   * `mockPlus=active|none|pending|account`: Plus from a licence, nothing, a
+   * checkout waiting for its payment, or a signed-in Pro account;
+   * `mockCheckout=paid|expired|never` and `mockPolls=2`: how a checkout ends
+   * and after how many polls; `mockOffer=usd`; `mockOffline=1`: Pelli
+   * unreachable; `mockOnboarded=0`: first launch (welcome);
+   * `mockTelemetry=0`; `mockProjects=4`: number of recent projects;
+   * `mockUpdate=available`: a newer version is published). Keys typed in
+   * the mock: starting with 0 →
+   * `invalidKey`, 1 → `otherDevice`, 2 → `revoked`, any other well-formed key
+   * activates Plus.
    */
   params?: URLSearchParams
   /** simulated latency of commands, ms */
@@ -97,14 +106,26 @@ type Handler<E extends keyof CullEvents> = (payload: CullEvents[E]) => void
 
 const STORAGE_AUTH = 'pelli-cull:mock-auth'
 const STORAGE_PLAN = 'pelli-cull:mock-plan'
-const STORAGE_USED = 'pelli-cull:mock-used'
 const STORAGE_SETTINGS = 'pelli-cull:mock-settings'
 const STORAGE_PACK = 'pelli-cull:mock-pack'
+const STORAGE_PLUS = 'pelli-cull:mock-plus'
+
+/** Crockford base32 (no I, L, O, U), 16 characters once dashes and spaces are gone. */
+const KEY_PATTERN = /^[0-9A-HJKMNP-TV-Z]{16}$/
 
 /** Size of the Maximum pack (the CPU variant of the models). */
 const PACK_BYTES = 776_700_000
 /** Analysis speed of the Maximum precision relative to Standard. */
 const MAXIMUM_SLOWDOWN = 6
+
+/** A random install id (uuid v4 shape), like the engine's. */
+function randomId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.floor(Math.random() * 16)
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+  })
+}
 
 function safeStorage(): Pick<Storage, 'getItem' | 'setItem'> | null {
   try {
@@ -114,7 +135,7 @@ function safeStorage(): Pick<Storage, 'getItem' | 'setItem'> | null {
   }
 }
 
-function online(): boolean {
+function navigatorOnline(): boolean {
   return typeof navigator === 'undefined' || navigator.onLine !== false
 }
 
@@ -130,6 +151,9 @@ export function createMockApi(options: MockOptions = {}): CullApi {
   const latency = options.latency ?? 120
   const images = new MockImages(options.thumbnails ?? (params.get('mockThumbs') === '0' ? false : undefined))
   const now = () => Date.now()
+  // `?mockOffline=1`: Pelli (and the network) unreachable.
+  const offlineParam = params.get('mockOffline') === '1'
+  const online = () => !offlineParam && navigatorOnline()
 
   // ---- events ----------------------------------------------------------------
   const handlers = new Map<keyof CullEvents, Set<Handler<keyof CullEvents>>>()
@@ -143,6 +167,8 @@ export function createMockApi(options: MockOptions = {}): CullApi {
     })
   }
   const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+  /** A realistic delay for the app, none in tests (`latency: 0`). */
+  const net = (ms: number) => (latency === 0 ? 0 : ms)
   const respond = async <T>(value: T | (() => T), ms = latency): Promise<T> => {
     if (ms > 0) await wait(ms)
     return typeof value === 'function' ? (value as () => T)() : value
@@ -165,33 +191,64 @@ export function createMockApi(options: MockOptions = {}): CullApi {
   }
 
   const isPlan = (v: string | null): v is MockPlan => v !== null && (MOCK_PLANS as string[]).includes(v)
-  const paramPlan = params.get('mockPlan')
+  const paramPlus = params.get('mockPlus')
+  const paramPlan = params.get('mockPlan') ?? (paramPlus === 'account' ? 'pro' : null)
   if (isPlan(paramPlan)) write(STORAGE_PLAN, paramPlan)
-  const paramAuth = params.get('mockAuth')
+  const paramAuth = params.get('mockAuth') ?? (paramPlus === 'account' ? 'signedIn' : null)
   if (paramAuth === 'signedIn' || paramAuth === 'signedOut') write(STORAGE_AUTH, paramAuth)
-  // Photos sorted this month, kept per month like Pelli's counter.
-  const month = new Date().toISOString().slice(0, 7)
-  const paramUsed = params.get('mockUsed')
-  if (paramUsed !== null) write(STORAGE_USED, `${month}:${Number(paramUsed) || 0}`)
-  const savedUsed = read(STORAGE_USED)?.split(':')
-  let used = paramUsed !== null ? Number(paramUsed) || 0 : savedUsed?.[0] === month ? Number(savedUsed[1]) || 0 : 0
 
-  const trialAvailable = params.get('mockTrial') === '1'
   const storedPlan = read(STORAGE_PLAN)
   let plan: MockPlan = isPlan(paramPlan) ? paramPlan : isPlan(storedPlan) ? storedPlan : 'pro'
-  let auth: AuthState =
-    (paramAuth ?? read(STORAGE_AUTH)) === 'signedIn' ? { status: 'signedIn', account: mockAccount(plan, used, trialAvailable) } : { status: 'signedOut' }
+  let auth: AuthState = (paramAuth ?? read(STORAGE_AUTH)) === 'signedIn' ? { status: 'signedIn', account: mockAccount(plan) } : { status: 'signedOut' }
+  let polls = 0
 
-  /** Counts `photos` on the monthly quota and tells the UI the new usage. */
-  function countUsage(photos: number): void {
-    used += photos
-    write(STORAGE_USED, `${month}:${used}`)
-    if (auth.status === 'signedIn') {
-      auth = { status: 'signedIn', account: mockAccount(plan, used, trialAvailable) }
-      emit('auth-changed', auth)
+  // ---- Plus -----------------------------------------------------------------------
+  interface PlusState {
+    key: string | null
+    pending: boolean
+  }
+  const initialPlus = (): PlusState => {
+    if (paramPlus === 'active') return { key: MOCK_LICENSE_KEY, pending: false }
+    if (paramPlus === 'pending') return { key: null, pending: true }
+    if (paramPlus === 'none' || paramPlus === 'account') return { key: null, pending: false }
+    try {
+      const stored = JSON.parse(read(STORAGE_PLUS) ?? 'null') as PlusState | null
+      if (stored && typeof stored === 'object') return { key: typeof stored.key === 'string' ? stored.key : null, pending: stored.pending === true }
+    } catch {
+      /* ignore */
+    }
+    return { key: null, pending: false }
+  }
+  let plus: PlusState = initialPlus()
+  if (paramPlus) write(STORAGE_PLUS, JSON.stringify(plus))
+  const checkoutEnd = params.get('mockCheckout') ?? 'paid'
+  const pollsToPay = Math.max(1, Number(params.get('mockPolls')) || 2)
+  let checkoutPolls = 0
+  const plusStatus = (): PlusStatus => {
+    const viaAccount = auth.status === 'signedIn' && auth.account.plus
+    return {
+      active: plus.key !== null || viaAccount,
+      source: plus.key !== null ? 'license' : viaAccount ? 'account' : null,
+      key: plus.key,
+      pending: plus.pending,
     }
   }
-  let polls = 0
+  const setPlus = (next: PlusState) => {
+    const before = JSON.stringify(plusStatus())
+    plus = next
+    write(STORAGE_PLUS, JSON.stringify(plus))
+    if (JSON.stringify(plusStatus()) !== before) emit('plus', plusStatus())
+  }
+  /** Signing in or out with a Pro account changes Plus too. */
+  const setAuth = (next: AuthState) => {
+    const before = JSON.stringify(plusStatus())
+    auth = next
+    emit('auth-changed', auth)
+    if (JSON.stringify(plusStatus()) !== before) emit('plus', plusStatus())
+  }
+  const telemetryLog = (event: string, props: Record<string, unknown> = {}) => {
+    if (typeof window !== 'undefined' && (settings.telemetry || event === 'telemetry_disabled')) console.info(`[mock] telemetry ${event}`, props)
+  }
 
   let settings: AppSettings = { ...MOCK_SETTINGS }
   try {
@@ -207,12 +264,16 @@ export function createMockApi(options: MockOptions = {}): CullApi {
   if (paramTheme === 'light' || paramTheme === 'dark' || paramTheme === 'system') settings.theme = paramTheme
   const paramLang = params.get('mockLang')
   if (isLanguage(paramLang)) settings.language = paramLang
+  const paramOnboarded = params.get('mockOnboarded')
+  if (paramOnboarded === '0' || paramOnboarded === '1') settings.onboarded = paramOnboarded === '1'
+  const paramTelemetry = params.get('mockTelemetry')
+  if (paramTelemetry === '0' || paramTelemetry === '1') settings.telemetry = paramTelemetry === '1'
+  let installId: string | null = settings.telemetry ? randomId() : null
 
-  const baseInfo: AppInfo =
+  const appInfo: AppInfo =
     params.get('mockModels') === 'missing'
       ? { ...MOCK_APP_INFO, modelsReady: false, capabilities: { faces: true, eyes: false, embeddings: false, aesthetic: false, textSearch: false, maximum: false } }
       : { ...MOCK_APP_INFO, platform: typeof window !== 'undefined' ? 'macos' : 'web' }
-  const appInfo: AppInfo = { ...baseInfo, noAccount: params.get('mockNoAccount') === '1' }
 
   // ---- Maximum pack -----------------------------------------------------------------
   // `?mockPack=ready|paused|failed|absent`, `?mockDisk=low` (not enough space).
@@ -248,6 +309,7 @@ export function createMockApi(options: MockOptions = {}): CullApi {
 
   function runPackDownload(): void {
     if (packState.status === 'downloading' || packState.status === 'preparing' || packState.status === 'ready') return
+    if (!plusStatus().active) throw new CullError('plusRequired', 'The Maximum precision is part of Pelli Instant Plus')
     const start = receivedOf(packState)
     if (freeBytes < PACK_BYTES - start + 200_000_000) throw new CullError('diskFull', 'Not enough free disk space')
     if (!online()) throw new CullError('offline', 'No network')
@@ -298,6 +360,7 @@ export function createMockApi(options: MockOptions = {}): CullApi {
   // ---- projects -------------------------------------------------------------------
   const projects = new Map<string, ProjectState>()
   const mockCount = Number(params.get('mockCount')) || null
+  const projectLimit = Number(params.get('mockProjects'))
 
   function addProject(def: MockProjectDef): ProjectState {
     const state: ProjectState = {
@@ -325,7 +388,7 @@ export function createMockApi(options: MockOptions = {}): CullApi {
     projects.set(def.id, state)
     return state
   }
-  MOCK_PROJECTS.forEach(addProject)
+  ;(projectLimit > 0 ? MOCK_PROJECTS.slice(0, projectLimit) : projectLimit === 0 && params.has('mockProjects') ? [] : MOCK_PROJECTS).forEach(addProject)
 
   function sceneLabel(kind: MockRecord['sceneKind']): string {
     return SCENE_LABELS[settings.language]?.[kind] ?? SCENE_LABELS.en[kind]
@@ -501,7 +564,8 @@ export function createMockApi(options: MockOptions = {}): CullApi {
     ps.scenes = []
     ps.sceneOf = new Map()
     ps.analyzedAt = null
-    const precision: Precision = settings.precision === 'maximum' && packState.status === 'ready' ? 'maximum' : 'standard'
+    // Like the engine: Maximum needs Plus and the pack, otherwise Standard.
+    const precision: Precision = settings.precision === 'maximum' && packState.status === 'ready' && plusStatus().active ? 'maximum' : 'standard'
 
     const total = records.length
     const rate = (19 * speed) / (precision === 'maximum' ? MAXIMUM_SLOWDOWN : 1)
@@ -592,6 +656,7 @@ export function createMockApi(options: MockOptions = {}): CullApi {
         precision,
       }
       emit('analysis-done', result)
+      telemetryLog('analysis_completed', { photos: result.analyzed, seconds: Math.round(result.durationMs / 100) / 10, precision, ...result.counts, groups: result.groups })
     }
 
     setTimeout(scan, 60)
@@ -711,7 +776,14 @@ export function createMockApi(options: MockOptions = {}): CullApi {
     getSettings: () => respond(() => ({ ...settings }), 30),
     setSettings: (patch) =>
       respond(() => {
+        const before = settings
         settings = { ...settings, ...patch, ...(patch.cull ? { cull: { ...patch.cull, keepPerGroup: Math.min(5, Math.max(1, patch.cull.keepPerGroup)) } } : {}) }
+        // Like the engine: one last notice when telemetry is turned off, a new id when it comes back.
+        if (before.telemetry && !settings.telemetry) {
+          telemetryLog('telemetry_disabled')
+          installId = null
+        } else if (!before.telemetry && settings.telemetry) installId = randomId()
+        if (!before.onboarded && settings.onboarded) telemetryLog('onboarding_completed')
         write(
           STORAGE_SETTINGS,
           JSON.stringify({
@@ -721,6 +793,8 @@ export function createMockApi(options: MockOptions = {}): CullApi {
             background: settings.background,
             precision: settings.precision,
             cull: settings.cull,
+            telemetry: settings.telemetry,
+            onboarded: settings.onboarded,
           }),
         )
         return { ...settings }
@@ -734,9 +808,9 @@ export function createMockApi(options: MockOptions = {}): CullApi {
     authStatus: () => respond(() => auth, 60),
     authStart: () =>
       respond(() => {
+        if (!online()) throw new CullError('offline', 'No network')
         polls = 0
-        auth = { status: 'pending', authUrl: 'https://app.pelli.io/cull/connect?code=K7QM-4ZTP', expiresAt: now() + 10 * 60_000 }
-        emit('auth-changed', auth)
+        setAuth({ status: 'pending', authUrl: 'https://app.pelli.io/cull/connect?code=K7QM-4ZTP', expiresAt: now() + 10 * 60_000 })
         return auth
       }, 400),
     authPoll: () =>
@@ -744,31 +818,92 @@ export function createMockApi(options: MockOptions = {}): CullApi {
         if (auth.status !== 'pending') return auth
         polls += 1
         if (polls >= 2) {
-          auth = { status: 'signedIn', account: mockAccount(plan, used, trialAvailable) }
           write(STORAGE_AUTH, 'signedIn')
-          emit('auth-changed', auth)
+          setAuth({ status: 'signedIn', account: mockAccount(plan) })
         }
         return auth
       }),
     authLogout: () =>
       respond(() => {
-        auth = { status: 'signedOut' }
         write(STORAGE_AUTH, 'signedOut')
-        emit('auth-changed', auth)
+        setAuth({ status: 'signedOut' })
         return auth
       }),
     refreshAccount: () =>
       respond(() => {
         const stored = read(STORAGE_PLAN)
         plan = isPlan(paramPlan) ? paramPlan : isPlan(stored) ? stored : plan
-        if (auth.status === 'signedIn') auth = { status: 'signedIn', account: mockAccount(plan, used, trialAvailable) }
+        if (auth.status === 'signedIn') auth = { status: 'signedIn', account: mockAccount(plan) }
         return auth
       }, 300),
-    getOffers: (lang) =>
+
+    plusStatus: () => respond(plusStatus, net(40)),
+    plusOffer: (lang) => respond(() => (online() ? mockPlusOffer(lang, params.get('mockOffer') === 'usd' ? 'usd' : 'eur') : null), net(220)),
+    plusCheckout: (lang) =>
       respond(() => {
         if (!online()) throw new CullError('offline', 'No network')
-        return mockOffers(lang)
-      }, 250),
+        checkoutPolls = 0
+        const url = `https://checkout.stripe.com/c/pay/cs_test_mock#lang=${lang}`
+        setPlus({ ...plus, pending: true })
+        if (typeof window !== 'undefined' && !params.has('mockNoPopups')) window.open(url, '_blank', 'noopener')
+        return { url }
+      }, net(600)),
+    plusPoll: () =>
+      respond(() => {
+        if (!plus.pending) return plusStatus()
+        if (!online()) throw new CullError('offline', 'No network')
+        checkoutPolls += 1
+        if (checkoutEnd === 'never' || checkoutPolls < pollsToPay) return plusStatus()
+        if (checkoutEnd === 'expired') setPlus({ ...plus, pending: false })
+        else {
+          setPlus({ key: MOCK_LICENSE_KEY, pending: false })
+          telemetryLog('plus_activated', { via: 'purchase' })
+        }
+        return plusStatus()
+      }, net(200)),
+    plusCancelCheckout: () =>
+      respond(() => {
+        setPlus({ ...plus, pending: false })
+        return plusStatus()
+      }, net(80)),
+    plusActivate: (key) =>
+      respond(() => {
+        const raw = key.toUpperCase().replace(/[\s-]/g, '')
+        if (!online()) throw new CullError('offline', 'No network')
+        if (!KEY_PATTERN.test(raw) || raw.startsWith('0')) throw new CullError('invalidKey', 'Unknown licence key')
+        if (raw.startsWith('1')) throw new CullError('otherDevice', 'This licence is active on another computer')
+        if (raw.startsWith('2')) throw new CullError('revoked', 'This licence was refunded')
+        setPlus({ key: raw.match(/.{4}/g)!.join('-'), pending: false })
+        telemetryLog('plus_activated', { via: 'key' })
+        return plusStatus()
+      }, net(700)),
+    plusRelease: () =>
+      respond(() => {
+        if (!online()) throw new CullError('offline', 'No network')
+        setPlus({ key: null, pending: false })
+        return plusStatus()
+      }, net(600)),
+    telemetryPreview: () =>
+      respond(
+        () => ({
+          installId,
+          events: TELEMETRY_EVENTS,
+          example: JSON.stringify(
+            {
+              installId: installId ?? '00000000-0000-4000-8000-000000000000',
+              event: 'analysis_completed',
+              appVersion: appInfo.version,
+              platform: 'mac',
+              arch: 'arm64',
+              locale: settings.language,
+              props: { photos: 854, raw: 854, jpeg: 0, seconds: 10.2, precision: 'standard', selected: 512, toReview: 201, rejected: 141, groups: 96 },
+            },
+            null,
+            2,
+          ),
+        }),
+        net(80),
+      ),
 
     modelPack: () => respond(pack, 40),
     downloadModelPack: () => respond(() => runPackDownload(), 80),
@@ -847,22 +982,7 @@ export function createMockApi(options: MockOptions = {}): CullApi {
       respond(() => {
         const ps = project(projectId)
         ps.stopAnalysis?.()
-        const criteria = normalizeCriteria(cullSettings ?? settings.cull)
-        // Like the engine: photos never analysed count on the monthly quota.
-        const fresh = ps.analyzedAt !== null || ps.analyzed.size > 0 ? 0 : ensureRecords(ps).length
-        const quota = auth.status === 'signedIn' ? auth.account.entitlements.monthlyQuota : null
-        if (!appInfo.noAccount && fresh > 0 && quota !== null) {
-          const fail = (code: 'quotaExceeded' | 'quotaOffline', details: CullEvents['analysis-error']['details']) => {
-            setTimeout(() => emit('analysis-error', { projectId, code, message: code, details }), 900 / speed)
-          }
-          if (!online()) return fail('quotaOffline', { monthlyQuota: quota, needed: fresh })
-          const remaining = Math.max(0, quota - used)
-          if (fresh > remaining) {
-            return fail('quotaExceeded', { monthlyQuota: quota, usedThisMonth: used, remaining, resetsAt: nextMonthStart(), needed: fresh })
-          }
-          countUsage(fresh)
-        }
-        runAnalysis(ps, criteria)
+        runAnalysis(ps, normalizeCriteria(cullSettings ?? settings.cull))
       }, 80),
     cancelAnalysis: (projectId) =>
       respond(() => {
@@ -898,6 +1018,7 @@ export function createMockApi(options: MockOptions = {}): CullApi {
     },
     search: (projectId, query) =>
       respond(() => {
+        if (!plusStatus().active) throw new CullError('plusRequired', 'AI search is part of Pelli Instant Plus')
         const ps = project(projectId)
         return searchRecords(ensureRecords(ps).filter((r) => ps.analyzed.has(r.id)), query)
       }, 320),
@@ -911,6 +1032,7 @@ export function createMockApi(options: MockOptions = {}): CullApi {
       })
       const selected = views.filter((v) => v.decision === 'selected')
       const rejected = views.filter((v) => v.decision === 'rejected')
+      telemetryLog('export_completed', { photos: views.length, xmp: exportOptions.xmp.enabled, copied: exportOptions.copySelected.enabled, moved: exportOptions.moveRejected.enabled })
       const perPhoto = (v: PhotoView) =>
         (exportOptions.copySelected.includeRaw && v.hasRaw ? 1 : 0) + (exportOptions.copySelected.includeJpeg && v.hasJpeg ? 1 : 0) || 1
       return {

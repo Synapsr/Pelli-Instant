@@ -7,8 +7,8 @@ import { useReviewStore } from './review-store'
 
 const PROJECT = 'prj-lea-thomas'
 
-async function setup(override: Partial<CullApi> = {}) {
-  const mock = createMockApi({ thumbnails: false, storage: null, latency: 0, params: new URLSearchParams() })
+async function setup(override: Partial<CullApi> = {}, params = 'mockPlus=active') {
+  const mock = createMockApi({ thumbnails: false, storage: null, latency: 0, params: new URLSearchParams(params) })
   setApi({ ...mock, ...override })
   const data = await mock.getProject(PROJECT)
   useReviewStore.getState().reset()

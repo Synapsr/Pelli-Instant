@@ -1,16 +1,15 @@
 import { Button, Modal, ModalBody, ModalContent } from '@heroui/react'
 import { Toggle } from '@/components/ui/Toggle'
-import { CreditCard, Database, ExternalLink, FolderSearch, Github, Info, LogOut, PlayCircle, RotateCcw, ScanEye, SlidersHorizontal, User, Volume2, type LucideIcon } from 'lucide-react'
+import { Database, ExternalLink, FolderSearch, Github, Info, PlayCircle, RotateCcw, ScanEye, ShieldCheck, SlidersHorizontal, Sparkles, Volume2, type LucideIcon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { SensitivityPicker } from '@/components/analysis/SensitivityPicker'
 import { CriteriaList } from '@/components/criteria/CriteriaList'
-import { Avatar } from '@/components/home/AccountMenu'
-import { UsageMeter } from '@/components/plans/UsageMeter'
+import { PlusSettings } from '@/components/plus/PlusSettings'
+import { PrivacySettings } from '@/components/privacy/PrivacySettings'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { SettingRow as Row } from '@/components/ui/SettingRow'
 import { PrecisionChoice } from '@/components/precision/PrecisionChoice'
 import { InstantLogo } from '@/components/ui/Logo'
-import { PlanBadge } from '@/components/ui/PlanBadge'
 import { UpdateSettings } from '@/components/update/UpdateSettings'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
@@ -20,7 +19,7 @@ import { formatBytes, formatNumber } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { LanguageMenu } from './LanguageMenu'
 import { LICENCES } from '@/lib/licences'
-import { billingUrl, GITHUB_URL, PELLI_URL } from '@/lib/plans'
+import { GITHUB_URL, PELLI_URL } from '@/lib/links'
 import { playSound } from '@/lib/sound'
 import { isMac } from '@/lib/platform'
 import { useAppStore, type SettingsTab } from '@/store/app-store'
@@ -28,9 +27,10 @@ import { usePackStore } from '@/store/pack-store'
 import { usePrefsStore } from '@/store/prefs-store'
 
 const NAV: { tab: SettingsTab; icon: LucideIcon }[] = [
-  { tab: 'account', icon: User },
   { tab: 'general', icon: SlidersHorizontal },
   { tab: 'analysis', icon: ScanEye },
+  { tab: 'plus', icon: Sparkles },
+  { tab: 'privacy', icon: ShieldCheck },
   { tab: 'cache', icon: Database },
   { tab: 'about', icon: Info },
 ]
@@ -45,9 +45,10 @@ export function SettingsDialog() {
         <ModalBody className="flex-row gap-0 overflow-hidden p-0">
           <SettingsNav current={tab} />
           <div className="min-w-0 flex-1 overflow-y-auto px-8 py-7">
-            {tab === 'account' && <AccountPanel />}
+            {tab === 'plus' && <PlusSettings />}
             {tab === 'general' && <GeneralPanel />}
             {tab === 'analysis' && <AnalysisPanel />}
+            {tab === 'privacy' && <PrivacySettings />}
             {tab === 'cache' && <CachePanel />}
             {tab === 'about' && <AboutPanel />}
           </div>
@@ -59,13 +60,10 @@ export function SettingsDialog() {
 
 function SettingsNav({ current }: { current: SettingsTab }) {
   const t = useT()
-  // A build without account has no account tab.
-  const noAccount = useAppStore((s) => s.appInfo?.noAccount ?? false)
-  const nav = noAccount ? NAV.filter((n) => n.tab !== 'account') : NAV
   return (
     <nav aria-label={t('settings.title')} className="flex w-56 shrink-0 flex-col gap-0.5 border-r border-white/[0.06] bg-white/[0.02] p-3">
       <h2 className="px-2.5 pb-3 pt-2 text-[15px] font-semibold text-foreground">{t('settings.title')}</h2>
-      {nav.map(({ tab, icon: Icon }) => (
+      {NAV.map(({ tab, icon: Icon }) => (
         <button
           key={tab}
           type="button"
@@ -89,62 +87,6 @@ function SettingsNav({ current }: { current: SettingsTab }) {
 function PanelTitle({ children }: { children: ReactNode }) {
   return <h3 className="mb-2 text-lg font-semibold tracking-tight text-foreground">{children}</h3>
 }
-
-function AccountPanel() {
-  const t = useT()
-  const auth = useAppStore((s) => s.auth)
-  const signOut = useAppStore((s) => s.signOut)
-  const refreshAccount = useAppStore((s) => s.refreshAccount)
-  const offers = useAppStore((s) => s.offers)
-  const [confirm, setConfirm] = useState(false)
-  if (auth.status !== 'signedIn') return null
-  const { account } = auth
-  return (
-    <div>
-      <PanelTitle>{t('settings.nav.account')}</PanelTitle>
-      <div className="mt-4 flex items-center gap-4 rounded-2xl border border-[#5840f0]/10 bg-gradient-to-br from-[#5840f0]/[0.05] via-transparent to-[#5840f0]/[0.03] p-5 dark:border-[#5840f0]/20 dark:from-[#5840f0]/[0.1]">
-        <Avatar account={account} size={52} />
-        <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-2 text-base font-semibold text-foreground">
-            {account.name}
-            <PlanBadge plan={account.plan} label={account.planLabel} />
-          </p>
-          <p className="truncate text-[13px] text-default-500">{account.email}</p>
-          <p className="truncate text-xs text-default-400">{account.slug}.pelli.io</p>
-        </div>
-        <Button size="sm" variant="flat" radius="lg" startContent={<CreditCard className="size-4" />} onPress={() => void api().openExternal(billingUrl(offers))}>
-          {t('settings.account.manage')}
-        </Button>
-      </div>
-      <div className="mt-3 rounded-2xl border border-white/[0.07] p-4">
-        <p className="mb-3 text-[13px] font-medium text-foreground">{t('settings.account.usage')}</p>
-        <UsageMeter account={account} />
-      </div>
-      <div className="mt-3">
-        <Row label={t('settings.account.signOut')} hint={t('settings.account.signOutBody')}>
-          <div className="flex gap-2">
-            <Button size="sm" variant="light" radius="lg" onPress={() => void refreshAccount()}>
-              {t('settings.account.refresh')}
-            </Button>
-            <Button size="sm" variant="flat" color="danger" radius="lg" startContent={<LogOut className="size-4" />} onPress={() => setConfirm(true)}>
-              {t('settings.account.signOut')}
-            </Button>
-          </div>
-        </Row>
-      </div>
-      <ConfirmDialog
-        open={confirm}
-        title={t('settings.account.signOutTitle')}
-        body={t('settings.account.signOutBody')}
-        confirmLabel={t('settings.account.signOut')}
-        danger
-        onConfirm={() => void signOut()}
-        onClose={() => setConfirm(false)}
-      />
-    </div>
-  )
-}
-
 
 function GeneralPanel() {
   const t = useT()
@@ -328,7 +270,9 @@ function AboutPanel() {
           </li>
         ))}
       </ul>
-      <p className="mt-5 text-center text-xs text-default-400">{t('settings.about.madeIn')}</p>
+      <p className="mt-5 text-center text-xs text-default-400">
+        {t('settings.about.byPelli')} · {t('settings.about.madeIn')}
+      </p>
     </div>
   )
 }

@@ -11,7 +11,7 @@ type Arrow = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'
 type Verdict = 'kept' | 'rejected'
 
 const GLYPH: Record<Arrow, string> = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }
-const SHOOT = [PHOTOS.dress, PHOTOS.portraitBlurry, PHOTOS.dance, PHOTOS.eyesClosed, PHOTOS.portraitA, PHOTOS.couple, PHOTOS.rings]
+const SHOOT = [PHOTOS.familyKiss, PHOTOS.familyBlurry, PHOTOS.wedding, PHOTOS.eyesClosed, PHOTOS.pregnancy, PHOTOS.beachSunset, PHOTOS.goldenField]
 /** The demo plays itself once if nobody touches a key: keep, then set aside. */
 const DEMO: { at: number; arrow: Arrow }[] = [
   { at: 1400, arrow: 'ArrowUp' },

@@ -17,7 +17,7 @@
     "dev:bridge": "vite --mode bridge",
     "models": "node scripts/fetch-models.mjs",
     "app": "tauri dev",
-    "app:fake-pelli": "PELLI_API_URL=http://localhost:3100 tauri dev",
+    "app:fake-pelli": "PELLI_API_URL=http://localhost:3100 PELLI_LICENSE_PUBLIC_KEY=6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw= tauri dev",
     "fake-pelli": "node scripts/fake-pelli.mjs",
     "voices": "node scripts/generate-voices.mjs",
     "build": "tsc --noEmit && vite build",

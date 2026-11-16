@@ -141,6 +141,15 @@ impl Engine {
                 Err(e) => fail(&mut report, "", e.to_string()),
             }
         }
+        self.track(
+            "export_completed",
+            serde_json::json!({
+                "photos": items.len(),
+                "xmp": opts.xmp.enabled,
+                "copied": opts.copy_selected.enabled,
+                "moved": opts.move_rejected.enabled,
+            }),
+        );
         Ok(report)
     }
 

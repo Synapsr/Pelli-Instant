@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, type Account, type AppInfo, type AppSettings, type Language, type Offers, type Plan } from '@/lib/contract'
+import { DEFAULT_SETTINGS, type Account, type AppInfo, type AppSettings, type Language, type Plan } from '@/lib/contract'
 import type { SceneKind } from '@/lib/procedural/types'
 import { WEDDING_SCENES } from './shoot'
 
@@ -57,15 +57,9 @@ export type MockPlan = Plan | 'trial'
 export const MOCK_PLANS: MockPlan[] = ['free', 'lite', 'pro', 'ultra', 'trial']
 
 const PLAN_LABELS: Record<MockPlan, string> = { free: 'Gratuit', lite: 'Lite', pro: 'Pro', ultra: 'Ultra', trial: 'Essai Ultra' }
-const MONTHLY_QUOTA: Record<MockPlan, number | null> = { free: 200, lite: 1000, pro: null, ultra: null, trial: null }
 
-/** First instant of next month (UTC), when the monthly count resets. */
-export function nextMonthStart(at = Date.now()): number {
-  const d = new Date(at)
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)
-}
-
-export function mockAccount(plan: MockPlan, usedThisMonth: number, trialAvailable = false): Account {
+/** A signed-in Pelli account; Pro, Ultra and their trials include Plus. */
+export function mockAccount(plan: MockPlan): Account {
   return {
     name: 'Camille Dubois',
     email: 'camille@studio-dubois.fr',
@@ -74,60 +68,30 @@ export function mockAccount(plan: MockPlan, usedThisMonth: number, trialAvailabl
     plan: plan === 'trial' ? 'ultra' : plan,
     planLabel: PLAN_LABELS[plan],
     trialEndsAt: plan === 'trial' ? Date.now() + 11 * DAY : null,
-    trialAvailable: plan === 'free' && trialAvailable,
     lifetime: false,
-    entitlements: {
-      analyze: true,
-      monthlyQuota: MONTHLY_QUOTA[plan],
-      usedThisMonth,
-      resetsAt: nextMonthStart(),
-      sendToGallery: true,
-    },
+    plus: plan === 'pro' || plan === 'ultra' || plan === 'trial',
   }
 }
 
-// As Pelli's API returns them (2026 catalogue, euros); the app shows what Pelli sends.
-const HIGHLIGHTS: Record<'fr' | 'en', Record<Plan, string[]>> = {
-  fr: {
-    free: ['Tout Pelli à l’essai pendant 15 jours', 'Sans carte bancaire'],
-    lite: ['15 galeries', '10 Go de stockage', '1 heure de vidéo'],
-    pro: ['Galeries illimitées', '100 Go de stockage', 'Lea, l’assistante IA pour vos devis et factures'],
-    ultra: ['1 To de stockage', 'Boutique en ligne pour vendre vos photos', '15 heures de vidéo'],
-  },
-  en: {
-    free: ['All of Pelli free for 15 days', 'No card needed'],
-    lite: ['15 galleries', '10 GB of storage', '1 hour of video'],
-    pro: ['Unlimited galleries', '100 GB of storage', 'Lea, the AI assistant for your quotes and invoices'],
-    ultra: ['1 TB of storage', 'Online store to sell your photos', '15 hours of video'],
-  },
+/** Licence key the mock hands out after a purchase (`?mockPlus=active`). */
+export const MOCK_LICENSE_KEY = 'K7QM-4ZTP-9XRA-7K2Q'
+
+/**
+ * Price of Plus as Pelli's `/plus/offer` answers it: euros in Europe,
+ * dollars elsewhere, formatted in the requested language.
+ */
+export function mockPlusOffer(lang: Language, currency: 'eur' | 'usd' = 'eur'): { amount: number; currency: 'eur' | 'usd'; label: string } {
+  const label = new Intl.NumberFormat(lang, { style: 'currency', currency, maximumFractionDigits: 0, currencyDisplay: 'narrowSymbol' })
+    .format(25)
+    .replace(/\u202f/g, '\u00a0')
+  return { amount: 2500, currency, label }
 }
 
-/** Pelli's offers as the API returns them. */
-export function mockOffers(lang: Language): Offers {
-  const h = HIGHLIGHTS[lang === 'fr' ? 'fr' : 'en']
-  const free = lang === 'fr' ? 'Gratuit' : 'Free'
-  const app = 'https://app.pelli.io'
-  const utm = 'utm_source=pelli-instant'
-  return {
-    currency: 'EUR',
-    trialDays: 15,
-    plans: [
-      { slug: 'free', name: free, monthlyPrice: 0, yearlyPrice: 0, yearlyPricePerMonth: 0, photosPerMonth: 200, highlights: h.free },
-      { slug: 'lite', name: 'Lite', monthlyPrice: 5, yearlyPrice: 60, yearlyPricePerMonth: 5, photosPerMonth: 1000, highlights: h.lite },
-      { slug: 'pro', name: 'Pro', monthlyPrice: 25, yearlyPrice: 180, yearlyPricePerMonth: 15, photosPerMonth: null, highlights: h.pro },
-      { slug: 'ultra', name: 'Ultra', monthlyPrice: 50, yearlyPrice: 420, yearlyPricePerMonth: 35, photosPerMonth: null, highlights: h.ultra },
-    ],
-    links: {
-      register: `${app}/register?${utm}&utm_content=register`,
-      pricing: `${app}/dashboard/billing?${utm}&utm_content=pricing#plans-section`,
-      trial: `${app}/dashboard/billing?${utm}&utm_content=trial`,
-      billing: `${app}/dashboard/billing?${utm}&utm_content=billing`,
-    },
-  }
-}
+/** The events anonymous telemetry knows (contract §telemetry). */
+export const TELEMETRY_EVENTS = ['onboarding_completed', 'app_opened', 'analysis_completed', 'export_completed', 'plus_activated', 'telemetry_disabled']
 
 export const MOCK_APP_INFO: AppInfo = {
-  version: '0.1.0',
+  version: '0.2.0',
   platform: 'macos',
   arch: 'aarch64',
   accelerator: 'CPU',
@@ -136,11 +100,10 @@ export const MOCK_APP_INFO: AppInfo = {
   cpuThreads: 10,
   memoryBytes: 16 * 1024 ** 3,
   cpuCores: 10,
-  noAccount: false,
 }
 
 /** The newer version `?mockUpdate=available` publishes. */
-export const MOCK_UPDATE_VERSION = '0.2.0'
+export const MOCK_UPDATE_VERSION = '0.2.1'
 
 export const MOCK_SETTINGS: AppSettings = {
   theme: 'dark',
@@ -149,6 +112,8 @@ export const MOCK_SETTINGS: AppSettings = {
   background: false,
   precision: 'standard',
   cull: { ...DEFAULT_SETTINGS },
+  telemetry: true,
+  onboarded: true,
   cacheDir: '/Users/camille/Library/Caches/io.pelli.instant',
   cacheSizeBytes: 1_934_000_000,
 }
@@ -217,6 +182,114 @@ export const MOCK_PROJECTS: MockProjectDef[] = [
     shotDaysAgo: 15,
     openedDaysAgo: 14,
     analyzed: null,
+  },
+  {
+    id: 'prj-emma-grossesse',
+    name: 'Séance grossesse Emma',
+    rootPath: `${ROOT}/2026-09-28 Séance grossesse Emma`,
+    count: 168,
+    seed: 57,
+    scenes: ['couple'],
+    twins: false,
+    shotDaysAgo: 49,
+    openedDaysAgo: 19,
+    analyzed: { daysAgo: 45 },
+  },
+  {
+    id: 'prj-sarah-paul',
+    name: 'Mariage Sarah & Paul',
+    rootPath: `${ROOT}/2026-09-05 Mariage Sarah & Paul`,
+    count: 1642,
+    seed: 55,
+    scenes: WEDDING_SCENES,
+    twins: true,
+    shotDaysAgo: 72,
+    openedDaysAgo: 24,
+    analyzed: { daysAgo: 63 },
+  },
+  {
+    id: 'prj-le-gall',
+    name: 'Famille Le Gall',
+    rootPath: `${ROOT}/2026-08-30 Famille Le Gall`,
+    count: 236,
+    seed: 64,
+    scenes: ['groups', 'couple'],
+    twins: false,
+    shotDaysAgo: 78,
+    openedDaysAgo: 31,
+    analyzed: { daysAgo: 70 },
+  },
+  {
+    id: 'prj-clara-evjf',
+    name: 'EVJF Clara',
+    rootPath: `${ROOT}/2026-08-16 EVJF Clara`,
+    count: 412,
+    seed: 72,
+    scenes: ['cocktail', 'party'],
+    twins: true,
+    shotDaysAgo: 92,
+    openedDaysAgo: 38,
+    analyzed: { daysAgo: 88 },
+  },
+  {
+    id: 'prj-camille-antoine',
+    name: 'Mariage Camille & Antoine',
+    rootPath: `${ROOT}/2026-07-25 Mariage Camille & Antoine – Manoir de Kerbiquet`,
+    count: 1928,
+    seed: 81,
+    scenes: WEDDING_SCENES,
+    twins: true,
+    shotDaysAgo: 114,
+    openedDaysAgo: 52,
+    analyzed: { daysAgo: 108 },
+  },
+  {
+    id: 'prj-lou-naissance',
+    name: 'Naissance de Lou',
+    rootPath: `${ROOT}/2026-07-11 Naissance de Lou`,
+    count: 142,
+    seed: 86,
+    scenes: ['prep', 'couple'],
+    twins: false,
+    shotDaysAgo: 128,
+    openedDaysAgo: 66,
+    analyzed: { daysAgo: 125 },
+  },
+  {
+    id: 'prj-helix-corporate',
+    name: 'Portraits corporate Helix',
+    rootPath: `${ROOT}/2026-06-24 Portraits corporate Helix`,
+    count: 318,
+    seed: 93,
+    scenes: ['groups'],
+    twins: true,
+    shotDaysAgo: 145,
+    openedDaysAgo: 80,
+    analyzed: { daysAgo: 140 },
+  },
+  {
+    id: 'prj-julie-mathis',
+    name: 'Mariage Julie & Mathis',
+    rootPath: `${ROOT}/2026-06-13 Mariage Julie & Mathis`,
+    count: 1374,
+    seed: 104,
+    scenes: WEDDING_SCENES,
+    twins: true,
+    shotDaysAgo: 156,
+    openedDaysAgo: 95,
+    analyzed: { daysAgo: 150 },
+  },
+  {
+    id: 'prj-alba-bapteme',
+    name: 'Baptême d’Alba',
+    rootPath: `${ROOT}/2026-05-31 Baptême d’Alba`,
+    count: 274,
+    seed: 117,
+    scenes: ['ceremony', 'groups', 'dinner'],
+    twins: false,
+    shotDaysAgo: 169,
+    openedDaysAgo: 120,
+    analyzed: { daysAgo: 165 },
   },
 ]
 

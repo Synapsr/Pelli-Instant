@@ -1,6 +1,6 @@
 import { Button } from '@heroui/react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, ArrowRight, VolumeX } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Laptop, VolumeX, WifiOff, Zap, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Backdrop } from '@/components/ui/Backdrop'
 import { InstantLogo } from '@/components/ui/Logo'
@@ -13,26 +13,47 @@ import { EyeVisual } from './EyeVisual'
 import { ExportVisual } from './ExportVisual'
 import { HeroVisual } from './HeroVisual'
 import { KeysDemo } from './KeysDemo'
-import { PlanStep } from './PlanStep'
 import { PrecisionVisual } from './PrecisionVisual'
+import { ReadyStep } from './ReadyStep'
 import { Aura } from './Aura'
 import { preloadPhotos } from './photos'
-import { Scene, STEP } from './Scene'
-import { SearchVisual } from './SearchVisual'
+import { EASE, Scene, STEP } from './Scene'
 import { preloadNarration, useNarration } from './voice'
 
-const STEPS = ['welcome', 'eye', 'keys', 'search', 'export', 'precision', 'plan'] as const
+const STEPS = ['welcome', 'eye', 'keys', 'export', 'precision', 'ready'] as const
 type Step = (typeof STEPS)[number]
+
+/** The promise: free, unlimited, no account (the eyebrow), then three facts (copy facts of the 0.2.0 contract). */
+const FACTS: { key: 'local' | 'offline' | 'fast'; icon: LucideIcon }[] = [
+  { key: 'local', icon: Laptop },
+  { key: 'offline', icon: WifiOff },
+  { key: 'fast', icon: Zap },
+]
 
 function Welcome() {
   const t = useT()
   return (
     <Scene
       visual={<HeroVisual />}
-      eyebrow={<span className="glass mb-5 inline-flex h-7 items-center rounded-full px-3 text-[12px] font-medium text-white/75">{t('onboarding.welcome.eyebrow')}</span>}
+      eyebrow={<span className="glass mb-5 inline-flex h-7 items-center rounded-full px-3 text-[12px] font-medium text-white/80">{t('onboarding.welcome.eyebrow')}</span>}
       title={t('onboarding.welcome.title')}
       body={t('onboarding.welcome.body')}
-    />
+    >
+      <ul className="mt-6 flex flex-wrap justify-center gap-2 short:mt-4">
+        {FACTS.map(({ key, icon: Icon }, i) => (
+          <motion.li
+            key={key}
+            initial={{ opacity: 0, y: 6, filter: 'blur(4px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ duration: 0.45, ease: EASE, delay: 0.55 + i * 0.07 }}
+            className="glass inline-flex h-9 items-center gap-2 rounded-full pl-3 pr-3.5 text-[13px] text-white/80"
+          >
+            <Icon className="size-3.5 text-[#b8adf8]" strokeWidth={2.2} aria-hidden />
+            {t(`onboarding.welcome.facts.${key}`)}
+          </motion.li>
+        ))}
+      </ul>
+    </Scene>
   )
 }
 
@@ -58,24 +79,24 @@ function Keys() {
   )
 }
 
-const CONTENT: Record<Step, () => ReactNode> = {
+/** The last step's telemetry choice, kept while the tour goes back and forth. */
+interface ReadyState {
+  telemetry: boolean
+  setTelemetry: (on: boolean) => void
+}
+
+const CONTENT: Record<Step, (ready: ReadyState) => ReactNode> = {
   welcome: () => <Welcome />,
   eye: () => <EyeStep />,
   keys: () => <Keys />,
-  search: () => <SearchStep />,
   export: () => <ExportStep />,
   precision: () => <PrecisionStep />,
-  plan: () => <PlanStep />,
+  ready: ({ telemetry, setTelemetry }) => <ReadyStep telemetry={telemetry} onTelemetry={setTelemetry} />,
 }
 
 function EyeStep() {
   const t = useT()
   return <Scene visual={<EyeVisual />} title={t('onboarding.eye.title')} body={t('onboarding.eye.body')} />
-}
-
-function SearchStep() {
-  const t = useT()
-  return <Scene visual={<SearchVisual />} title={t('onboarding.search.title')} body={t('onboarding.search.body')} />
 }
 
 function ExportStep() {
@@ -164,14 +185,18 @@ function Progress({ index, onGo }: { index: number; onGo: (to: number) => void }
 }
 
 /**
- * Welcome tour, shown once after the first sign-in (and from Settings →
- * About). Apple keynote style: one idea per step, shown live with real
- * photos (what the analysis catches, the keyboard, search, the export to
- * Lightroom), then the precision of the analysis and what the Pelli plan gives.
+ * The welcome, shown at the first launch (and from Settings → About). Apple
+ * keynote style: the promise first (free, unlimited, no account, on your
+ * computer), then one idea per step, shown live with real photos (what the
+ * analysis catches, the keyboard, the export to Lightroom), the precision
+ * (Standard free, Maximum with Plus), and the anonymous statistics switch.
  */
 export function Onboarding() {
   const t = useT()
-  const finish = useAppStore((s) => s.finishOnboarding)
+  const finishOnboarding = useAppStore((s) => s.finishOnboarding)
+  // Pre-checked the first time; a replay from the settings shows the current choice.
+  const [telemetry, setTelemetry] = useState(() => useAppStore.getState().settings?.telemetry ?? true)
+  const finish = useCallback(() => finishOnboarding(telemetry), [finishOnboarding, telemetry])
   const [index, setIndex] = useState(0)
   const step = STEPS[index]
   const last = index === STEPS.length - 1
@@ -195,7 +220,7 @@ export function Onboarding() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return
-      const onControl = (e.target as HTMLElement | null)?.closest?.('button, a, input, [role="radio"]')
+      const onControl = (e.target as HTMLElement | null)?.closest?.('button, a, input, pre, [role="radio"], [role="switch"]')
       if (e.key === 'Enter' && !onControl) {
         e.preventDefault()
         go(index + 1)
@@ -220,7 +245,8 @@ export function Onboarding() {
         <AnimatePresence initial={false}>
           {!last && (
             <motion.div className="ml-auto" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.15 } }}>
-              <Button size="sm" radius="full" variant="light" className="text-white/50 hover:text-white" onPress={finish}>
+              {/* Skipping lands on the last step: the statistics choice is never skipped. */}
+              <Button size="sm" radius="full" variant="light" className="text-white/50 hover:text-white" onPress={() => go(STEPS.length - 1)}>
                 {t('onboarding.skip')}
               </Button>
             </motion.div>
@@ -239,7 +265,7 @@ export function Onboarding() {
             exit="exit"
             className="my-auto w-full"
           >
-            {CONTENT[step]()}
+            {CONTENT[step]({ telemetry, setTelemetry })}
           </motion.section>
         </AnimatePresence>
       </main>

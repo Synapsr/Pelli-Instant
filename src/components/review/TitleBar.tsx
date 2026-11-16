@@ -1,7 +1,7 @@
 import { Button, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Tooltip } from '@heroui/react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ChevronLeft, Ellipsis, FolderSearch, Keyboard, Microscope, RefreshCw, Search, Share } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ChevronLeft, Ellipsis, FolderSearch, Keyboard, Lock, Microscope, RefreshCw, Search, Share } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { WindowBar } from '@/components/ui/WindowBar'
 import { UpdateNotice } from '@/components/update/UpdateNotice'
@@ -13,6 +13,7 @@ import { isMac, modLabel } from '@/lib/platform'
 import type { FilterTab } from '@/lib/review/view'
 import { DecisionDot } from '@/components/ui/Decision'
 import { useAppStore } from '@/store/app-store'
+import { usePlusStore } from '@/store/plus-store'
 import { useReviewStore } from '@/store/review-store'
 import { useWorkspaceStore } from '@/store/workspace-store'
 import { SearchField } from './SearchField'
@@ -20,6 +21,40 @@ import { SensitivityPopover } from './SensitivityPopover'
 
 /** "All" first: the whole shoot, then its three piles. */
 const TABS: ('all' | 'selected' | 'toReview' | 'rejected')[] = ['all', 'selected', 'toReview', 'rejected']
+
+/**
+ * AI search is part of Plus: without it, the search icon carries a small
+ * lock and opens the Plus dialog (⌘F too).
+ */
+function LockedSearch() {
+  const t = useT()
+  const openDialog = usePlusStore((s) => s.openDialog)
+  const focusTick = useWorkspaceStore((s) => s.searchFocusTick)
+  const seen = useRef(focusTick)
+  useEffect(() => {
+    if (focusTick === seen.current) return
+    seen.current = focusTick
+    openDialog('search')
+  }, [focusTick, openDialog])
+  return (
+    <Tooltip content={t('review.search.locked')} delay={400} closeDelay={0}>
+      <Button
+        isIconOnly
+        size="sm"
+        variant="light"
+        radius="full"
+        aria-label={t('review.search.locked')}
+        onPress={() => openDialog('search')}
+        className="relative h-8 w-8 min-w-8 text-default-500 hover:text-foreground"
+      >
+        <Search className="size-4" />
+        <span aria-hidden className="absolute bottom-0.5 right-0.5 flex size-3.5 items-center justify-center rounded-full bg-[#5840f0] text-white shadow-[0_0_0_2px_#161616]">
+          <Lock className="size-2" strokeWidth={3} />
+        </span>
+      </Button>
+    </Tooltip>
+  )
+}
 
 /** AI search folded into an icon until it is used (⌘F opens it). */
 function SearchToggle() {
@@ -72,7 +107,8 @@ function SearchToggle() {
 export function TitleBar() {
   const t = useT()
   const project = useReviewStore((s) => s.project)
-  const refine = useAppStore((s) => s.settings?.precision === 'maximum' && s.appInfo?.capabilities.maximum === true) && project?.precision === 'standard'
+  const plus = usePlusStore((s) => s.status.active)
+  const refine = useAppStore((s) => s.settings?.precision === 'maximum' && s.appInfo?.capabilities.maximum === true) && plus && project?.precision === 'standard'
   const tab = useReviewStore((s) => s.filters.tab)
   const counts = useReviewStore((s) => s.tabCounts)
   const total = useReviewStore((s) => s.dateOrder.length)
@@ -124,7 +160,7 @@ export function TitleBar() {
 
       <div className="relative ml-auto flex items-center gap-1">
         <UpdateNotice compact />
-        <SearchToggle />
+        {plus ? <SearchToggle /> : <LockedSearch />}
         <SensitivityPopover />
         <Dropdown placement="bottom-end">
           <DropdownTrigger>

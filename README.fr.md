@@ -4,9 +4,12 @@
 
 # Pelli Instant
 
-**Le tri photo par IA, open source, pour Mac et Windows.**<br />
-Déposez une séance : les photos floues, les yeux fermés et les doublons sont écartés, les meilleures sont gardées. Sur votre ordinateur.
+**Le tri photo par IA gratuit pour Mac et Windows. Illimité, sans compte, 100 % sur votre ordinateur.**<br />
+Déposez une séance : les photos floues, les yeux fermés et les doublons sont écartés, les meilleures sont gardées. Environ 1 000 photos en moins d'une minute.
 
+[![Gratuit et illimité](https://img.shields.io/badge/gratuit-illimit%C3%A9-brightgreen)](#pelli-instant-plus)
+[![Sans compte](https://img.shields.io/badge/compte-aucun-brightgreen)](#confidentialité-et-télémétrie)
+[![100 % local](https://img.shields.io/badge/photos-restent%20sur%20votre%20ordinateur-brightgreen)](#confidentialité-et-télémétrie)
 [![Dernière version](https://img.shields.io/github/v/release/Synapsr/Pelli-Instant?include_prereleases&sort=semver&label=version)](https://github.com/Synapsr/Pelli-Instant/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/Synapsr/Pelli-Instant/ci.yml?branch=main&label=CI)](https://github.com/Synapsr/Pelli-Instant/actions/workflows/ci.yml)
 [![Licence MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
@@ -26,9 +29,12 @@ Déposez une séance : les photos floues, les yeux fermés et les doublons sont 
 
 Pelli Instant trie vos séances photo à votre place. Déposez un dossier de RAW ou de JPEG : il repère les photos floues ou bougées, les yeux fermés, les erreurs d'exposition et les doublons, garde la meilleure image de chaque rafale, et répartit la séance en **Sélectionnées**, **À vérifier** et **Rejetées**. Vous repassez derrière lui au clavier, vous corrigez ce qui ne vous convient pas, puis vous exportez : étoiles et étiquettes de couleur pour Lightroom, Capture One ou Bridge, copie de la sélection, ou rejets rangés dans un sous-dossier.
 
-Tout se passe sur votre ordinateur. Le tri n'envoie jamais vos photos nulle part : les modèles d'IA tournent en local avec ONNX Runtime, sur le processeur des Mac Apple Silicon (le plus rapide pour eux) et accélérés par DirectML sous Windows. Aucune télémétrie.
+- **Gratuit et illimité.** Triez autant de séances que vous voulez, en précision Standard, sans rien payer et sans limite mensuelle.
+- **Sans compte.** Téléchargez, ouvrez, déposez un dossier. Aucune inscription.
+- **100 % local.** Les modèles d'IA tournent sur votre ordinateur avec ONNX Runtime, sur le processeur des Mac Apple Silicon (le plus rapide pour eux) et accélérés par DirectML sous Windows. Vos photos ne quittent jamais votre ordinateur, et le tri marche hors ligne.
+- **Rapide.** Des dizaines de photos par seconde : un bêta-testeur a trié 854 photos en 10 secondes environ.
 
-Pelli Instant est développé par l'équipe de [Pelli](https://pelli.io), la plateforme où les photographes livrent et vendent leur travail. L'app est gratuite et open source. Les versions officielles demandent un compte Pelli, gratuit.
+Pelli Instant est développé par l'équipe de [Pelli](https://pelli.io), la plateforme où les photographes livrent et vendent leur travail. L'app est open source, sous licence MIT. [Pelli Instant Plus](#pelli-instant-plus), facultatif et payé une seule fois, ajoute la précision maximale et la recherche IA.
 
 Vous cherchez une alternative open source à Aftershoot, Narrative Select ou FilterPixel, qui garde vos photos sur votre ordinateur ? C'est exactement ce que fait Pelli Instant.
 
@@ -42,13 +48,14 @@ Vous cherchez une alternative open source à Aftershoot, Narrative Select ou Fil
 <p align="center">
   <img src="docs/images/fr/review.webp" width="760" alt="Vérification d'une séance : les photos sélectionnées avec leur note, À vérifier et Rejetées à un clic" />
   <br />
-  <sub>Photos de photographes Flickr sous licence CC BY 2.0 et CC0 : <a href="docs/images/CREDITS.md">crédits</a>.</sub>
+  <sub>Photos : Pexels (<a href="docs/images/CREDITS.md">crédits</a>). Les verdicts sont ceux de l'app.</sub>
 </p>
 
 ## Fonctionnalités
 
 | Fonctionnalité | Ce qu'elle fait |
 | --- | --- |
+| **Gratuit, illimité, sans compte** | Chaque analyse se fait sur votre ordinateur : pas de quota, pas de connexion, pas besoin d'internet. |
 | **Une netteté fiable** | Mesure la largeur des contours, pas leur contraste : faible profondeur de champ, ISO élevés et lumière douce ne passent pas pour du flou. Quand il y a un visage, c'est sa netteté qui compte : un visage net sur un bokeh crémeux est net, un fond net derrière un visage flou est signalé *Mise au point sujet*. |
 | **Le bougé** | Distingue le bougé de l'appareil ou du sujet d'une texture orientée comme des cheveux, une fourrure ou un tissu. |
 | **Les yeux fermés** | Lit les yeux des visages de la photo, et distingue un clignement d'un sourire qui plisse les yeux. En Équilibrée et en Souple, des yeux fermés envoient la photo à vérifier, jamais seuls aux rejets : un baiser ou une prière les ferment exprès. |
@@ -56,9 +63,9 @@ Vous cherchez une alternative open source à Aftershoot, Narrative Select ou Fil
 | **Rafales et doublons** | Regroupe les images semblables prises à quelques secondes d'écart par le même boîtier, et garde la meilleure, ou les meilleures. Les copies exactes sont retrouvées quelle que soit leur date. |
 | **Trois sévérités** | Stricte, Équilibrée ou Souple. Changer de sévérité retrie la séance instantanément, sans tout réanalyser. |
 | **Vos critères** | Avant la première analyse d'une séance, activez ou désactivez chaque vérification : flou, bougé, mise au point sur le sujet, yeux fermés, sous- et surexposition, images similaires, doublons exacts. *Respecter le flou artistique* est là pour le bokeh et le flou voulu. Chaque séance garde ses propres critères ; ceux par défaut sont dans *Réglages → Analyse*. |
-| **Précision Standard ou Maximale** | *Standard* est livrée avec l'app et rapide. *Maximale* est un téléchargement facultatif de modèles plus grands (environ 777 Mo), depuis *Réglages → Analyse* : des choix plus fins sur les photos de groupe, les rafales et les sujets sans visage, pour une analyse plus lente. Tant qu'elle n'est pas installée, les analyses se font en Standard. |
+| **La précision Standard, gratuite** | Les modèles livrés avec l'app : rapides, et déjà très fins. La précision *Maximale*, avec des modèles plus grands, fait partie de [Plus](#pelli-instant-plus). |
 | **Le tri au clavier** | Grille, loupe avec zoom à 100 %, comparaison côte à côte d'une rafale. Toutes les photos ou une décision à la fois, filtre par raison (Floue, Yeux fermés…). Dans la loupe, ↑ garde et ↓ rejette, ⌥← / ⌥→ parcourent une rafale ; les touches de Lightroom P, X et U marchent partout. |
-| **La recherche IA** | Tapez « mariée bouquet », « première danse » ou « robe bleue » et les bonnes photos remontent en tête. |
+| **La recherche IA** (Plus) | Tapez « mariée bouquet », « première danse » ou « robe bleue » et les bonnes photos remontent en tête. |
 | **Des notes pour Lightroom** | Écrit étoiles et étiquettes de couleur dans un fichier `.xmp` à côté de chaque RAW, pour Lightroom, Capture One, Bridge ou darktable. Vous choisissez à l'export les étoiles et la couleur de chaque décision (par défaut : Sélectionnées ★★★ vert, À vérifier jaune, Rejetées en rejet). Les étoiles données dans le boîtier comptent comme les vôtres, un `.xmp` existant garde tous ses réglages, et les étoiles et étiquettes d'un autre logiciel restent, sauf si vous les changez dans Pelli Instant. |
 | **La copie de la sélection** | RAW, JPEG ou les deux, dans le dossier de votre choix, sous-dossiers compris. Pelli Instant vous dit combien de place prendra la copie. Chaque fichier est copié en entier ou pas du tout, et un nouvel export ne copie pas deux fois la même photo. |
 | **Les rejets rangés** | Déplace les rejets dans un sous-dossier `_Rejets Pelli`, à côté des originaux : un RAW, son JPEG et son `.xmp` partent ensemble. Rien n'est supprimé. |
@@ -66,7 +73,7 @@ Vous cherchez une alternative open source à Aftershoot, Narrative Select ou Fil
 | **Ça avance sans vous** | Une analyse, un export ou le téléchargement de la précision Maximale empêchent l'ordinateur de se mettre en veille et, sur Mac, gardent toute leur vitesse fenêtre masquée. L'écran peut toujours s'éteindre. |
 | **La plupart des appareils** | Canon CR2 et CR3, Nikon NEF, Sony ARW, Fujifilm RAF, DNG, Olympus et OM System ORF, Panasonic RW2, Pentax PEF, Samsung SRW, ainsi que JPEG, PNG et TIFF. |
 | **Reprendre là où vous en étiez** | Vos projets restent sur l'écran d'accueil. Rouvrir un dossier n'analyse que les photos nouvelles ou modifiées. |
-| **Un démarrage guidé** | Une courte présentation au premier lancement, avec une voix que vous pouvez couper : comment il juge une photo, les raccourcis, la recherche, les exports, la précision et ce que comprend votre formule Pelli. À revoir depuis *Réglages → À propos*. |
+| **Un démarrage guidé** | Une courte présentation au premier lancement, avec une voix que vous pouvez couper : comment il juge une photo, les raccourcis, les exports, la précision, et le choix de partager ou non des statistiques anonymes. À revoir depuis *Réglages → À propos*. |
 | **Pensé pour juger des photos** | Une interface sombre et neutre, comme Lightroom, pour juger les couleurs sur un fond neutre. En 9 langues. |
 
 ### Clavier
@@ -82,36 +89,42 @@ Vous cherchez une alternative open source à Aftershoot, Narrative Select ou Fil
 | <kbd>Espace</kbd> | Loupe |
 | <kbd>C</kbd> | Comparer |
 | <kbd>Z</kbd> | Zoom 100 % |
-| <kbd>⌘</kbd> <kbd>F</kbd> | Recherche IA |
+| <kbd>⌘</kbd> <kbd>F</kbd> | Recherche IA (Plus) |
 | <kbd>⌘</kbd> <kbd>E</kbd> | Exporter |
 | <kbd>?</kbd> | Tous les raccourcis |
 
 Sous Windows, <kbd>Ctrl</kbd> remplace <kbd>⌘</kbd>. Sur un clavier AZERTY, les chiffres se tapent sans <kbd>Maj</kbd>.
 
 <p align="center">
-  <img src="docs/images/fr/onboarding.webp" width="600" alt="La présentation de Pelli Instant : trier avec les flèches, ↑ pour garder et ↓ pour rejeter" />
+  <img src="docs/images/fr/loupe.webp" width="760" alt="La loupe : une photo de famille avec sa décision, ses notes et un gros plan de chaque visage avec ses yeux" />
 </p>
 
-## Forfaits
+## Pelli Instant Plus
 
-Pelli Instant est gratuit. Les versions officielles vous demandent de vous connecter avec un compte Pelli, [gratuit à créer](https://app.pelli.io/register) : c'est la seule condition. Le nombre de photos que vous pouvez trier chaque mois dépend de votre forfait Pelli.
+Le tri reste gratuit et illimité. **Plus**, c'est pour vos séances les plus exigeantes : **25 € en Europe, 25 $ ailleurs, payés une seule fois**, pour un ordinateur. Pas d'abonnement, pas de compte, mises à jour de Plus incluses.
 
-| Forfait Pelli | Photos triées par mois |
+| Avec Plus | Ce que ça apporte |
 | --- | --- |
-| Gratuit | 200 |
-| Lite | 1 000 |
-| Pro | Illimité |
-| Ultra | Illimité |
-| Essai gratuit | Illimité |
+| **La précision maximale** | 5 modèles de plus, environ 777 Mo à télécharger une fois : RetinaFace ResNet-50 trouve les petits visages des photos de groupe (un second passage à 1 280 px), DINOv2 regroupe les rafales et les quasi-doublons (il sépare les doublons des scènes différentes environ deux fois plus nettement que le CLIP B/32 de la précision Standard : +0,25 de cosinus contre +0,11), CLIP ViT-L/14 (un modèle de vision environ 3,5 fois plus grand) pour la recherche et la note esthétique, RF-DETR-Seg juge les sujets sans visage exploitable (de dos, les animaux), avec la note esthétique LAION V2. Plus lent, plus fin. |
+| **La recherche IA** | Tapez « première danse », « robe bleue » ou « blue dress » : les bonnes photos remontent en tête. |
+| **Aucune promotion Pelli** | La version gratuite montre deux petites cartes Pelli, sur l'écran d'accueil et à la fin d'un export. Plus les retire. |
 
-- Un RAW et son JPEG jumeau comptent pour une seule photo.
-- Retrier ne compte pas : changer de sévérité ou de précision, rouvrir un projet ou réanalyser un dossier ne compte que les photos jamais vues.
-- Le compteur repart à zéro le premier jour de chaque mois (heure UTC).
+- **Une clé par ordinateur, transférable.** Le paiement se fait avec Stripe dans votre navigateur, et l'app s'active toute seule. Votre clé (`XXXX-XXXX-XXXX-XXXX`) s'affiche dans l'app et sur la page de confirmation : pour passer Plus sur un autre ordinateur, *Libérer cette licence* dans *Réglages → Pelli Instant Plus*, puis saisissez la clé sur l'autre. Réinstaller sur le même ordinateur demande seulement de ressaisir la clé.
+- **Discret.** Pelli ne garde ni nom, ni e-mail, ni pays pour Plus : seulement la clé, une empreinte de l'identifiant de votre ordinateur et la référence du paiement. Stripe s'occupe du paiement et envoie le reçu, comme pour tout paiement Pelli. Une fois activé, Plus marche hors ligne.
+- **Déjà chez Pelli en Pro ou Ultra ?** Plus est inclus (offres à vie et essais Pro ou Ultra compris) : connectez-vous avec votre compte Pelli dans *Réglages → Pelli Instant Plus*.
 
-Les prix et le contenu de chaque forfait viennent de Pelli, dans l'app comme sur [pelli.io](https://pelli.io). Les forfaits Pelli couvrent aussi tout ce que Pelli fait sur le web : galeries clients, vente en ligne, devis et factures, prise de rendez-vous.
+<p align="center">
+  <img src="docs/images/fr/plus.webp" width="760" alt="L'offre Pelli Instant Plus : précision maximale, recherche IA, aucune promotion, un seul paiement" />
+</p>
 
-> [!NOTE]
-> **Vous le compilez vous-même ?** Pelli Instant est sous licence MIT, et vous pouvez désactiver le compte et le quota à la compilation : `PELLI_INSTANT_NO_ACCOUNT=1 pnpm tauri dev`, ou la même variable devant `pnpm tauri build` (voir [Building an installer yourself](docs/contributing.md#building-an-installer-yourself), en anglais). Les versions officielles, signées et avec le compte, sont ce qui finance le projet chez Pelli.
+### Bientôt
+
+- **Des conseils d'IA en local**, dans Plus : un modèle facultatif, lui aussi sur votre ordinateur, qui commente chaque photo ou toute une séance.
+- **Des statistiques détaillées**, dans Plus : votre taux de photos gardées, les raisons des rejets et plus, sur toutes vos séances.
+
+<p align="center">
+  <img src="docs/images/fr/onboarding.webp" width="600" alt="La présentation de Pelli Instant : votre séance, triée en un instant. Gratuit, illimité, sans compte" />
+</p>
 
 ## Installer
 
@@ -122,7 +135,7 @@ Les prix et le contenu de chaque forfait viennent de Pelli, dans l'app comme sur
 | macOS 12 ou plus récent, Apple Silicon (M1 ou plus récent) | [PelliInstant-macos-arm64.dmg](https://github.com/Synapsr/Pelli-Instant/releases/latest/download/PelliInstant-macos-arm64.dmg)|
 | Windows 10 et 11 (x64) | [PelliInstant-windows-x64-setup.exe](https://github.com/Synapsr/Pelli-Instant/releases/latest/download/PelliInstant-windows-x64-setup.exe) |
 
-Les modèles Standard sont livrés dans l'installeur : Pelli Instant fonctionne dès qu'il est installé ; ceux de la précision Maximale se téléchargent depuis l'app, seulement si vous la choisissez. Chaque téléchargement est accompagné de son empreinte SHA-256 (`.sha256`), et chaque version produite par le [workflow de publication](.github/workflows/release.yml) fournit un fichier `SHA256SUMS` et une [attestation de build](https://docs.github.com/actions/security-for-github-actions/using-artifact-attestations) vérifiable avec `gh attestation verify <fichier> --repo Synapsr/Pelli-Instant`.
+Les modèles Standard sont livrés dans l'installeur : Pelli Instant fonctionne dès qu'il est installé, hors ligne compris ; ceux de la précision Maximale se téléchargent depuis l'app, avec Plus, seulement si vous la choisissez. Chaque téléchargement est accompagné de son empreinte SHA-256 (`.sha256`), et chaque version produite par le [workflow de publication](.github/workflows/release.yml) fournit un fichier `SHA256SUMS` et une [attestation de build](https://docs.github.com/actions/security-for-github-actions/using-artifact-attestations) vérifiable avec `gh attestation verify <fichier> --repo Synapsr/Pelli-Instant`.
 
 <details>
 <summary><b>Mac Intel</b></summary>
@@ -141,7 +154,7 @@ L'installeur Windows n'est pas encore signé par un certificat de signature de c
 <details>
 <summary><b>Linux</b></summary>
 
-Il n'y a pas de version Linux. Le moteur compile et ses tests passent sous Linux dans la CI, et `pnpm tauri dev` peut démarrer, mais l'app n'y est ni empaquetée ni testée. Sous Linux, le jeton de connexion serait rangé dans la base locale de l'app plutôt que dans un trousseau système.
+Il n'y a pas de version Linux. Le moteur compile et ses tests passent sous Linux dans la CI, et `pnpm tauri dev` peut démarrer, mais l'app n'y est ni empaquetée ni testée. Sous Linux, le jeton du compte Pelli facultatif serait rangé dans la base locale de l'app plutôt que dans un trousseau système.
 
 </details>
 
@@ -168,18 +181,41 @@ pnpm models         # télécharge une fois les modèles Standard (environ 223 M
 pnpm tauri dev      # lance l'app en développement
 ```
 
-`PELLI_INSTANT_NO_ACCOUNT=1 pnpm tauri dev` la lance sans compte Pelli et sans quota. Pour travailler sur l'interface seule, lancez `pnpm dev` et ouvrez <http://localhost:1420> : un moteur simulé dans le navigateur, sans compiler le Rust. Produire un installeur avec les modèles, et tout le reste : [docs/contributing.md](docs/contributing.md).
+Compilée depuis les sources, elle trie exactement comme l'app officielle : gratuite, illimitée, sans compte. Pour travailler sur l'interface seule, lancez `pnpm dev` et ouvrez <http://localhost:1420> : un moteur simulé dans le navigateur, sans compiler le Rust. Produire un installeur avec les modèles, un faux Pelli pour travailler sur Plus et la télémétrie, et tout le reste : [docs/contributing.md](docs/contributing.md) (en anglais).
 
-## Confidentialité
+## Confidentialité et télémétrie
 
-- **Vos photos sont triées sur votre ordinateur.** Pelli Instant les lit là où elles sont ; le tri ne les envoie jamais nulle part. Ses mesures, ses décisions et vos marquages restent dans une base locale, ses aperçus dans un dossier de cache, tous deux dans votre compte utilisateur ([où exactement](docs/architecture.md#where-data-lives)).
+- **Vos photos sont triées sur votre ordinateur.** Pelli Instant les lit là où elles sont ; le tri ne les envoie jamais nulle part, pas même leurs noms de fichier. Ses mesures, ses décisions et vos marquages restent dans une base locale, ses aperçus dans un dossier de cache, tous deux dans votre compte utilisateur ([où exactement](docs/architecture.md#where-data-lives)).
 - **Vos dossiers restent intacts jusqu'à l'export.** L'export écrit des fichiers `.xmp` à côté de vos RAW, copie la sélection où vous le décidez, ou déplace les rejets dans `_Rejets Pelli`. Vos fichiers photo ne sont jamais modifiés ni supprimés.
-- **Ce que reçoit Pelli.** Avec un compte, l'app ne parle à Pelli (`app.pelli.io`) que pour trois choses. Vous connecter, dans votre navigateur : Pelli reçoit le nom de votre ordinateur, affiché sur la page d'autorisation ; le jeton est ensuite rangé dans le Trousseau macOS ou le Gestionnaire d'identification Windows. Lire votre forfait et les forfaits actuels de Pelli. Compter les photos que vous triez : avant une analyse, le nombre de photos triées pour la première fois ; après, le nombre de celles qu'elle n'a pas pu trier, rendues. Chaque requête indique aussi la version de l'app, le système (macOS ou Windows) et la langue de l'interface. Pour le compte et le quota, Pelli ne reçoit jamais vos photos, ni leurs noms de fichier, ni leur contenu.
-- **Ce que l'app télécharge.** Les modèles de la précision Maximale, seulement si vous la choisissez : depuis Hugging Face (`huggingface.co`) et l'espace de stockage de Pelli (`pelli.s3.fr-par.scw.cloud`), chaque fichier étant vérifié par son empreinte SHA-256. Les mises à jour : l'app lit le fichier `latest.json` de la dernière version publiée sur GitHub, et ne télécharge une mise à jour que lorsque vous l'installez.
-- **Les modèles d'IA** sont des fichiers figés, à des versions fixées, et leur empreinte SHA-256 est vérifiée au chargement. Depuis les sources, `pnpm models` les télécharge une fois depuis Hugging Face et les autres sources listées dans [`models/manifest.json`](models/manifest.json).
-- **Ni statistiques, ni télémétrie, ni rapport de plantage.** La télémétrie propre à ONNX Runtime est désactivée.
-- **Sans compte** (versions compilées avec `PELLI_INSTANT_NO_ACCOUNT=1`), Pelli Instant ne parle jamais à `app.pelli.io`. Les modèles de la précision Maximale, si vous les téléchargez, viennent quand même en partie de l'espace de stockage de Pelli.
-- **Se déconnecter** efface le jeton de votre ordinateur ; vos projets restent. **Retirer un projet** de l'écran d'accueil efface ses aperçus et son analyse, jamais vos photos. **Supprimer la précision Maximale** (*Réglages → Analyse*) libère ses 777 Mo.
+- **Sans compte, sans connexion.** Rien à créer, rien à quoi se connecter.
+
+### Les statistiques anonymes
+
+Pelli Instant envoie quelques statistiques anonymes à Pelli (`app.pelli.io`), pour savoir combien de personnes l'utilisent et à quelle vitesse il trie. **Elles sont activées par défaut et un interrupteur les coupe :** à la dernière étape de la présentation (avec le détail de ce qui est envoyé), ou plus tard dans *Réglages → Confidentialité*. Le code est dans [`crates/cull-engine/src/telemetry.rs`](crates/cull-engine/src/telemetry.rs).
+
+| Événement | Quand | Ce qu'il dit |
+| --- | --- | --- |
+| `onboarding_completed` | La présentation est terminée | Rien de plus |
+| `app_opened` | Au lancement, au plus une fois par jour | Rien de plus |
+| `analysis_completed` | Un tri est terminé | Le nombre de photos (RAW, JPEG), la durée, la précision, combien sont sélectionnées, à vérifier et rejetées, le nombre de rafales |
+| `export_completed` | Un export est terminé | Le nombre de photos et les sorties choisies (notes, copie, rejets rangés) |
+| `plus_activated` | Plus vient d'être activé | Comment : achat, clé ou compte Pelli |
+| `telemetry_disabled` | Vous avez coupé les statistiques | Rien de plus : c'est le dernier message |
+
+Chaque message porte aussi un identifiant d'installation aléatoire (un nombre tiré au hasard, sans lien avec votre ordinateur, une licence ou un compte), la version de l'app, le système (Mac, Windows), le type de processeur (arm64, x64) et la langue de l'app. Jamais une photo, un nom de fichier, un dossier, votre nom ni rien de personnel. Pelli ne garde aucune adresse IP avec eux.
+
+- **Coupées pendant la présentation, rien n'est jamais envoyé.**
+- **Coupées plus tard**, l'app envoie un dernier `telemetry_disabled`, puis plus rien, et efface l'identifiant. Les réactiver en crée un nouveau.
+- Chaque message part en arrière-plan (5 s au plus, sans nouvel essai, rien n'est gardé sur le disque) : les statistiques ne ralentissent et ne bloquent jamais rien.
+
+### Ce qui parle aussi à internet
+
+- **Pelli Instant Plus, si vous l'utilisez.** Afficher le prix le demande à Pelli (Pelli lit votre pays depuis la connexion pour choisir euros ou dollars, et ne le garde pas). Acheter envoie une empreinte de l'identifiant de votre ordinateur, la langue, le système et la version de l'app, puis attend le paiement. Activer une clé envoie la clé et cette empreinte. Au plus une fois par jour en ligne, l'app vérifie que la licence est toujours valable ; la précision Maximale se télécharge depuis des liens que Pelli donne après avoir vérifié la licence, et chaque fichier est vérifié par son empreinte SHA-256.
+- **Le compte Pelli facultatif**, seulement si vous vous connectez pour obtenir Plus avec un forfait Pro ou Ultra : Pelli reçoit le nom de votre ordinateur, affiché sur la page d'autorisation dans votre navigateur ; le jeton est ensuite rangé dans le Trousseau macOS ou le Gestionnaire d'identification Windows. Se déconnecter l'efface.
+- **Les mises à jour** : l'app lit le fichier `latest.json` de la dernière version publiée sur GitHub, et ne télécharge une mise à jour que lorsque vous l'installez.
+- Les requêtes à Pelli indiquent la version de l'app, le système et la langue de l'interface. **Aucun rapport de plantage.** La télémétrie propre à ONNX Runtime est désactivée.
+- **Les modèles d'IA** sont des fichiers figés, à des versions fixées, et leur empreinte SHA-256 est vérifiée au chargement. Depuis les sources, `pnpm models` télécharge une fois les modèles Standard depuis Hugging Face et les autres sources listées dans [`models/manifest.json`](models/manifest.json).
+- **Retirer un projet** de l'écran d'accueil efface ses aperçus et son analyse, jamais vos photos. **Supprimer la précision Maximale** (*Réglages → Analyse*) libère ses 777 Mo.
 
 ## Langues
 
@@ -192,30 +228,37 @@ pnpm tauri dev      # lance l'app en développement
 <details>
 <summary><b>Pelli Instant est-il gratuit ?</b></summary>
 
-Oui. L'app est libre et gratuite, sous licence MIT. Les versions officielles demandent un compte Pelli, gratuit, et trient 200 photos par mois avec le forfait Gratuit, 1 000 avec Lite, et autant que vous voulez avec Pro, Ultra ou pendant l'essai gratuit. Si vous la compilez vous-même, vous pouvez désactiver le compte.
-
-</details>
-
-<details>
-<summary><b>Pourquoi un compte Pelli pour les versions officielles ?</b></summary>
-
-Parce que c'est ainsi que Pelli finance le travail sur Pelli Instant : le quota mensuel est lié aux forfaits Pelli. Le compte ne sert qu'à vous connecter et à compter les photos. Le code reste ouvert, et chacun peut le compiler sans compte.
+Oui, et sans limite : triez autant de photos que vous voulez, en précision Standard, sans compte. L'app est open source, sous licence MIT. [Plus](#pelli-instant-plus) est facultatif : 25 € en Europe ou 25 $ ailleurs, une seule fois, pour la précision maximale, la recherche IA et aucune carte Pelli.
 
 </details>
 
 <details>
 <summary><b>Précision Standard ou Maximale ?</b></summary>
 
-La précision Standard est livrée avec l'app, rapide, et convient à la plupart des séances. La Maximale ajoute des modèles plus grands, environ 777 Mo à télécharger une fois : un second détecteur de visages pour les photos de groupe, un modèle qui distingue plus nettement les rafales et les quasi-doublons des scènes différentes, un modèle CLIP plus grand pour la recherche et la note esthétique, et le contour des personnes et des animaux, pour qu'un sujet sans visage visible (de dos, en contre-jour) soit jugé sur sa propre netteté et sa propre exposition. L'analyse est plus lente et demande plus de mémoire.
+La précision Standard est livrée avec l'app, rapide, et convient à la plupart des séances. La Maximale, comprise dans Plus, ajoute des modèles plus grands, environ 777 Mo à télécharger une fois : un second détecteur de visages pour les photos de groupe, un modèle qui distingue plus nettement les rafales et les quasi-doublons des scènes différentes, un modèle CLIP plus grand pour la recherche et la note esthétique, et le contour des personnes et des animaux, pour qu'un sujet sans visage visible (de dos, en contre-jour) soit jugé sur sa propre netteté et sa propre exposition. L'analyse est plus lente et demande plus de mémoire.
 
-Choisissez-la dans *Réglages → Analyse → Précision* (ou pendant la présentation) : le téléchargement démarre en arrière-plan, reprend là où il s'était arrêté si vous le mettez en pause ou quittez l'app, et chaque fichier est vérifié avant usage. En attendant, les analyses se font en Standard. Une séance déjà triée peut être réanalysée en Maximale ; les photos retriées ne comptent jamais dans votre quota.
+Avec Plus, choisissez-la dans *Réglages → Analyse → Précision* (ou pendant la présentation) : le téléchargement démarre en arrière-plan, reprend là où il s'était arrêté si vous le mettez en pause ou quittez l'app, et chaque fichier est vérifié avant usage. En attendant, les analyses se font en Standard. Une séance déjà triée peut être réanalysée en Maximale.
+
+</details>
+
+<details>
+<summary><b>Comment passer Plus sur un autre ordinateur ?</b></summary>
+
+Sur l'ancien ordinateur, *Réglages → Pelli Instant Plus → Libérer cette licence* (copiez d'abord votre clé). Sur le nouveau, ouvrez la fenêtre Plus, choisissez *J'ai déjà une clé* et saisissez-la. Une clé marche sur un seul ordinateur à la fois. Si vous n'avez plus accès à l'ancien ordinateur, écrivez à [contact@pelli.io](mailto:contact@pelli.io).
 
 </details>
 
 <details>
 <summary><b>Est-ce que ça marche hors ligne ?</b></summary>
 
-L'analyse se fait entièrement sur votre ordinateur, sans internet. La connexion à votre compte demande un réseau. Avec Pro, Ultra ou un essai gratuit, vous pouvez trier hors ligne. Avec les forfaits Gratuit et Lite, Pelli Instant a besoin du réseau pour compter les nouvelles photos avant de les trier ; vérifier et exporter une séance déjà triée marche hors ligne. Télécharger la précision Maximale et les mises à jour demande aussi un réseau.
+Oui. Trier, vérifier et exporter se fait entièrement sur votre ordinateur, sans internet. Plus marche hors ligne une fois activé. Acheter ou activer Plus, télécharger la précision Maximale et les mises à jour demande un réseau.
+
+</details>
+
+<details>
+<summary><b>Pelli Instant collecte-t-il des données ?</b></summary>
+
+Seulement des statistiques anonymes, que vous pouvez couper : combien de photos vous triez, en combien de temps, la version de l'app. Jamais vos photos ni leurs noms. La liste complète est dans [Confidentialité et télémétrie](#confidentialité-et-télémétrie) ; les refuser pendant la présentation n'envoie absolument rien.
 
 </details>
 

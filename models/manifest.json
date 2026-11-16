@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "comment": "Models of Pelli Instant. 'bundle': 'default' = shipped with the desktop app (scripts/fetch-models.mjs puts them in this folder, gitignored); 'gpu' = only useful with DirectML/CUDA (fetch with --gpu); 'maximum' = the optional Maximum pack, downloaded by the app into its data folder (fetch with --maximum for development). Every file is verified by cull-ml at load (this file is compiled into cull-ml). Every license allows commercial closed-source distribution. The files converted by Pelli (no upstream ONNX) are hosted on pelli.s3.fr-par.scw.cloud/pelli-instant/models/ (see models/README.md).",
+  "comment": "Models of Pelli Instant. 'bundle': 'default' = shipped with the desktop app (scripts/fetch-models.mjs puts them in this folder, gitignored); 'gpu' = only useful with DirectML/CUDA (fetch with --gpu); 'maximum' = the optional Maximum pack of Pelli Instant Plus, downloaded by the app into its data folder from short-lived links Pelli hands out to Plus (POST /api/cull/models), hence no URL here (for development, fetch with --maximum and PELLI_INSTANT_LICENSE or PELLI_MODELS_BASE_URL: see scripts/fetch-models.mjs). Every file is verified by cull-ml at load (this file is compiled into cull-ml). Every license allows commercial closed-source distribution. The Face Blendshapes model, converted by Pelli (no upstream ONNX), is public at its URL below (see models/README.md).",
   "models": [
     {
       "id": "yunet",
@@ -99,7 +99,6 @@
       "id": "clip-l14-vision-int8",
       "tag": "clip-l14-int8",
       "file": "clip-vit-l14-vision-int8.onnx",
-      "url": "https://huggingface.co/Xenova/clip-vit-large-patch14/resolve/c307790166907339eed5a9a53a249af534102536/onnx/vision_model_int8.onnx",
       "sha256": "d6eac98fc74a89ef2e50ba635c6b4c7f005dd324dcc6aeb6be89872f58d7b3fd",
       "size": 306348752,
       "license": "MIT",
@@ -113,7 +112,6 @@
       "id": "clip-l14-text",
       "tag": "clip-l14-text-fp16",
       "file": "clip-vit-l14-text-fp16.onnx",
-      "url": "https://huggingface.co/Xenova/clip-vit-large-patch14/resolve/c307790166907339eed5a9a53a249af534102536/onnx/text_model_fp16.onnx",
       "sha256": "643d385d6adbc4b9067f3f94384cc63a8409accb1bfd414496d17df84b161032",
       "size": 247784246,
       "license": "MIT",
@@ -127,7 +125,6 @@
       "id": "dinov2-b14-int8",
       "tag": "dinov2-b14-int8",
       "file": "dinov2-base-int8.onnx",
-      "url": "https://huggingface.co/onnx-community/dinov2-base-ONNX/resolve/9a1732c724ef0847dcedf00d3d5a93f61dea0370/onnx/model_int8.onnx",
       "sha256": "f3006646af1ed07acceeefdd701e9be6e46e0b701ac0a1ab8e4ba7260e338302",
       "size": 90948899,
       "license": "Apache-2.0",
@@ -141,7 +138,6 @@
       "id": "rfdetr-seg-s",
       "tag": "rfdetr-seg-s-384",
       "file": "rfdetr-seg-small-384-w16.onnx",
-      "url": "https://pelli.s3.fr-par.scw.cloud/pelli-instant/models/rfdetr-seg-small-384-w16.onnx",
       "sha256": "244c291cdcba13c1146112916390831d95930b799184ed51716e061c7a4cf5cb",
       "size": 76982395,
       "license": "Apache-2.0",
@@ -155,7 +151,6 @@
       "id": "retinaface-r50",
       "tag": "retinaface-r50",
       "file": "retinaface-r50-w16.onnx",
-      "url": "https://pelli.s3.fr-par.scw.cloud/pelli-instant/models/retinaface-r50-w16.onnx",
       "sha256": "8712900d39e96e1167a4ee5ca4d504919f1e13874a2f3a7fd741c1f88dfd13be",
       "size": 54618443,
       "license": "MIT",

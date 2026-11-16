@@ -21,8 +21,30 @@ function Count({ decision, value, label }: { decision: FinalDecision; value: num
   )
 }
 
-/** A recent shoot on the home screen: cover, name, sorting at a glance. */
-export const ProjectCard = memo(function ProjectCard({ project, index = 0, delay = 0 }: { project: ProjectSummary; index?: number; delay?: number }) {
+const LAYOUT = { layout: { type: 'spring', duration: 0.3, bounce: 0 } } as const
+
+/**
+ * A shoot on the home screen and in the full list: cover, name, sorting at a
+ * glance. The same card in both (shared `layoutId`), so the recent ones glide
+ * into the full list. `appear`: how it shows up when it mounts.
+ */
+export const ProjectCard = memo(function ProjectCard({
+  project,
+  index = 0,
+  delay = 0,
+  appear = 'rise',
+  exitFade = false,
+  fluid = false,
+}: {
+  project: ProjectSummary
+  index?: number
+  delay?: number
+  appear?: 'rise' | 'fade' | 'none'
+  /** fades out when its view leaves (a card with no twin on the other view) */
+  exitFade?: boolean
+  /** fills its grid cell (the full list) instead of the home's fixed width */
+  fluid?: boolean
+}) {
   const t = useT()
   const openProject = useAppStore((s) => s.openProject)
   const removeProject = useAppStore((s) => s.removeProject)
@@ -31,10 +53,16 @@ export const ProjectCard = memo(function ProjectCard({ project, index = 0, delay
 
   return (
     <motion.article
-      initial={{ opacity: 0, y: 12, filter: 'blur(4px)' }}
+      layoutId={`project-${project.id}`}
+      initial={appear === 'none' ? false : appear === 'fade' ? { opacity: 0, y: 8 } : { opacity: 0, y: 12, filter: 'blur(4px)' }}
       animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: delay + 0.3 + index * 0.08 }}
-      className="glass glass-hover group relative w-[208px] shrink-0 overflow-hidden rounded-2xl hover:-translate-y-0.5"
+      exit={exitFade ? { opacity: 0, transition: { duration: 0.14 } } : undefined}
+      transition={{
+        ...LAYOUT,
+        default: appear === 'fade' ? { duration: 0.3, ease: [0.22, 1, 0.36, 1], delay: Math.min(0.24, index * 0.025) } : { duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: delay + 0.3 + index * 0.08 },
+      }}
+      style={{ borderRadius: 16 }}
+      className={cn('glass glass-hover group relative shrink-0 overflow-hidden rounded-2xl hover:-translate-y-0.5', fluid ? 'w-full' : 'w-[208px]')}
     >
       <button type="button" onClick={() => void openProject(project)} className="focus-ring absolute inset-0 z-10 rounded-2xl" aria-label={`${t('home.open')} ${project.name}`} />
       <div className="relative m-1.5 aspect-[16/10] overflow-hidden rounded-[10px] bg-white/[0.04] outline outline-1 -outline-offset-1 outline-white/10">
@@ -69,11 +97,13 @@ export const ProjectCard = memo(function ProjectCard({ project, index = 0, delay
           <span className="truncate text-[11px] text-white/40">
             {t('common.photos', { count: project.photoCount })} · {formatRelative(project.lastOpenedAt)}
           </span>
-          {analyzed && (
+          {analyzed ? (
             <span className="flex shrink-0 items-center gap-2">
-              <Count decision="selected" value={project.counts.selected} label={t('review.tabs.selected')} />
+              <Count decision="selected" value={project.counts.selected} label={t('home.kept', { count: project.counts.selected })} />
               <Count decision="toReview" value={project.counts.toReview} label={t('review.tabs.toReview')} />
             </span>
+          ) : (
+            <span className="shrink-0 text-[11px] text-white/35">{t('home.notSorted')}</span>
           )}
         </div>
       </div>

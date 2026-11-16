@@ -3,7 +3,7 @@ import type { ErrorCode } from '@/lib/contract'
 /** Error raised by any transport; `code` is an `ErrorCode` or an engine code. */
 export class CullError extends Error {
   readonly code: ErrorCode | (string & {})
-  /** structured context of some codes (QuotaDetails for the quota errors) */
+  /** structured context some codes carry */
   readonly details?: unknown
 
   constructor(code: ErrorCode | (string & {}), message: string, details?: unknown) {

@@ -1,18 +1,29 @@
 #!/usr/bin/env node
 // Fake Pelli for developing and testing Pelli Instant without the Pelli web app,
-// its database or its upload service. Zero dependencies (Node 20+).
+// its database, Stripe or its upload service. Zero dependencies (Node 20+).
 //
 //   node scripts/fake-pelli.mjs              # http://localhost:3100
-//   PELLI_API_URL=http://localhost:3100 pnpm app      (or: pnpm app:fake-pelli)
+//   pnpm app:fake-pelli                      # the app against it (PELLI_API_URL + test licence key)
 //
-// Implements the contract of docs/pelli-api.md: `/api/cull/*` (sign-in by
-// browser consent, account and plan, monthly usage, offers, galleries,
-// folders, upload token) and the upload service (`POST /api/photo`).
+// Implements the contract of docs/pelli-api.md:
+// - Pelli Instant Plus: price (`plus/offer`), checkout (a fake Stripe page;
+//   paid by its button, or by itself after FAKE_PELLI_PAY_AFTER polls),
+//   claim, activation of a key, release, daily check, and the download URLs
+//   of the Maximum pack (`models`), served from FAKE_PELLI_MODELS_DIR with
+//   range requests;
+// - anonymous telemetry (`telemetry`): validated as strictly as Pelli does,
+//   each payload printed on stdout (`[telemetry] {...}`);
+// - the optional Pelli account (sign-in by browser consent, `me` with
+//   `plus`), galleries, folders, upload token and the upload service
+//   (`POST /api/photo`).
 //
-// Each plan has its own test account (camille+<plan>@example.test) with a
-// real monthly counter: the consent page picks the account that signs in and
-// can set how many photos it already sorted this month. http://localhost:3100/
-// shows every account (plan, usage, switch plan, reset usage) and the photos
+// Licence tokens are signed with a TEST key (Ed25519 seed of 32 bytes 0x07,
+// the one of the engine's tests). Debug builds accept it with
+//   PELLI_LICENSE_PUBLIC_KEY=6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=
+// (`pnpm app:fake-pelli` sets it); release builds only trust Pelli's key.
+//
+// http://localhost:3100/ shows the accounts (one per plan, switch plan), the
+// licences (pay, refund, release), the last telemetry events and the photos
 // received, written to `<data dir>/uploads/<account>/<gallery>/<folder>/`.
 //
 // Environment:
@@ -21,47 +32,54 @@
 //   FAKE_PELLI_PLAN        account signed in by FAKE_PELLI_AUTO_APPROVE:
 //                          free | lite | pro | ultra | trial (default pro)
 //   FAKE_PELLI_AUTO_APPROVE=1   approve sign-ins without the consent page (scripts, Playwright)
-//   FAKE_PELLI_UPLOAD_FAIL      share of uploads answered 500 (0..1, retry testing)
-//   FAKE_PELLI_STORAGE_GB       storage limit of each account (default 50)
+//   FAKE_PELLI_COUNTRY     country of the visitor when no `cf-ipcountry` header (default FR: euros)
+//   FAKE_PELLI_PAY_AFTER   a checkout is paid at its Nth claim (default 2; 0 = only by the fake Stripe page)
+//   FAKE_PELLI_MODELS_DIR  where the Maximum pack files are read (default ./models/maximum,
+//                          what `node scripts/fetch-models.mjs --maximum` fills)
+//   FAKE_PELLI_URL_TTL_S   life of a download URL (default 43200 = 12 h, as Pelli; a few seconds to test the refresh)
+//   FAKE_PELLI_UPLOAD_FAIL share of uploads answered 500 (0..1, retry testing)
+//   FAKE_PELLI_STORAGE_GB  storage limit of each account (default 50)
 
-import { createHash, randomBytes, randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { createHash, createPrivateKey, createPublicKey, randomBytes, randomUUID, sign, verify } from 'node:crypto'
+import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { basename, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const PORT = Number(process.env.FAKE_PELLI_PORT || 3100)
 const BASE = `http://localhost:${PORT}`
 const DIR = resolve(process.env.FAKE_PELLI_DIR || '.fake-pelli')
 const STATE_FILE = join(DIR, 'state.json')
-const STATE_VERSION = 2
+const STATE_VERSION = 3
 const AUTO_APPROVE = process.env.FAKE_PELLI_AUTO_APPROVE === '1'
+const COUNTRY = (process.env.FAKE_PELLI_COUNTRY || 'FR').toUpperCase()
+const PAY_AFTER = Math.max(0, Number.parseInt(process.env.FAKE_PELLI_PAY_AFTER ?? '2', 10) || 0)
+const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const MODELS_DIR = resolve(process.env.FAKE_PELLI_MODELS_DIR || join(REPO, 'models', 'maximum'))
+const URL_TTL_MS = Math.max(1, Number(process.env.FAKE_PELLI_URL_TTL_S || 43200)) * 1000
 const UPLOAD_FAIL = Math.min(1, Math.max(0, Number(process.env.FAKE_PELLI_UPLOAD_FAIL || 0)))
 const STORAGE_LIMIT = Math.round(Number(process.env.FAKE_PELLI_STORAGE_GB || 50) * 1024 ** 3)
 const MAX_FILE_SIZE = 100 * 1024 * 1024
 const SESSION_TTL_S = 600
 const TRIAL_DAYS = 15
-/** Bounds of `photos` in `usage/reserve` and `usage/release`. */
-const MAX_PHOTOS_PER_REQUEST = 50_000
+/** A checkout nobody paid expires (Stripe: 24 h; shorter here). */
+const CHECKOUT_TTL_MS = 60 * 60 * 1000
 
-/**
- * Plans as Pelli resolves them (src/lib/cull/entitlements.ts): photos sorted
- * per calendar month (UTC), `null` = unlimited; the free plan is behind the
- * paywall for galleries.
- */
+/** Plans as Pelli resolves them; Pro and Ultra (trials and lifetime included) include Plus. */
 const PLANS = {
-  free: { plan: 'free', label: { fr: 'Gratuit', en: 'Free' }, quota: 200, sendToGallery: false },
-  lite: { plan: 'lite', label: { fr: 'Lite', en: 'Lite' }, quota: 1000, sendToGallery: true },
-  pro: { plan: 'pro', label: { fr: 'Pro', en: 'Pro' }, quota: null, sendToGallery: true },
-  ultra: { plan: 'ultra', label: { fr: 'Ultra', en: 'Ultra' }, quota: null, sendToGallery: true },
-  trial: { plan: 'ultra', label: { fr: 'Essai Ultra', en: 'Ultra trial' }, quota: null, sendToGallery: true, trial: true },
+  free: { plan: 'free', label: { fr: 'Gratuit', en: 'Free' }, plus: false, sendToGallery: false },
+  lite: { plan: 'lite', label: { fr: 'Lite', en: 'Lite' }, plus: false, sendToGallery: true },
+  pro: { plan: 'pro', label: { fr: 'Pro', en: 'Pro' }, plus: true, sendToGallery: true },
+  ultra: { plan: 'ultra', label: { fr: 'Ultra', en: 'Ultra' }, plus: true, sendToGallery: true },
+  trial: { plan: 'ultra', label: { fr: 'Essai Ultra', en: 'Ultra trial' }, plus: true, sendToGallery: true, trial: true },
 }
 const DEFAULT_PLAN = PLANS[process.env.FAKE_PELLI_PLAN] ? process.env.FAKE_PELLI_PLAN : 'pro'
 
 mkdirSync(join(DIR, 'uploads'), { recursive: true })
 
-/** Persistent state: survives restarts so the app's stored token stays valid. */
+/** Persistent state: survives restarts so the app's token and licence stay valid. */
 const state = (() => {
-  const initial = { version: STATE_VERSION, accounts: {}, tokens: {}, galleries: [], folders: [], requests: {} }
+  const initial = { version: STATE_VERSION, accounts: {}, tokens: {}, galleries: [], folders: [], requests: {}, licenses: {} }
   try {
     const saved = JSON.parse(readFileSync(STATE_FILE, 'utf8'))
     if (saved.version === STATE_VERSION) return { ...initial, ...saved }
@@ -74,6 +92,8 @@ save()
 
 /** Sign-in sessions live in memory only (10 minutes, like Pelli). */
 const sessions = new Map()
+/** The last telemetry events (memory only), for the overview page. */
+const telemetryLog = []
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -84,7 +104,6 @@ const MESSAGES = {
   missing_token: 'Authorization header missing.',
   invalid_token: 'Invalid or expired token.',
   subscription_required: 'This account has no active Pelli subscription.',
-  quota_exceeded: 'The monthly photo quota of this plan is reached.',
   gallery_not_found: 'Gallery not found.',
   folder_not_found: 'Folder not found.',
   folder_exists: 'A folder with this name already exists.',
@@ -93,6 +112,13 @@ const MESSAGES = {
   file_too_large: 'File too large.',
   server_error: 'Simulated server error.',
   missing_authorization: 'Authorization header missing.',
+  rate_limited: 'Too many requests.',
+  invalidKey: 'This licence key does not exist.',
+  otherDevice: 'This licence is active on another computer: release it there first.',
+  revoked: 'This licence was refunded.',
+  invalidLicense: 'Invalid licence token.',
+  plusRequired: 'The Maximum pack is part of Pelli Instant Plus.',
+  expired: 'This download link expired.',
 }
 
 function send(res, status, body, headers = {}) {
@@ -137,6 +163,7 @@ async function readForm(req) {
 }
 
 const b64url = (buf) => Buffer.from(buf).toString('base64url')
+const sha256 = (s) => createHash('sha256').update(s).digest('hex')
 // As in Pelli: the browser's consent URL carries a public id derived one way
 // from the app's secret `sessionId`, so a leaked URL cannot poll for the token.
 const consentIdOf = (sessionId) => `cull_${b64url(createHash('sha256').update(`pelli-instant/consent:${sessionId}`).digest())}`
@@ -144,27 +171,18 @@ const fold = (s) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCas
 const slugify = (s) => fold(s).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'galerie'
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 const isUuid = (s) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
-const isPhotoCount = (n) => Number.isInteger(n) && n >= 1 && n <= MAX_PHOTOS_PER_REQUEST
+const isDevice = (s) => typeof s === 'string' && /^[0-9a-f]{64}$/.test(s)
 /** `fr` for French, else English (Pelli localises in five languages). */
 const langOf = (value) => (String(value || '').toLowerCase().startsWith('fr') ? 'fr' : 'en')
 
 // ---------------------------------------------------------------------------
-// Accounts and monthly usage
+// Accounts
 // ---------------------------------------------------------------------------
-
-/** Calendar month (UTC) of a date: the period of the counter. */
-const monthOf = (ms) => new Date(ms).toISOString().slice(0, 7)
-
-/** First instant of next month (UTC), epoch ms. */
-function resetsAt(ms = Date.now()) {
-  const d = new Date(ms)
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)
-}
 
 /** The test account `key` (one per plan), created on first use. */
 function accountFor(key) {
   if (!state.accounts[key]) {
-    state.accounts[key] = { key, createdAt: Date.now(), hadTrial: false, usage: { month: monthOf(Date.now()), used: 0 } }
+    state.accounts[key] = { key, createdAt: Date.now(), hadTrial: false }
     setPlan(state.accounts[key], key)
   }
   return state.accounts[key]
@@ -174,13 +192,6 @@ function setPlan(acc, plan) {
   acc.plan = plan
   acc.trialEndsAt = PLANS[plan].trial ? Date.now() + TRIAL_DAYS * 86_400_000 : null
   acc.hadTrial ||= Boolean(PLANS[plan].trial)
-}
-
-/** Photos counted this month (the counter starts again every month). */
-function usage(acc) {
-  const month = monthOf(Date.now())
-  if (acc.usage.month !== month) acc.usage = { month, used: 0 }
-  return acc.usage
 }
 
 function accountView(acc, lang) {
@@ -196,13 +207,9 @@ function accountView(acc, lang) {
     // A trial is offered once, to accounts without subscription.
     trialAvailable: !acc.hadTrial && acc.plan === 'free',
     lifetime: false,
-    entitlements: {
-      analyze: true,
-      monthlyQuota: p.quota,
-      usedThisMonth: usage(acc).used,
-      resetsAt: resetsAt(),
-      sendToGallery: p.sendToGallery,
-    },
+    plus: p.plus,
+    // Sorting is unlimited for everyone; the fields stay for 0.1 apps.
+    entitlements: { analyze: true, monthlyQuota: null, usedThisMonth: 0, resetsAt: 0, sendToGallery: p.sendToGallery },
   }
 }
 
@@ -217,47 +224,221 @@ function bearer(req, res) {
 }
 
 // ---------------------------------------------------------------------------
-// Offers
+// Pelli Instant Plus: licences signed with the test key
 // ---------------------------------------------------------------------------
 
-const HIGHLIGHTS = {
-  fr: {
-    free: [`Essai de ${TRIAL_DAYS} jours de Pelli`, 'Sans carte bancaire'],
-    lite: ['10 galeries', '20 Go de stockage', '1 h de vidéo'],
-    pro: ['Galeries illimitées', '50 Go de stockage', '5 h de vidéo'],
-    ultra: ['Galeries illimitées', '100 To de stockage', '15 h de vidéo', 'Boutique en ligne'],
-  },
-  en: {
-    free: [`${TRIAL_DAYS}-day Pelli trial`, 'No credit card'],
-    lite: ['10 galleries', '20 GB of storage', '1 h of video'],
-    pro: ['Unlimited galleries', '50 GB of storage', '5 h of video'],
-    ultra: ['Unlimited galleries', '100 TB of storage', '15 h of video', 'Online store'],
-  },
+const TEST_SEED = Buffer.alloc(32, 7)
+const PRIVATE_KEY = createPrivateKey({
+  key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), TEST_SEED]),
+  format: 'der',
+  type: 'pkcs8',
+})
+const PUBLIC_KEY_B64 = createPublicKey(PRIVATE_KEY).export({ format: 'der', type: 'spki' }).subarray(-32).toString('base64')
+const PUBLIC_KEY = createPublicKey(PRIVATE_KEY)
+
+/** `base64url(payload) "." base64url(Ed25519 signature of the first part)`. */
+function licenseToken(lic) {
+  const first = b64url(JSON.stringify({ v: 1, lid: lic.id, dev: lic.device, iat: Math.floor(Date.now() / 1000) }))
+  return `${first}.${b64url(sign(null, Buffer.from(first), PRIVATE_KEY))}`
 }
 
-/** Pelli's prices in EUR: per month billed monthly, and per year. */
-const PRICES = { free: [0, 0], lite: [5, 60], pro: [25, 180], ultra: [50, 420] }
+/** The claims of a token signed here, or null. */
+function readToken(token) {
+  if (typeof token !== 'string') return null
+  const [first, signature, extra] = token.split('.')
+  if (!first || !signature || extra !== undefined) return null
+  try {
+    if (!verify(null, Buffer.from(first), PUBLIC_KEY, Buffer.from(signature, 'base64url'))) return null
+    const claims = JSON.parse(Buffer.from(first, 'base64url').toString('utf8'))
+    return claims.v === 1 ? claims : null
+  } catch {
+    return null
+  }
+}
 
-function offers(lang) {
-  const link = (path, content, hash = '') => `${BASE}${path}?utm_source=pelli-instant&utm_content=${content}${hash}`
+const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
+
+/** `XXXX-XXXX-XXXX-XXXX`: 80 random bits in Crockford base32, unique. */
+function newKey() {
+  for (;;) {
+    const bytes = randomBytes(10)
+    let bits = 0n
+    for (const b of bytes) bits = (bits << 8n) | BigInt(b)
+    let key = ''
+    for (let i = 0; i < 16; i++) key = CROCKFORD[Number((bits >> BigInt(5 * i)) & 31n)] + key
+    key = key.match(/.{4}/g).join('-')
+    if (!Object.values(state.licenses).some((l) => l.key === key)) return key
+  }
+}
+
+/** As typed: case ignored, spaces and dashes dropped, I/L → 1, O → 0. */
+function normalizeKey(input) {
+  const raw = String(input ?? '')
+    .toUpperCase()
+    .replace(/[\s\-‐–—]/g, '')
+    .replace(/O/g, '0')
+    .replace(/[IL]/g, '1')
+  return /^[0-9A-HJKMNP-TV-Z]{16}$/.test(raw) ? raw.match(/.{4}/g).join('-') : null
+}
+
+/** EU/EEA, Switzerland, the UK, the rest of Europe and the territories that pay in euros (Pelli's list). */
+const EURO_COUNTRIES = new Set(
+  'AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE IS LI NO CH GB AD AL AX BA BY FO GG GI IM JE MC MD ME MK RS RU SJ SM UA VA XK GF GP MQ RE YT PM BL MF'.split(' '),
+)
+
+function offerFor(req, lang) {
+  const country = String(req.headers['cf-ipcountry'] || COUNTRY).toUpperCase()
+  const currency = EURO_COUNTRIES.has(country) ? 'eur' : 'usd'
+  let label
+  try {
+    label = new Intl.NumberFormat(lang, { style: 'currency', currency, maximumFractionDigits: 0 }).format(25)
+  } catch {
+    label = new Intl.NumberFormat('en', { style: 'currency', currency, maximumFractionDigits: 0 }).format(25)
+  }
+  return { amount: 2500, currency, label }
+}
+
+/** Marks a checkout paid: the licence gets its key (the Stripe webhook does this in Pelli). */
+function pay(lic) {
+  if (lic.status !== 'pending') return
+  lic.status = 'active'
+  lic.key = newKey()
+  lic.paidAt = Date.now()
+  save()
+  const amount = lic.currency === 'eur' ? '25 €' : '$25'
+  console.log(`[discord] 💎 Achat Pelli Instant Plus — ${amount} (${lic.currency.toUpperCase()})`)
+}
+
+/** The licence of a token signed here, with its claims; null when unknown. */
+function licenseOfToken(token) {
+  const claims = readToken(token)
+  const lic = claims && state.licenses[claims.lid]
+  return lic ? { lic, claims } : null
+}
+
+/** The Maximum pack files of the manifest (name, size, sha256). */
+const MAXIMUM_FILES = (() => {
+  try {
+    const manifest = JSON.parse(readFileSync(join(REPO, 'models', 'manifest.json'), 'utf8'))
+    return manifest.models.filter((m) => m.bundle === 'maximum').map(({ file, size, sha256 }) => ({ file, size, sha256 }))
+  } catch {
+    return []
+  }
+})()
+
+/** Short-lived URLs of the pack, served by this fake from MODELS_DIR. */
+function modelUrls() {
+  const expiresAt = Date.now() + URL_TTL_MS
   return {
-    currency: 'EUR',
-    trialDays: TRIAL_DAYS,
-    plans: Object.entries(PRICES).map(([slug, [monthlyPrice, yearlyPrice]]) => ({
-      slug,
-      name: PLANS[slug].label[lang],
-      monthlyPrice,
-      yearlyPrice,
-      yearlyPricePerMonth: Math.round((yearlyPrice / 12) * 100) / 100,
-      photosPerMonth: PLANS[slug].quota,
-      highlights: HIGHLIGHTS[lang][slug],
+    files: MAXIMUM_FILES.map((f) => ({
+      ...f,
+      url: `${BASE}/fake/models/${encodeURIComponent(f.file)}?expires=${expiresAt}&sig=${sha256(`${f.file}:${expiresAt}`).slice(0, 16)}`,
     })),
-    links: {
-      register: link('/register', 'register'),
-      pricing: link('/dashboard/billing', 'pricing', '#plans-section'),
-      trial: link('/register', 'trial'),
-      billing: link('/dashboard/billing', 'billing'),
-    },
+    expiresAt,
+  }
+}
+
+/** GET /fake/models/<file>: the file with range requests; 403 once the URL expired (like S3). */
+function serveModel(req, res, url) {
+  const file = decodeURIComponent(url.pathname.slice('/fake/models/'.length))
+  const expires = Number(url.searchParams.get('expires'))
+  if (!MAXIMUM_FILES.some((f) => f.file === file)) return fail(res, 404, 'not_found')
+  if (url.searchParams.get('sig') !== sha256(`${file}:${expires}`).slice(0, 16) || !(expires > Date.now())) {
+    return fail(res, 403, 'expired')
+  }
+  const path = join(MODELS_DIR, file)
+  if (!existsSync(path)) {
+    console.log(`[fake-pelli] ${file} is missing from ${MODELS_DIR} (FAKE_PELLI_MODELS_DIR)`)
+    return fail(res, 404, 'not_found')
+  }
+  const size = statSync(path).size
+  const range = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || '')
+  if (range) {
+    const start = Number(range[1])
+    const end = range[2] ? Math.min(Number(range[2]), size - 1) : size - 1
+    if (start >= size) return send(res, 416, '', { 'Content-Range': `bytes */${size}` })
+    res.writeHead(206, {
+      'Content-Type': 'application/octet-stream',
+      'Content-Length': end - start + 1,
+      'Content-Range': `bytes ${start}-${end}/${size}`,
+      'Accept-Ranges': 'bytes',
+    })
+    return createReadStream(path, { start, end }).pipe(res)
+  }
+  res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': size, 'Accept-Ranges': 'bytes' })
+  createReadStream(path).pipe(res)
+}
+
+// ---------------------------------------------------------------------------
+// Telemetry: validated as strictly as Pelli does
+// ---------------------------------------------------------------------------
+
+const int = (v) => Number.isInteger(v) && v >= 0
+const bool = (v) => typeof v === 'boolean'
+const TELEMETRY_PROPS = {
+  onboarding_completed: {},
+  app_opened: {},
+  analysis_completed: {
+    photos: int,
+    raw: int,
+    jpeg: int,
+    seconds: (v) => typeof v === 'number' && v >= 0 && Number.isFinite(v),
+    precision: (v) => v === 'standard' || v === 'maximum',
+    selected: int,
+    toReview: int,
+    rejected: int,
+    groups: int,
+  },
+  export_completed: { photos: int, xmp: bool, copied: bool, moved: bool },
+  plus_activated: { via: (v) => ['purchase', 'key', 'account'].includes(v) },
+  telemetry_disabled: {},
+}
+const TELEMETRY_KEYS = ['installId', 'event', 'appVersion', 'platform', 'arch', 'locale', 'props']
+
+/** Why a payload is refused, or null when it is valid. */
+function telemetryError(p) {
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return 'not an object'
+  const extra = Object.keys(p).filter((k) => !TELEMETRY_KEYS.includes(k))
+  if (extra.length) return `unknown fields: ${extra.join(', ')}`
+  if (!isUuid(p.installId) || p.installId[14] !== '4') return 'installId: not a UUID v4'
+  const spec = TELEMETRY_PROPS[p.event]
+  if (!spec) return `unknown event: ${p.event}`
+  if (typeof p.appVersion !== 'string' || !/^[0-9A-Za-z][0-9A-Za-z.+-]{0,31}$/.test(p.appVersion)) return 'appVersion'
+  if (!['mac', 'windows', 'linux'].includes(p.platform)) return 'platform'
+  if (!['arm64', 'x64'].includes(p.arch)) return 'arch'
+  if (typeof p.locale !== 'string' || !/^[a-z]{2,3}$/.test(p.locale)) return 'locale (language only)'
+  const props = p.props ?? {}
+  if (!props || typeof props !== 'object' || Array.isArray(props)) return 'props'
+  const keys = Object.keys(props)
+  const unknown = keys.filter((k) => !(k in spec))
+  if (unknown.length) return `unknown props: ${unknown.join(', ')}`
+  const bad = Object.entries(spec).filter(([k, ok]) => !ok(props[k]))
+  if (bad.length) return `bad props: ${bad.map(([k]) => k).join(', ')}`
+  return null
+}
+
+/** installId → timestamps of the last hour. */
+const telemetryRate = new Map()
+const PLATFORM_NAMES = { mac: 'Mac', windows: 'Windows', linux: 'Linux' }
+
+function discordLine(p) {
+  const where = `${PLATFORM_NAMES[p.platform]} ${p.arch} · ${p.locale} · ${p.appVersion}`
+  const n = (v) => new Intl.NumberFormat('fr-FR').format(v)
+  switch (p.event) {
+    case 'onboarding_completed':
+      return `📥 Nouvelle installation Pelli Instant — ${where}`
+    case 'analysis_completed': {
+      const q = p.props
+      const precision = q.precision === 'maximum' ? 'Maximale' : 'Standard'
+      const seconds = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(q.seconds)
+      return `⚡ Tri Pelli Instant : ${n(q.photos)} photos en ${seconds} s (${precision}, ${PLATFORM_NAMES[p.platform]}) — ${n(q.selected)} sélectionnées · ${n(q.toReview)} à vérifier · ${n(q.rejected)} rejetées`
+    }
+    case 'plus_activated':
+      return `💎 Pelli Instant Plus activé (${p.props.via}) — ${where}`
+    case 'telemetry_disabled':
+      return `🔕 Télémétrie désactivée — ${PLATFORM_NAMES[p.platform]} · ${p.appVersion}`
+    default:
+      return null
   }
 }
 
@@ -348,39 +529,127 @@ const routes = {
     if (acc) send(res, 200, { account: accountView(acc, lang) })
   },
 
+  // 0.1 apps reserve photos before each analysis: always granted now.
   'usage/reserve': async (req, res) => {
-    const acc = bearer(req, res)
-    if (!acc) return
-    const { photos } = await readJson(req)
-    if (!isPhotoCount(photos)) return fail(res, 400, 'invalid_request')
-    const quota = PLANS[acc.plan].quota
-    const counter = usage(acc)
-    if (quota === null) {
-      // Unlimited: granted without counting.
-      return send(res, 200, { granted: true, unlimited: true, monthlyQuota: null, usedThisMonth: counter.used, remaining: null, resetsAt: resetsAt() })
-    }
-    const remaining = Math.max(0, quota - counter.used)
-    if (photos > remaining) {
-      return fail(res, 403, 'quota_exceeded', { monthlyQuota: quota, usedThisMonth: counter.used, remaining, resetsAt: resetsAt() })
-    }
-    counter.used += photos
-    save()
-    console.log(`[fake-pelli] ${acc.key}: ${photos} photo(s) reserved, ${counter.used}/${quota} this month`)
-    send(res, 200, { granted: true, unlimited: false, monthlyQuota: quota, usedThisMonth: counter.used, remaining: quota - counter.used, resetsAt: resetsAt() })
+    if (!bearer(req, res)) return
+    send(res, 200, { granted: true, unlimited: true, monthlyQuota: null, usedThisMonth: 0, remaining: null, resetsAt: 0 })
+  },
+  'usage/release': async (req, res) => {
+    if (bearer(req, res)) send(res, 200, { usedThisMonth: 0 })
   },
 
-  'usage/release': async (req, res) => {
-    const acc = bearer(req, res)
-    if (!acc) return
-    const { photos } = await readJson(req)
-    if (!isPhotoCount(photos)) return fail(res, 400, 'invalid_request')
-    const counter = usage(acc)
-    if (PLANS[acc.plan].quota !== null) {
-      counter.used = Math.max(0, counter.used - photos)
-      save()
-      console.log(`[fake-pelli] ${acc.key}: ${photos} photo(s) given back, ${counter.used} this month`)
+  'plus/checkout': async (req, res, lang) => {
+    const body = await readJson(req)
+    if (!isDevice(body.device) || !['mac', 'windows', 'linux'].includes(body.platform)) return fail(res, 400, 'invalid_request')
+    const claimToken = b64url(randomBytes(24))
+    const lic = {
+      id: `lic_${b64url(randomBytes(9))}`,
+      key: null,
+      device: body.device,
+      status: 'pending',
+      claimTokenHash: sha256(claimToken),
+      sessionId: `cs_test_${b64url(randomBytes(18))}`,
+      currency: offerFor(req, body.lang || lang).currency,
+      polls: 0,
+      createdAt: Date.now(),
     }
-    send(res, 200, { usedThisMonth: counter.used })
+    state.licenses[lic.id] = lic
+    save()
+    console.log(`[fake-pelli] checkout ${lic.id} (${lic.currency}, ${body.platform} ${body.appVersion}), paid ${PAY_AFTER ? `at claim #${PAY_AFTER}` : 'on the fake Stripe page'}`)
+    send(res, 200, { id: lic.id, claimToken, url: `${BASE}/fake/checkout?license=${lic.id}` })
+  },
+
+  'plus/claim': async (req, res) => {
+    const { id, claimToken } = await readJson(req)
+    const lic = state.licenses[id]
+    if (!lic || typeof claimToken !== 'string' || lic.claimTokenHash !== sha256(claimToken)) return send(res, 200, { status: 'expired' })
+    if (lic.status === 'pending') {
+      if (Date.now() - lic.createdAt > CHECKOUT_TTL_MS) {
+        lic.status = 'expired'
+        save()
+      } else {
+        lic.polls += 1
+        if (PAY_AFTER && lic.polls >= PAY_AFTER) pay(lic)
+        else save()
+      }
+    }
+    if (lic.status === 'pending') return send(res, 200, { status: 'pending' })
+    if (lic.status === 'expired' || !lic.key) return send(res, 200, { status: 'expired' })
+    if (lic.status === 'revoked') return send(res, 200, { status: 'expired' })
+    send(res, 200, { status: 'active', key: lic.key, license: licenseToken(lic) })
+  },
+
+  'plus/activate': async (req, res) => {
+    const body = await readJson(req)
+    if (!isDevice(body.device)) return fail(res, 400, 'invalid_request')
+    const key = normalizeKey(body.key)
+    const lic = key && Object.values(state.licenses).find((l) => l.key === key)
+    if (!lic) return fail(res, 404, 'invalidKey')
+    if (lic.status === 'revoked') return fail(res, 410, 'revoked')
+    if (lic.device && lic.device !== body.device && lic.status === 'active') return fail(res, 409, 'otherDevice')
+    lic.device = body.device
+    lic.status = 'active'
+    save()
+    console.log(`[fake-pelli] licence ${lic.key} activated on ${lic.device.slice(0, 12)}…`)
+    send(res, 200, { key: lic.key, license: licenseToken(lic) })
+  },
+
+  'plus/release': async (req, res) => {
+    const { license } = await readJson(req)
+    const found = licenseOfToken(license)
+    if (!found) return fail(res, 401, 'invalidLicense')
+    const { lic, claims } = found
+    if (lic.status === 'revoked') return fail(res, 410, 'revoked')
+    if (lic.status === 'active' && lic.device === claims.dev) {
+      lic.status = 'released'
+      lic.device = null
+      save()
+      console.log(`[fake-pelli] licence ${lic.key} released`)
+    }
+    send(res, 200, { ok: true })
+  },
+
+  'plus/verify': async (req, res) => {
+    const { license } = await readJson(req)
+    const found = licenseOfToken(license)
+    if (!found) return send(res, 200, { status: 'invalid' })
+    const { lic, claims } = found
+    if (lic.status === 'revoked') return send(res, 200, { status: 'revoked' })
+    if (lic.status === 'active' && lic.device === claims.dev) return send(res, 200, { status: 'active' })
+    send(res, 200, { status: lic.status === 'released' || lic.status === 'active' ? 'released' : 'invalid' })
+  },
+
+  models: async (req, res) => {
+    const { license } = await readJson(req)
+    if (license !== undefined) {
+      const found = licenseOfToken(license)
+      if (found?.lic.status === 'active' && found.lic.device === found.claims.dev) return send(res, 200, modelUrls())
+      return fail(res, 403, 'plusRequired')
+    }
+    const token = (req.headers.authorization || '').replace(/^Bearer /, '')
+    const acc = state.accounts[state.tokens[token]?.account]
+    if (acc && PLANS[acc.plan].plus) return send(res, 200, modelUrls())
+    fail(res, 403, 'plusRequired')
+  },
+
+  telemetry: async (req, res) => {
+    const p = await readJson(req)
+    const error = telemetryError(p)
+    if (error) {
+      console.log(`[telemetry] REFUSED (${error}): ${JSON.stringify(p)}`)
+      return fail(res, 400, 'invalid_request', { reason: error })
+    }
+    const now = Date.now()
+    const recent = (telemetryRate.get(p.installId) ?? []).filter((t) => now - t < 3_600_000)
+    if (recent.length >= 120) return fail(res, 429, 'rate_limited')
+    telemetryRate.set(p.installId, [...recent, now])
+    console.log(`[telemetry] ${JSON.stringify(p)}`)
+    const line = discordLine(p)
+    if (line) console.log(`[discord] ${line}`)
+    telemetryLog.unshift({ at: now, payload: p })
+    telemetryLog.length = Math.min(telemetryLog.length, 100)
+    res.writeHead(204)
+    res.end()
   },
 
   'galleries/list': async (req, res) => {
@@ -516,7 +785,7 @@ async function upload(req, res, url) {
 }
 
 // ---------------------------------------------------------------------------
-// Pages: consent, overview, offer links
+// Pages: consent, fake Stripe, thank-you page, overview
 // ---------------------------------------------------------------------------
 
 const PAGE_STYLE = `
@@ -527,26 +796,16 @@ const PAGE_STYLE = `
   h1 { font-size: 22px; margin: 0 0 8px; } h2 { font-size: 17px; margin: 0 0 12px; } .muted { color: var(--muted); }
   button, .btn { font: inherit; border-radius: 10px; border: 1px solid var(--line); padding: 9px 16px; background: var(--card); color: var(--text); cursor: pointer; text-decoration: none; }
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; } .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  input[type=number] { font: inherit; width: 110px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); }
   label.choice { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; cursor: pointer; } label.choice:has(input:checked) { border-color: var(--accent); }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin-top: 8px; } .grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; }
-  code { font-size: 13px; } .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; background: var(--line); font-size: 12px; }`
+  code, pre { font-size: 13px; } pre { white-space: pre-wrap; margin: 4px 0 0; } .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; background: var(--line); font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; } td { padding: 6px 4px; border-top: 1px solid var(--line); vertical-align: top; }`
 
 function page(title, content) {
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title><style>${PAGE_STYLE}</style></head><body><main>${content}</main></body></html>`
 }
 
 const redirect = (res, location) => send(res, 303, '', { Location: location })
-
-/** "12 / 200 photos ce mois-ci", or the unlimited equivalent. */
-function usageText(acc) {
-  const quota = PLANS[acc.plan].quota
-  const used = usage(acc).used
-  const reset = new Date(resetsAt()).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', timeZone: 'UTC' })
-  return quota === null
-    ? `illimité (${used} photo(s) comptée(s) ce mois-ci)`
-    : `${used} / ${quota} photos ce mois-ci · remise à zéro le ${reset}`
-}
 
 function consentPage(id) {
   const s = sessions.get(id)
@@ -557,8 +816,8 @@ function consentPage(id) {
     .map(([key, p]) => {
       const acc = state.accounts[key]
       const now = acc && acc.plan !== key ? ` → ${escapeHtml(PLANS[acc.plan].label.fr)}` : ''
-      const used = acc ? ` <span class="muted">· ${usage(acc).used} triée(s)</span>` : ''
-      return `<label class="choice"><input type="radio" name="account" value="${key}"${key === s.account ? ' checked' : ''}> ${escapeHtml(p.label.fr)}${now}${used}</label>`
+      const plus = p.plus ? ' <span class="muted">· Plus inclus</span>' : ''
+      return `<label class="choice"><input type="radio" name="account" value="${key}"${key === s.account ? ' checked' : ''}> ${escapeHtml(p.label.fr)}${now}${plus}</label>`
     })
     .join('')
   return page(
@@ -569,15 +828,50 @@ function consentPage(id) {
       <form method="post" action="/cull/authorize/decide?session=${encodeURIComponent(id)}">
         <p style="margin:16px 0 8px">Compte (un par forfait) :</p>
         <div class="row">${choices}</div>
-        <p class="row" style="margin:16px 0">
-          <span class="muted">Photos déjà triées ce mois-ci :</span>
-          <input type="number" name="used" min="0" placeholder="inchangé">
-        </p>
-        <div class="row">
+        <div class="row" style="margin-top:16px">
           <button class="primary" name="decision" value="approve">Autoriser</button>
           <button name="decision" value="deny">Refuser</button>
         </div>
       </form></div>`,
+  )
+}
+
+/** Where the app sends the photographer to pay: Stripe Checkout in Pelli. */
+function checkoutPage(lic) {
+  if (!lic) return page('Paiement', `<div class="card"><h1>Paiement introuvable</h1></div>`)
+  const amount = lic.currency === 'eur' ? '25 €' : '$25'
+  const done = lic.status !== 'pending'
+  return page(
+    'Pelli Instant Plus — paiement',
+    `<div class="card"><span class="badge">Faux Stripe · développement</span>
+      <h1>Pelli Instant Plus — ${amount}</h1>
+      <p class="muted">Paiement unique, pour cet ordinateur. ${PAY_AFTER ? `Payé tout seul à la ${PAY_AFTER}e vérification de l'app.` : ''}</p>
+      ${
+        done
+          ? `<p>Statut : <strong>${escapeHtml(lic.status)}</strong></p>`
+          : `<form method="post" action="/fake/pay?license=${lic.id}" class="row">
+               <button class="primary">Payer ${amount}</button>
+               <a class="btn" href="/cull/plus?license=${lic.id}&cancelled=1">Annuler</a>
+             </form>`
+      }</div>`,
+  )
+}
+
+/** The thank-you page Stripe returns to (`/cull/plus?license=&session_id=`). */
+function thankYouPage(url) {
+  if (url.searchParams.get('cancelled') === '1') {
+    return page('Paiement annulé', `<div class="card"><h1>Paiement annulé, rien n'a été débité</h1><p class="muted">Retournez dans l'app.</p></div>`)
+  }
+  const lic = state.licenses[url.searchParams.get('license')]
+  if (!lic || lic.sessionId !== url.searchParams.get('session_id') || !lic.key) {
+    return page('Pelli Instant Plus', `<div class="card"><h1>Paiement en cours…</h1><p class="muted">Rechargez cette page dans un instant.</p></div>`)
+  }
+  return page(
+    'Merci !',
+    `<div class="card"><h1>Merci ! Pelli Instant Plus est activé</h1>
+      <p>Retournez dans l'app, elle s'est activée toute seule.</p>
+      <p>Votre clé : <code>${escapeHtml(lic.key)}</code></p>
+      <p class="muted">Gardez-la pour activer Plus sur un autre ordinateur après l'avoir libérée.</p></div>`,
   )
 }
 
@@ -602,13 +896,33 @@ function accountCard(acc) {
     .join('')
   const devices = Object.values(state.tokens).filter((t) => t.account === acc.key).length
   return `<div class="card"><h2>camille+${escapeHtml(acc.key)}@example.test</h2>
-    <p class="muted">${escapeHtml(PLANS[acc.plan].label.fr)} · ${usageText(acc)} · ${devices} appareil(s) connecté(s)</p>
-    <form method="post" action="/fake/plan?account=${acc.key}" class="row"><span class="muted">Forfait :</span>${planButtons}</form>
-    <form method="post" action="/fake/usage?account=${acc.key}" class="row" style="margin-top:12px">
-      <span class="muted">Photos triées ce mois-ci :</span>
-      <input type="number" name="used" min="0" value="${usage(acc).used}"><button>Enregistrer</button>
-      <button name="used" value="0">Remettre à zéro</button>
-    </form></div>`
+    <p class="muted">${escapeHtml(PLANS[acc.plan].label.fr)} · Plus ${PLANS[acc.plan].plus ? 'inclus' : 'non inclus'} · ${devices} appareil(s) connecté(s)</p>
+    <form method="post" action="/fake/plan?account=${acc.key}" class="row"><span class="muted">Forfait :</span>${planButtons}</form></div>`
+}
+
+function licensesCard() {
+  const rows = Object.values(state.licenses)
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map(
+      (l) => `<tr><td><code>${escapeHtml(l.key ?? '—')}</code><br><span class="muted">${escapeHtml(l.id)}</span></td>
+        <td>${escapeHtml(l.status)}</td><td class="muted">${l.device ? `${l.device.slice(0, 12)}…` : '—'}</td>
+        <td><form method="post" action="/fake/license?id=${l.id}" class="row">
+          ${l.status === 'pending' ? '<button name="action" value="pay" class="primary">Payer</button>' : ''}
+          ${l.status === 'active' ? '<button name="action" value="release">Libérer</button>' : ''}
+          ${l.status === 'active' || l.status === 'released' ? '<button name="action" value="refund">Rembourser</button>' : ''}
+        </form></td></tr>`,
+    )
+    .join('')
+  return `<div class="card"><h2>Licences Plus</h2>${rows ? `<table>${rows}</table>` : '<p class="muted">Aucune licence.</p>'}
+    <p class="muted">Clé publique de test : <code>${PUBLIC_KEY_B64}</code></p></div>`
+}
+
+function telemetryCard() {
+  const rows = telemetryLog
+    .slice(0, 30)
+    .map((t) => `<tr><td class="muted">${new Date(t.at).toLocaleTimeString('fr-FR')}</td><td><strong>${escapeHtml(t.payload.event)}</strong><pre>${escapeHtml(JSON.stringify(t.payload.props))}</pre></td></tr>`)
+    .join('')
+  return `<div class="card"><h2>Télémétrie (derniers événements)</h2>${rows ? `<table>${rows}</table>` : '<p class="muted">Rien reçu.</p>'}</div>`
 }
 
 function galleryCard(g) {
@@ -637,19 +951,12 @@ function overviewPage() {
   return page(
     'Faux Pelli',
     `<div class="card"><span class="badge">Faux Pelli · développement</span><h1>Pelli Instant — banc local</h1>
-      <p class="muted">API : <code>${BASE}/api/cull</code> · offres : <a href="/api/cull/offers?lang=fr">fr</a>, <a href="/api/cull/offers?lang=en">en</a></p>
-      <form method="post" action="/fake/reset" class="row"><button>Tout effacer (comptes, galeries, jetons)</button></form></div>
+      <p class="muted">API : <code>${BASE}/api/cull</code> · prix : <a href="/api/cull/plus/offer?lang=fr">fr</a>, <a href="/api/cull/plus/offer?lang=en">en</a> · pack Maximum lu dans <code>${escapeHtml(MODELS_DIR)}</code></p>
+      <form method="post" action="/fake/reset" class="row"><button>Tout effacer (comptes, licences, galeries, jetons)</button></form></div>
+      ${licensesCard()}${telemetryCard()}
       ${accounts || '<div class="card muted">Aucun compte : connectez Pelli Instant pour en créer un.</div>'}
       ${galleries || '<div class="card muted">Aucune galerie pour le moment.</div>'}`,
   )
-}
-
-/** Where the offer links lead in Pelli (sign-up, billing). */
-function offerPage(url) {
-  const what = url.searchParams.get('utm_content') || url.pathname
-  return page('Pelli', `<div class="card"><span class="badge">Faux Pelli · développement</span><h1>Lien « ${escapeHtml(what)} »</h1>
-    <p class="muted">Ici, Pelli ouvrirait <code>${escapeHtml(url.pathname + url.hash)}</code> (inscription, formules, essai, facturation).</p>
-    <p><a class="btn" href="/">Voir le banc</a></p></div>`)
 }
 
 // ---------------------------------------------------------------------------
@@ -659,9 +966,10 @@ function offerPage(url) {
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, BASE)
   const lang = langOf(req.headers['accept-language'])
+  if (url.pathname.startsWith('/api/')) console.log(`[request] ${req.method} ${url.pathname}`)
   try {
-    if (req.method === 'GET' && url.pathname === '/api/cull/offers') {
-      return send(res, 200, offers(langOf(url.searchParams.get('lang') || req.headers['accept-language'])))
+    if (req.method === 'GET' && url.pathname === '/api/cull/plus/offer') {
+      return send(res, 200, offerFor(req, url.searchParams.get('lang') || lang))
     }
     if (req.method === 'POST' && url.pathname.startsWith('/api/cull/')) {
       const handler = routes[url.pathname.slice('/api/cull/'.length)]
@@ -669,6 +977,7 @@ const server = createServer(async (req, res) => {
       return await handler(req, res, lang)
     }
     if (req.method === 'POST' && url.pathname === '/api/photo') return await upload(req, res, url)
+    if (req.method === 'GET' && url.pathname.startsWith('/fake/models/')) return serveModel(req, res, url)
     if (req.method === 'GET' && url.pathname === '/cull/authorize') {
       return send(res, 200, consentPage(url.searchParams.get('session')))
     }
@@ -680,14 +989,33 @@ const server = createServer(async (req, res) => {
         s.status = approve ? 'approved' : 'denied'
         if (approve) {
           if (PLANS[form.get('account')]) s.account = form.get('account')
-          const used = Number.parseInt(form.get('used') ?? '', 10)
-          if (Number.isInteger(used) && used >= 0) usage(accountFor(s.account)).used = used
           accountFor(s.account)
           save()
         }
       }
       const message = approve ? 'Vous pouvez revenir dans Pelli Instant.' : 'Accès refusé.'
       return send(res, 200, page('Pelli Instant', `<div class="card"><h1>${message}</h1><p><a class="btn" href="/">Voir le banc</a></p></div>`))
+    }
+    if (req.method === 'GET' && url.pathname === '/fake/checkout') {
+      return send(res, 200, checkoutPage(state.licenses[url.searchParams.get('license')]))
+    }
+    if (req.method === 'POST' && url.pathname === '/fake/pay') {
+      const lic = state.licenses[url.searchParams.get('license')]
+      if (lic) pay(lic)
+      return redirect(res, lic ? `/cull/plus?license=${lic.id}&session_id=${lic.sessionId}` : '/')
+    }
+    if (req.method === 'GET' && url.pathname === '/cull/plus') return send(res, 200, thankYouPage(url))
+    if (req.method === 'POST' && url.pathname === '/fake/license') {
+      const lic = state.licenses[url.searchParams.get('id')]
+      const action = (await readForm(req)).get('action')
+      if (lic && action === 'pay') pay(lic)
+      if (lic && action === 'release') Object.assign(lic, { status: 'released', device: null })
+      if (lic && action === 'refund') {
+        lic.status = 'revoked'
+        console.log(`[fake-pelli] licence ${lic.key} refunded: revoked`)
+      }
+      save()
+      return redirect(res, '/')
     }
     const acc = state.accounts[url.searchParams.get('account')]
     if (req.method === 'POST' && url.pathname === '/fake/plan' && acc) {
@@ -697,12 +1025,6 @@ const server = createServer(async (req, res) => {
       console.log(`[fake-pelli] ${acc.key}: plan ${acc.plan}`)
       return redirect(res, '/')
     }
-    if (req.method === 'POST' && url.pathname === '/fake/usage' && acc) {
-      const used = Number.parseInt((await readForm(req)).get('used') ?? '', 10)
-      if (Number.isInteger(used) && used >= 0) usage(acc).used = used
-      save()
-      return redirect(res, '/')
-    }
     if (req.method === 'POST' && url.pathname === '/fake/delete-gallery') {
       const g = state.galleries.find((x) => x.id === url.searchParams.get('id'))
       if (g) g.status = 'deleted'
@@ -710,12 +1032,9 @@ const server = createServer(async (req, res) => {
       return redirect(res, '/')
     }
     if (req.method === 'POST' && url.pathname === '/fake/reset') {
-      Object.assign(state, { accounts: {}, tokens: {}, galleries: [], folders: [], requests: {} })
+      Object.assign(state, { accounts: {}, tokens: {}, galleries: [], folders: [], requests: {}, licenses: {} })
       save()
       return redirect(res, '/')
-    }
-    if (req.method === 'GET' && (url.pathname === '/register' || url.pathname === '/dashboard/billing')) {
-      return send(res, 200, offerPage(url))
     }
     if (req.method === 'GET' && url.pathname.startsWith('/uploads/')) {
       const rel = decodeURIComponent(url.pathname.slice('/uploads/'.length))
@@ -735,5 +1054,5 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`[fake-pelli] ${BASE}  (${AUTO_APPROVE ? `auto-approve as ${DEFAULT_PLAN}, ` : ''}data ${DIR})`)
-  console.log(`[fake-pelli] launch the app with PELLI_API_URL=${BASE}`)
+  console.log(`[fake-pelli] launch the app with PELLI_API_URL=${BASE} PELLI_LICENSE_PUBLIC_KEY=${PUBLIC_KEY_B64}`)
 })

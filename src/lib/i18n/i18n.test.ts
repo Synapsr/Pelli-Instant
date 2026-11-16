@@ -32,7 +32,7 @@ describe('i18n', () => {
   it('is a real translation, not a copy of English', () => {
     for (const language of ['es', 'de', 'it', 'pt', 'nl', 'pl', 'sv'] as const) {
       expect(translate(language, 'review.tabs.selected')).not.toBe(translate('en', 'review.tabs.selected'))
-      expect(translate(language, 'signIn.cta')).not.toBe(translate('en', 'signIn.cta'))
+      expect(translate(language, 'plus.headline')).not.toBe(translate('en', 'plus.headline'))
     }
   })
 
@@ -43,7 +43,8 @@ describe('i18n', () => {
     expect(translate('en', 'common.photos', { count: 0 })).toBe('0 photos')
     expect(translate('de', 'common.photos', { count: 2 })).toMatch(/^2 /)
     expect(translate('en', 'marks.stars', { count: 0 })).toBe('No stars')
-    expect(translate('fr', 'home.greeting', { name: 'Camille' })).toBe('Bonjour Camille')
+    expect(translate('fr', 'plus.cta', { price: '25 €' })).toBe('Passer à Plus — 25 €, une fois')
+    expect(translate('en', 'home.seeAll', { count: 1284 })).toBe('See all (1,284)')
   })
 
   it('uses the Polish few and many forms', () => {

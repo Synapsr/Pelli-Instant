@@ -1,36 +1,45 @@
-import cityNight from '@/assets/onboarding/city-night.webp'
-import couple from '@/assets/onboarding/couple.webp'
-import dance from '@/assets/onboarding/dance.webp'
-import dress from '@/assets/onboarding/dress.webp'
-import drink from '@/assets/onboarding/drink.webp'
+import beachSunset from '@/assets/onboarding/beach-sunset.webp'
+import dish from '@/assets/onboarding/dish.webp'
 import eyesClosed from '@/assets/onboarding/eyes-closed.webp'
-import groupDark from '@/assets/onboarding/group-dark.webp'
-import mountains from '@/assets/onboarding/mountains.webp'
-import portraitA from '@/assets/onboarding/portrait-a.webp'
-import portraitB from '@/assets/onboarding/portrait-b.webp'
-import portraitBlurry from '@/assets/onboarding/portrait-blurry.webp'
-import rings from '@/assets/onboarding/rings.webp'
-import ringsRoses from '@/assets/onboarding/rings-roses.webp'
+import familyBlurry from '@/assets/onboarding/family-blurry.webp'
+import familyFloor from '@/assets/onboarding/family-floor.webp'
+import familyKiss from '@/assets/onboarding/family-kiss.webp'
+import forest from '@/assets/onboarding/forest.webp'
+import goldenField from '@/assets/onboarding/golden-field.webp'
+import horse from '@/assets/onboarding/horse.webp'
+import pregnancy from '@/assets/onboarding/pregnancy.webp'
+import pumpkinA from '@/assets/onboarding/pumpkin-a.webp'
+import pumpkinB from '@/assets/onboarding/pumpkin-b.webp'
+import pumpkinBlurry from '@/assets/onboarding/pumpkin-blurry.webp'
+import road from '@/assets/onboarding/road.webp'
+import table from '@/assets/onboarding/table.webp'
+import tooDark from '@/assets/onboarding/too-dark.webp'
+import wedding from '@/assets/onboarding/wedding.webp'
 
 /**
- * Real photos shown by the welcome tour (CC BY 2.0 and CC0, credited in
- * src/assets/onboarding/CREDITS.md). The blurry and dark ones are degraded
- * copies made on purpose, to show what Pelli Instant sets aside.
+ * Real photos shown by the welcome tour (Pexels licence, credited in
+ * src/assets/onboarding/CREDITS.md). `familyBlurry`, `tooDark` and
+ * `pumpkinBlurry` are degraded copies made on purpose, to show what Pelli
+ * Instant sets aside; the two pumpkins are a real near-duplicate pair.
  */
 export const PHOTOS = {
-  cityNight,
-  couple,
-  dance,
-  dress,
-  drink,
+  beachSunset,
+  dish,
   eyesClosed,
-  groupDark,
-  mountains,
-  portraitA,
-  portraitB,
-  portraitBlurry,
-  rings,
-  ringsRoses,
+  familyBlurry,
+  familyFloor,
+  familyKiss,
+  forest,
+  goldenField,
+  horse,
+  pregnancy,
+  pumpkinA,
+  pumpkinB,
+  pumpkinBlurry,
+  road,
+  table,
+  tooDark,
+  wedding,
 }
 
 /** Starts loading every photo of the tour, so no step shows an empty frame. */

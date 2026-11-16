@@ -60,7 +60,6 @@ body:
       options:
         - Official download
         - Built from source
-        - Built from source without account (PELLI_INSTANT_NO_ACCOUNT=1)
     validations:
       required: true
 

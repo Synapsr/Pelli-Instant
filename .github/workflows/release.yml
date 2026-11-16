@@ -198,14 +198,10 @@ jobs:
           } >> "$GITHUB_ENV"
           echo "::notice::Update bundles will be signed."
 
-      # Official builds always have the Pelli account: never build them with
-      # PELLI_INSTANT_NO_ACCOUNT, even if a runner or a repository variable
-      # sets it.
       - name: Build the installer
         shell: bash
         run: |
           set -euo pipefail
-          unset PELLI_INSTANT_NO_ACCOUNT
           pnpm tauri build ${{ matrix.config }} ${PELLI_NO_UPDATER_CONFIG:-} \
             --target ${{ matrix.target }} --features ${{ matrix.features }}
 

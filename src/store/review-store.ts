@@ -1,9 +1,10 @@
 import { create } from 'zustand'
 import type { CullSettings, DecisionCounts, PhotoView, ProjectData, ProjectSummary, Reason, Scene, SimilarGroup, UserMark } from '@/lib/contract'
-import { api } from '@/lib/api'
+import { api, toCullError } from '@/lib/api'
 import { t } from '@/lib/i18n'
 import { notify } from '@/lib/notify'
 import { playSound } from '@/lib/sound'
+import { usePlusStore } from './plus-store'
 import { applyMarkPatch, countDecisions } from '@/lib/review/decision'
 import {
   clickSelection,
@@ -434,7 +435,16 @@ export const useReviewStore = create<ReviewState>((set, get) => {
           search: { query: q, status: 'done', hits, previousSort },
           filters: { ...cur.filters, sort: 'relevance' },
         })
-      } catch {
+        // Results only in other tabs (the review opens on "to review"): show them all.
+        const counts = get().tabCounts
+        if (counts[get().filters.tab] === 0 && counts.all > 0) update({ filters: { ...get().filters, tab: 'all' } })
+      } catch (error) {
+        // Plus went away (released, refunded): say what AI search needs.
+        if (toCullError(error).code === 'plusRequired') {
+          set({ search: EMPTY_SEARCH })
+          usePlusStore.getState().openDialog('search')
+          return
+        }
         set({ search: { ...get().search, status: 'error' } })
       }
     },

@@ -12,7 +12,7 @@ engine through one contract.
    └─ mock   simulated engine, in the browser                                         │
                                                                                       ▼
                                        cull-engine: library, pipeline, decisions, search, export,
-                                                    Pelli account and quota, Maximum pack
+                                                    Plus, telemetry, Pelli account, Maximum pack
                                          ├─ cull-decode    files, EXIF, RAW previews
                                          ├─ cull-ml        ONNX models (faces, eyes, expression, CLIP;
                                          │                 the Maximum pack's models)
@@ -37,15 +37,16 @@ engine through one contract.
 | Module | Role |
 | --- | --- |
 | `lib.rs` | `Engine`: projects, their in-memory state, analyses started in the background, and `Engine::busy` (an analysis, an export, an upload or the Maximum pack under way). |
-| `store.rs` | The library: one SQLite database for every project, plus a key/value table (settings, cached account, quota reservations, the prepared pack). |
+| `store.rs` | The library: one SQLite database for every project, plus a key/value table (settings, cached account, Plus licence, telemetry install id, the prepared pack). |
 | `pipeline.rs` | The analysis: decode, measure, store, decide, with the progress events. |
 | `export.rs` | XMP sidecars, copy of the selection, move of the rejects. |
 | `query.rs` | Search queries into English CLIP prompts (glossary). |
-| `settings.rs` | App settings: language, theme, `background`, `precision`, default criteria. |
+| `settings.rs` | App settings: language, theme, `background`, `precision`, default criteria, `telemetry`, `onboarded`. |
 | `system.rs` | Cores, efficiency cores, memory; the background mode's thread count and priority; `KeepAwake`, which keeps a long job at full speed and the computer out of idle sleep. |
 | `modelpack.rs` | The Maximum pack: download with resume, SHA-256, preparation, loading for an analysis. |
-| `account.rs`, `pelli.rs` | The Pelli account (browser sign-in, cached account, offers) and the client of the Pelli API. |
-| `usage.rs` | The monthly quota: reserve, give back, remember a reservation across a quit. |
+| `plus.rs` | Pelli Instant Plus: the licence (key, device hash, signed token checked offline), the checkout, activation, release and the daily check. |
+| `telemetry.rs` | Anonymous telemetry, opt-out: the six events, the random install id, fire-and-forget sending. |
+| `account.rs`, `pelli.rs` | The optional Pelli account (browser sign-in, cached account; a Pro or Ultra plan includes Plus) and the client of the Pelli API. |
 | `upload.rs`, `uploader.rs` | Sending a selection to a Pelli gallery (switched off in the interface for now). |
 | `view.rs`, `commands.rs` | The JSON views of the contract and the command dispatcher. |
 
@@ -123,19 +124,60 @@ TanStack Virtual and framer-motion, bundled by Vite.
 | --- | --- |
 | `src/lib/contract.ts` | The contract with the engine: every command (`CullApi`, `COMMANDS`), every event (`CullEvents`, among them `model-pack` and `update-status`), every type, every error code. |
 | `src/lib/api/` | The three transports. `tauri.ts`: Tauri `invoke` and events, in the desktop app. `http.ts`: the `pelli-cull serve` bridge, `POST /invoke/<command>` and events as server-sent events, when `VITE_BRIDGE_URL` is set. `mock/`: a simulated engine with procedurally drawn photos, for `pnpm dev`, screenshots and tests. `index.ts` picks one at start-up. |
-| `src/store/` | Zustand stores: the app (account, settings, projects), the analysis, the review (filters, selection, marks, undo), the workspace, the export, the Maximum pack (`pack-store.ts`), the updates (`update-store.ts`), and the photographer's preferences, kept in the webview's local storage (`prefs-store.ts`: sounds, voice-over, sub-folders…). |
-| `src/components/` | One folder per screen or flow: `boot`, `signin`, `home`, `criteria` (before the first analysis), `analysis`, `review` (grid), `loupe`, `compare`, `export`, `settings`, `precision` (Standard or Maximum, the pack's download), `update`, `onboarding` (the welcome tour and its voice-over), `plans`, plus `ui` for shared components. |
+| `src/store/` | Zustand stores: the app (account, settings, projects), the analysis, the review (filters, selection, marks, undo), the workspace, the export, Plus (`plus-store.ts`), the Maximum pack (`pack-store.ts`), the updates (`update-store.ts`), and the photographer's preferences, kept in the webview's local storage (`prefs-store.ts`: sounds, voice-over, sub-folders…). |
+| `src/components/` | One folder per screen or flow: `boot`, `home`, `criteria` (before the first analysis), `analysis`, `review` (grid), `loupe`, `compare`, `export`, `settings`, `precision` (Standard or Maximum, the pack's download), `plus` (the Plus dialog and its settings), `privacy` (the telemetry switch and "What is sent?"), `promo` (the Pelli cards of the free version), `update`, `onboarding` (the welcome tour and its voice-over), plus `ui` for shared components. |
 | `src/lib/review/` | Pure logic with tests: keyboard shortcuts (`keyboard.ts`), selection, what the grid shows. |
 | `src/lib/i18n/` | 9 languages, `fr.ts` as the reference, kept in sync by a test. |
 | `src/assets/onboarding/` | The welcome tour's photos and voice-over, credited in [`CREDITS.md`](../src/assets/onboarding/CREDITS.md). |
 
-## The Pelli account and the quota
+## Plus, telemetry and the optional Pelli account
 
-The official builds ask for a Pelli account; the monthly number of photos you
-can sort depends on its plan. `cull-engine/src/account.rs`, `pelli.rs` and
-`usage.rs` handle it, against the API at `https://app.pelli.io/api/cull/*`
-([docs/pelli-api.md](pelli-api.md); `PELLI_API_URL` points a debug build
-elsewhere, for instance at `pnpm fake-pelli`).
+Sorting never needs Pelli: no account, no quota, no sign-in screen. The engine
+talks to Pelli (`https://app.pelli.io/api/cull/*`, [docs/pelli-api.md](pelli-api.md);
+`PELLI_API_URL` points a debug build elsewhere, for instance at `pnpm fake-pelli`)
+for three optional things.
+
+**Pelli Instant Plus** (`plus.rs`): the Maximum pack, AI search and no Pelli
+cards in the app. It comes from a licence bought for this computer, or from a
+signed-in Pelli account on a Pro or Ultra plan; the licence wins when both.
+
+```
+ Pelli Instant                                   browser              app.pelli.io
+ plus_checkout ── POST plus/checkout {device hash, lang, platform, appVersion} ──► id, claimToken, Stripe URL
+   opens the Stripe Checkout ──────────────► pays ───────────────────────────────► licence active (webhook)
+ plus_poll, every 3 s ── POST plus/claim {id, claimToken} ──────────────────────► key + signed token
+   token checked offline (Ed25519, this device's hash), kept in the library
+```
+
+- **The licence**: one key (`XXXX-XXXX-XXXX-XXXX`) = one computer at a time.
+  Pelli binds it to a hash of the computer's id (SHA-256 of
+  `pelli-instant-device-v1:` + the macOS IOPlatformUUID, the Windows
+  MachineGuid or `/etc/machine-id`) and signs a token the app checks offline
+  against the public key compiled in. `plus_activate` binds a key to this
+  computer (`invalidKey`, `otherDevice`, `revoked`, `offline`);
+  `plus_release` frees it for another computer. At most once a day, online,
+  `plus/verify` says whether the licence is still active (released elsewhere,
+  refunded); anything else removes it. Offline, the token keeps working.
+- **What Plus unlocks in the engine**: `search` and `download_model_pack`
+  answer `plusRequired` without it, and `precision: "maximum"` runs in
+  Standard. The pack's download links come from `POST models`, for the
+  licence token or the account's Bearer.
+- Every change of `PlusStatus` is an engine event `plus`.
+
+**Telemetry** (`telemetry.rs`): anonymous, on by default, off in the welcome
+tour or in *Settings → Privacy*. Six events (`onboarding_completed`,
+`app_opened` once a day, `analysis_completed`, `export_completed`,
+`plus_activated`, `telemetry_disabled`), each with a random install id, the
+app version, the system, the processor architecture and the app language;
+never a path, a file name, the device hash, the licence or the account. Each
+event is sent on its own background thread, 5 s timeout, no retry, nothing
+kept on disk. Turning it off sends `telemetry_disabled`, then deletes the
+install id; declining during the welcome tour sends nothing at all. The host
+starts it with `Engine::start_services`: the CLI's `analyze` and the tests
+never send anything.
+
+**The optional Pelli account** (`account.rs`, `pelli.rs`), only used to get
+Plus through a Pro or Ultra plan:
 
 ```
  Pelli Instant                                browser                  app.pelli.io
@@ -146,26 +188,12 @@ elsewhere, for instance at `pnpm fake-pelli`).
    token → macOS Keychain / Windows Credential Manager (service io.pelli.instant)
 ```
 
-- **The token** is valid 30 days. When Pelli no longer accepts it, the app signs
-  out and asks to sign in again. Debug builds (a new signature at every build
-  would make macOS ask for the keychain password at each launch) and Linux
-  keep it in the local library instead.
-- **The account** (`me`: name, plan, photos sorted this month) is refreshed
-  at start-up and before an analysis. Offline, the last known one is used.
-- **The quota.** Before an analysis, the engine counts the photos it has
-  never analysed and asks Pelli to reserve that number; when the run ends,
-  it gives back the photos it could not analyse (cancelled, failed or
-  unreadable). The requests carry only these numbers. Photos sorted again
-  are not counted. On a limited plan, the reserved photos are kept in the
-  library until the run ends: after a quit or a crash, the next analysis of
-  the project doesn't reserve them again and gives back those it no longer
-  needs. On the Free and Lite plans, an analysis that needs counting doesn't
-  start offline (`quotaOffline`).
-- **The offers** (Pelli's plans, in your language) are read to show what each
-  plan includes, and cached for offline use. The app never hard-codes prices.
-- **Without an account.** Built with `PELLI_INSTANT_NO_ACCOUNT=1`, the app
-  skips sign-in and the quota entirely, and never sends the commands that
-  talk to Pelli (`noAccount` in `AppInfo`).
+- **The token** is valid 30 days. When Pelli no longer accepts it, the app
+  signs out. Debug builds (a new signature at every build would make macOS
+  ask for the keychain password at each launch) and Linux keep it in the
+  local library instead.
+- **The account** (`me`: name, plan, `plus`) is refreshed at start-up.
+  Offline, the last known one is used.
 - **Sending to a Pelli gallery.** The engine can also upload the selection
   to a gallery of the photographer's Pelli account, one folder per moment
   (`upload.rs`, `uploader.rs`, `src/components/export/GallerySection.tsx`).
@@ -175,7 +203,9 @@ elsewhere, for instance at `pnpm fake-pelli`).
 ## The Maximum pack
 
 `cull-engine/src/modelpack.rs` downloads the files of the `maximum` bundle of
-`models/manifest.json` into the data folder (HTTP range requests, so a
+`models/manifest.json` into the data folder, from the short-lived links Pelli
+hands out to Plus (`POST models`; asked again when the storage says a link
+expired), with HTTP range requests (so a
 download resumes; SHA-256 of each file; at most about four `model-pack`
 events a second), then prepares the pack: `cull_ml::MaximumModels::check`
 runs every model on synthetic inputs against reference outputs compiled into
@@ -203,7 +233,7 @@ Nothing is written in your photo folders until you export.
 
 | What | macOS | Windows |
 | --- | --- | --- |
-| Library: projects, measures, decisions, marks, settings, quota reservations (`library.sqlite`) | `~/Library/Application Support/io.pelli.instant/` | `%APPDATA%\io.pelli.instant\` |
+| Library: projects, measures, decisions, marks, settings, Plus licence, telemetry install id (`library.sqlite`) | `~/Library/Application Support/io.pelli.instant/` | `%APPDATA%\io.pelli.instant\` |
 | Maximum pack, when downloaded | `models/maximum/` next to the library | `models\maximum\` next to the library |
 | Preview cache, one folder per project | `~/Library/Caches/io.pelli.instant/previews/` | `%LOCALAPPDATA%\io.pelli.instant\previews\` |
 | Pelli token (release builds) | Keychain, service `io.pelli.instant` | Credential Manager, `io.pelli.instant` |

@@ -24,8 +24,6 @@ export interface PrefsState {
   includeSubfolders: boolean
   /** small chimes when an analysis or an export ends */
   sounds: boolean
-  /** the welcome tour was seen (shown once, after the first sign-in) */
-  onboarded: boolean
   /** the welcome tour's voice-over */
   voice: boolean
   /** what the export writes in the XMP sidecars (the photographer's own marks always win) */
@@ -36,7 +34,6 @@ export interface PrefsState {
   setAutoAdvance: (value: boolean) => void
   setIncludeSubfolders: (value: boolean) => void
   setSounds: (value: boolean) => void
-  setOnboarded: (value: boolean) => void
   setVoice: (value: boolean) => void
   setXmpMapping: (decision: FinalDecision, patch: { rating?: number; label?: ColorLabel }) => void
 }
@@ -78,7 +75,6 @@ export const usePrefsStore = create<PrefsState>()(
       autoAdvance: true,
       includeSubfolders: true,
       sounds: true,
-      onboarded: false,
       voice: true,
       xmpMapping: DEFAULT_XMP_MAPPING,
       setThumbSize: (size) => set({ thumbSize: Math.round(Math.min(THUMB_MAX, Math.max(THUMB_MIN, size))) }),
@@ -87,7 +83,6 @@ export const usePrefsStore = create<PrefsState>()(
       setAutoAdvance: (autoAdvance) => set({ autoAdvance }),
       setIncludeSubfolders: (includeSubfolders) => set({ includeSubfolders }),
       setSounds: (sounds) => set({ sounds }),
-      setOnboarded: (onboarded) => set({ onboarded }),
       setVoice: (voice) => set({ voice }),
       setXmpMapping: (decision, patch) =>
         set(({ xmpMapping }) => ({
@@ -108,7 +103,6 @@ export const usePrefsStore = create<PrefsState>()(
         autoAdvance: s.autoAdvance,
         includeSubfolders: s.includeSubfolders,
         sounds: s.sounds,
-        onboarded: s.onboarded,
         voice: s.voice,
         xmpMapping: s.xmpMapping,
       }),

@@ -30,11 +30,9 @@ sources, checksums and licences are in `models/manifest.json` (see also
 | RetinaFace ResNet-50 (`biubug6/Pytorch_Retinaface`, exported to ONNX by Pelli) | biubug6 | MIT |
 
 The LAION V2 head is compiled into the app, like V1; it is only used with the
-other files of the pack. The pack itself is downloaded from Hugging Face
-(CLIP ViT-L/14, DINOv2) and from Pelli's storage
-(`https://pelli.s3.fr-par.scw.cloud/pelli-instant/models/`, for the files
-Pelli converted), at the URLs and with the SHA-256 listed in
-`models/manifest.json`.
+other files of the pack. The pack is part of Pelli Instant Plus: the app
+downloads it from short-lived links Pelli hands out, and checks every file
+against the size and SHA-256 listed in `models/manifest.json`.
 
 ### Changes made by Pelli
 
@@ -68,19 +66,20 @@ distributed with the app.
 
 ## Media
 
-- **Welcome tour photos**: published on Flickr under CC BY 2.0 or CC0 1.0 by
-  Henry Söderlund, Tg-Pint, exousiavampira, Tobyotter, WriteAwaybyKarylle,
-  firemedic58, apdk, pixellaphoto, d26b73 and jarrodlombardo; resized,
-  converted to WebP, one cropped, two deliberately degraded. File by file,
-  with links, in
+- **Welcome tour photos**: published on [Pexels](https://www.pexels.com)
+  under the [Pexels licence](https://www.pexels.com/license/) by Andressa
+  Chagas, Arina Krasnikova, Uday Ahir, Book Hut, Chris Shafer, Devyn
+  Breslin, Dmitry Rodionov, Elizabeth Zernetska, Jessika Arraes, Lorenzo
+  Castellino, Maddy Freddie and mehmetakifarts; resized, converted to WebP,
+  one cropped, three deliberately degraded. File by file in
   [`src/assets/onboarding/CREDITS.md`](src/assets/onboarding/CREDITS.md).
 - **Welcome tour voice-over**: generated with [ElevenLabs](https://elevenlabs.io)
   (model Eleven v4) on a paid plan, which allows commercial use of the
   output. Voices from the ElevenLabs voice library: Hope, Victoria, Cristina,
   Carla Blum, Tiziana, Carla, Ruth, Marta and Malin.
-- The screenshots in `docs/images` show Flickr photos under CC BY 2.0 or
-  CC0 1.0, credited in [`docs/images/CREDITS.md`](docs/images/CREDITS.md).
-  They are not part of the app.
+- The screenshots in `docs/images` show the same Pexels photos, credited in
+  [`docs/images/CREDITS.md`](docs/images/CREDITS.md). They are not part of
+  the app.
 
 ## Software
 

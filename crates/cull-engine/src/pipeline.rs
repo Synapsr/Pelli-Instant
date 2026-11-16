@@ -10,8 +10,9 @@
 //! ```
 //!
 //! Re-running is incremental: photos whose file, and models, did not change
-//! are skipped; a missing thumbnail only triggers a decode. Photos analysed
-//! for the first time are counted on the Pelli monthly quota ([`crate::usage`]).
+//! are skipped; a missing thumbnail only triggers a decode. An analysis the
+//! app started runs in Maximum precision only with Plus, and its end is
+//! reported to the anonymous telemetry ([`crate::telemetry`]).
 //!
 //! A photo the photographer has not marked yet takes, when its analysis is
 //! saved, the rating its camera wrote in the file: stars, or a reject flag
@@ -151,36 +152,24 @@ fn work_to_do(
         .collect()
 }
 
-/// Photos of `todo` analysed for the first time (no analysis row at all):
-/// the only ones counted on the monthly quota.
-fn first_analyses(todo: &[(PhotoAsset, Need)], analyses: &HashMap<String, AnalysisRow>) -> Vec<String> {
-    todo.iter()
-        .filter(|(a, need)| *need == Need::Full && !analyses.contains_key(&a.id))
-        .map(|(a, _)| a.id.clone())
-        .collect()
-}
-
-/// How many of `first_time` were not analysed after all (no measures).
-fn not_analysed(first_time: &[String], analyses: &HashMap<String, AnalysisRow>) -> u32 {
-    first_time.iter().filter(|id| analyses.get(*id).is_none_or(|r| r.metrics.is_none())).count() as u32
-}
-
-/// Quota of a run, given the photos `reserved` by an earlier run that never
-/// ended: how many of `first_time` to reserve (those not reserved yet), and
-/// how many reserved ones to give back now (no longer to analyse and not
-/// analysed: gone from the folder, unreadable).
-fn quota_plan(
-    first_time: &[String],
-    reserved: &HashSet<String>,
+/// Photos of `todo` this run analysed (measures saved since `since_ms`):
+/// `(photos, raw, jpeg)`, a RAW + JPEG pair counting as a RAW.
+fn analysed_in_run(
+    todo: &[(PhotoAsset, Need)],
     analyses: &HashMap<String, AnalysisRow>,
-) -> (u32, u32) {
-    let to_count = first_time.iter().filter(|id| !reserved.contains(*id)).count() as u32;
-    let wanted: HashSet<&String> = first_time.iter().collect();
-    let stale = reserved
-        .iter()
-        .filter(|id| !wanted.contains(id) && analyses.get(*id).is_none_or(|r| r.metrics.is_none()))
-        .count() as u32;
-    (to_count, stale)
+    since_ms: i64,
+) -> (u32, u32, u32) {
+    let (mut raw, mut jpeg) = (0, 0);
+    for (a, _) in todo.iter().filter(|(_, need)| *need == Need::Full) {
+        if analyses.get(&a.id).is_some_and(|r| r.metrics.is_some() && r.analyzed_at >= since_ms) {
+            if a.primary.kind == FileKind::Raw {
+                raw += 1;
+            } else {
+                jpeg += 1;
+            }
+        }
+    }
+    (raw + jpeg, raw, jpeg)
 }
 
 struct Decoded {
@@ -355,9 +344,9 @@ pub(crate) struct AnalysisJob<'a> {
     pub(crate) engine: &'a Arc<Engine>,
     pub(crate) project: ProjectRow,
     pub(crate) cancel: Arc<AtomicBool>,
-    /// Count first-time photos on the Pelli monthly quota: the app, unless
-    /// built without account. Never the CLI and tests.
-    pub(crate) metered: bool,
+    /// Started by the app: Maximum precision needs Plus, and the end is
+    /// reported to the telemetry. Not the CLI nor tests.
+    pub(crate) app: bool,
 }
 
 impl AnalysisJob<'_> {
@@ -371,11 +360,18 @@ impl AnalysisJob<'_> {
         self.engine.events().emit("analysis-progress", v);
     }
 
+    /// Maximum precision is set, and allowed: Plus in the app (the CLI and
+    /// tests read a prepared pack freely).
+    fn wants_maximum(&self) -> bool {
+        self.engine.settings.read().precision == Precision::Maximum && (!self.app || self.engine.plus_active())
+    }
+
     pub(crate) fn run(self) -> Result<AnalysisSummary> {
         let _awake = crate::system::KeepAwake::new("Pelli Instant: analysing photos");
         let engine = self.engine;
         let pid = self.project.id.clone();
         let started = Instant::now();
+        let started_ms = now_ms();
         let state = engine.state(&pid)?;
 
         // Fresh scan so new files are picked up.
@@ -389,9 +385,10 @@ impl AnalysisJob<'_> {
         }
 
         let models = engine.models();
-        // Maximum precision when it is set and the pack is ready (its models
-        // load now and are released after the analysis); otherwise Standard.
-        let wants_maximum = engine.settings.read().precision == Precision::Maximum && models.is_some();
+        // Maximum precision when it is set (and allowed) and the pack is
+        // ready (its models load now and are released after the analysis);
+        // otherwise Standard.
+        let wants_maximum = models.is_some() && self.wants_maximum();
         if wants_maximum && engine.maximum_ready() {
             // Some seconds before the first photo: say so.
             self.emit_progress(Stage::Loading, 0, 0, None, started);
@@ -403,41 +400,33 @@ impl AnalysisJob<'_> {
             (Some(m), None) => m.models_id(),
             (None, _) => METRICS_ONLY.to_string(),
         };
-        let (todo, first_time) = {
+        let todo = {
             let st = state.lock();
-            let todo = work_to_do(&st.assets, &st.analyses, &models_id);
-            let first_time = first_analyses(&todo, &st.analyses);
-            (todo, first_time)
+            work_to_do(&st.assets, &st.analyses, &models_id)
         };
-        log::info!(
-            "analysis of {pid}: {} photo(s) to process ({} new), models {models_id}",
-            todo.len(),
-            first_time.len()
-        );
+        log::info!("analysis of {pid}: {} photo(s) to process, models {models_id}", todo.len());
 
-        // Photos reserved by a run that never ended (app quit, crash) are
-        // still counted: never reserved again.
-        let reserved = if self.metered { engine.reserved_photos(&pid) } else { HashSet::new() };
-        let (to_count, stale) = quota_plan(&first_time, &reserved, &state.lock().analyses);
-        let give_back = match self.metered.then(|| engine.reserve_usage(to_count)) {
-            Some(Err(e)) => {
-                engine.release_maximum_models();
-                return Err(e);
-            }
-            Some(Ok(limited)) => limited || !reserved.is_empty(),
-            None => false,
-        };
-        if give_back {
-            engine.set_reserved_photos(&pid, &first_time);
-        }
         let result = self.analyse(&state, &todo, models.as_deref(), maximum.as_deref(), precision, &models_id, started);
         drop(maximum);
         engine.release_maximum_models();
-        if give_back {
-            // Cancelled, failed or unreadable photos are not counted.
-            let unused = not_analysed(&first_time, &state.lock().analyses);
-            engine.release_usage(unused + stale);
-            engine.clear_reserved_photos(&pid);
+        if let (Ok(summary), true) = (&result, self.app) {
+            let (photos, raw, jpeg) = analysed_in_run(&todo, &state.lock().analyses, started_ms);
+            if photos > 0 {
+                engine.track(
+                    "analysis_completed",
+                    serde_json::json!({
+                        "photos": photos,
+                        "raw": raw,
+                        "jpeg": jpeg,
+                        "seconds": (summary.duration_ms as f64 / 100.0).round() / 10.0,
+                        "precision": summary.precision,
+                        "selected": summary.counts.selected,
+                        "toReview": summary.counts.to_review,
+                        "rejected": summary.counts.rejected,
+                        "groups": summary.groups,
+                    }),
+                );
+            }
         }
         result
     }
@@ -721,7 +710,7 @@ mod tests {
     }
 
     #[test]
-    fn only_first_analyses_are_counted() {
+    fn only_new_or_changed_photos_are_analysed_again() {
         let assets =
             vec![asset("new", 10), asset("done", 10), asset("changed", 20), asset("failed", 10), asset("old", 10)];
         let analyses: HashMap<String, AnalysisRow> = [
@@ -745,22 +734,48 @@ mod tests {
                 ("old", Need::Full)
             ]
         );
-        assert_eq!(first_analyses(&todo, &analyses), ["new"]);
+        // What this run analysed: `changed` and `old` (re-measured since 1),
+        // not `failed` (still unreadable) nor `done` (thumbnail only).
+        let mut after = analyses.clone();
+        for id in ["changed", "old"] {
+            after.get_mut(id).unwrap().analyzed_at = 5;
+        }
+        assert_eq!(analysed_in_run(&todo, &after, 5), (2, 0, 2));
+        assert_eq!(analysed_in_run(&todo, &analyses, 5), (0, 0, 0));
     }
 
+    /// Maximum precision needs Plus in the app (Standard otherwise); the CLI
+    /// reads a prepared pack freely. Search needs Plus.
     #[test]
-    fn photos_reserved_by_an_unfinished_run_are_not_counted_twice() {
-        let ids = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-        let analyses: HashMap<String, AnalysisRow> = [row("done", 10, "m", true), row("unreadable", 10, "m", false)]
-            .into_iter()
-            .map(|r| (r.photo_id.clone(), r))
-            .collect();
-        // The quit run reserved a, b, done, unreadable and gone (deleted since).
-        let reserved: HashSet<String> = ids(&["a", "b", "done", "unreadable", "gone"]).into_iter().collect();
-        let (to_count, stale) = quota_plan(&ids(&["a", "b", "new"]), &reserved, &analyses);
-        assert_eq!(to_count, 1, "only `new` is reserved");
-        assert_eq!(stale, 2, "`unreadable` and `gone` are given back, `done` stays counted");
-        assert_eq!(quota_plan(&ids(&["x"]), &HashSet::new(), &analyses), (1, 0));
+    fn maximum_precision_and_search_need_plus_in_the_app() {
+        let tmp = tempfile::tempdir().unwrap();
+        let engine = crate::testing::test_engine(tmp.path(), Arc::new(crate::NullSink));
+        let shoot = tmp.path().join("shoot");
+        std::fs::create_dir_all(&shoot).unwrap();
+        let jpeg = cull_decode::encode_jpeg(&RgbImage::from_pixel(32, 24, image::Rgb([90, 120, 150])), 80);
+        std::fs::write(shoot.join("IMG_0001.jpg"), &jpeg).unwrap();
+        let project = engine.open_folder(&shoot, false).unwrap();
+        engine
+            .set_settings(crate::settings::SettingsPatch { precision: Some(Precision::Maximum), ..Default::default() })
+            .unwrap();
+        let job = |app| AnalysisJob {
+            engine: &engine,
+            project: engine.project_row(&project.id).unwrap(),
+            cancel: Arc::new(AtomicBool::new(false)),
+            app,
+        };
+        assert!(!job(true).wants_maximum(), "the app without Plus: Standard");
+        assert!(job(false).wants_maximum(), "the CLI");
+        assert_eq!(engine.search(&project.id, "a dog").unwrap_err().code(), "plusRequired");
+        let account = crate::pelli::Account { plus: true, ..Default::default() };
+        engine.kv_set("pelli.token", "t").unwrap();
+        engine.kv_set("pelli.account", &serde_json::to_string(&account).unwrap()).unwrap();
+        assert!(job(true).wants_maximum(), "the app with Plus");
+        assert_eq!(engine.search(&project.id, "a dog").unwrap_err().code(), "modelsMissing", "past the gate");
+        engine
+            .set_settings(crate::settings::SettingsPatch { precision: Some(Precision::Standard), ..Default::default() })
+            .unwrap();
+        assert!(!job(true).wants_maximum() && !job(false).wants_maximum());
     }
 
     #[test]
@@ -794,15 +809,5 @@ mod tests {
         std::thread::spawn(move || tx.send(e.analyze_blocking(&project.id, cull_types::CullSettings::default())));
         let result = rx.recv_timeout(Duration::from_secs(60)).expect("the analysis ended");
         assert!(matches!(result, Err(EngineError::Db(_))), "{result:?}");
-    }
-
-    #[test]
-    fn unanalysed_first_photos_are_given_back() {
-        let first_time: Vec<String> = ["a", "b", "c"].map(String::from).to_vec();
-        let mut analyses: HashMap<String, AnalysisRow> = HashMap::new();
-        assert_eq!(not_analysed(&first_time, &analyses), 3, "cancelled before any photo");
-        analyses.insert("a".into(), row("a", 10, "m", true));
-        analyses.insert("b".into(), row("b", 10, "m", false));
-        assert_eq!(not_analysed(&first_time, &analyses), 2, "b unreadable, c not reached");
     }
 }

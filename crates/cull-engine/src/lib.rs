@@ -8,31 +8,21 @@
 //! Threading: every method is blocking and thread-safe; long jobs (analysis,
 //! upload) run on their own threads and report through events.
 //!
-//! # Pelli account and monthly quota
+//! # Free, unlimited, no account
 //!
-//! Everything runs on the photographer's computer. Sorting needs a Pelli
-//! account: the photos a project analyses for the first time are counted on
-//! the monthly quota of the Pelli plan ([`usage`]); re-analyses, review and
-//! export never count. Sending photos to a Pelli gallery also needs the
-//! account ([`upload`]).
+//! Everything runs on the photographer's computer, and sorting needs no
+//! account and counts nothing. **Pelli Instant Plus** ([`plus`]: a licence
+//! bought for this device, or a Pelli Pro/Ultra account) unlocks the Maximum
+//! pack ([`modelpack`]) and AI search. The optional Pelli account
+//! ([`account`]) also sends photos to a Pelli gallery ([`upload`]).
+//! Anonymous usage statistics go to Pelli unless turned off ([`telemetry`]).
 //!
-//! # No-account build
+//! The hosts call [`Engine::start_services`] once the engine is open
+//! (telemetry, the daily licence check); the CLI's batch analysis does not,
+//! so it never talks to Pelli.
 //!
-//! Developers who compile the app themselves can build it without the Pelli
-//! account:
-//!
-//! ```sh
-//! PELLI_INSTANT_NO_ACCOUNT=1 pnpm tauri build    # or `pnpm tauri dev`, `cargo build`
-//! ```
-//!
-//! (`1`, `true` or `yes`). Such a build needs no sign-in to analyse and never
-//! calls the usage API (no reservation, no quota); everything else is
-//! identical, sending to a Pelli gallery still asks to sign in. The UI learns
-//! it from `app_info` (`noAccount`). The variable is read at compile time
-//! ([`no_account_build`]); cargo rebuilds this crate when it changes.
-//!
-//! In the same spirit, a release build talks to the Pelli chosen when it was
-//! compiled (`PELLI_API_URL`, default `https://app.pelli.io`) and ignores
+//! A release build talks to the Pelli chosen when it was compiled
+//! (`PELLI_API_URL`, default `https://app.pelli.io`) and ignores
 //! `PELLI_API_URL` at run time; only debug builds (`pnpm tauri dev`, `pnpm
 //! app:fake-pelli`) can be pointed at another Pelli, such as
 //! `scripts/fake-pelli.mjs`, without rebuilding ([`pelli::api_url`]).
@@ -43,18 +33,20 @@ pub mod export;
 pub mod modelpack;
 pub mod pelli;
 pub mod pipeline;
+pub mod plus;
 pub mod query;
 pub mod settings;
 pub mod store;
 pub mod system;
+pub mod telemetry;
+#[cfg(test)]
+mod testing;
 pub mod upload;
 mod uploader;
-pub mod usage;
 pub mod view;
 
 use crate::pipeline::{AnalysisJob, OwnedFacts};
 use crate::store::{AnalysisRow, ProjectRow, Store};
-use crate::usage::QuotaDetails;
 use crate::view::*;
 use cull_types::{final_decision, Assessment, CullSettings, FileKind, PhotoAsset, Scene, SimilarGroup, UserMark};
 use parking_lot::{Mutex, RwLock};
@@ -67,14 +59,6 @@ pub use cull_analysis;
 pub use cull_decode;
 pub use cull_ml;
 pub use cull_types;
-
-/// `true` when built with `PELLI_INSTANT_NO_ACCOUNT` set to `1`, `true` or
-/// `yes`: analyses need no Pelli account and are never counted (see the
-/// crate docs).
-pub fn no_account_build() -> bool {
-    option_env!("PELLI_INSTANT_NO_ACCOUNT")
-        .is_some_and(|v| ["1", "true", "yes"].iter().any(|on| v.trim().eq_ignore_ascii_case(on)))
-}
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -112,13 +96,9 @@ pub enum EngineError {
     Cancelled,
     #[error("natural-language search needs the CLIP models")]
     SearchUnavailable,
-    /// The monthly quota left is too small for the new photos.
-    #[error("monthly quota exceeded: {} new photo(s) to analyse", .0.needed)]
-    QuotaExceeded(QuotaDetails),
-    /// Pelli is unreachable and the plan has a monthly quota: the new photos
-    /// cannot be counted.
-    #[error("Pelli is unreachable: {} new photo(s) cannot be counted on the monthly quota", .0.needed)]
-    QuotaOffline(QuotaDetails),
+    /// AI search and the Maximum pack need Pelli Instant Plus.
+    #[error("this needs Pelli Instant Plus")]
+    PlusRequired,
     /// Not enough free disk space for the Maximum pack.
     #[error("not enough disk space: {needed} bytes needed, {free} free")]
     DiskFull { needed: u64, free: u64 },
@@ -159,8 +139,7 @@ impl EngineError {
             EngineError::AlreadyRunning => "alreadyRunning",
             EngineError::SearchUnavailable => "modelsMissing",
             EngineError::Cancelled => "cancelled",
-            EngineError::QuotaExceeded(_) => "quotaExceeded",
-            EngineError::QuotaOffline(_) => "quotaOffline",
+            EngineError::PlusRequired => "plusRequired",
             EngineError::DiskFull { .. } => "diskFull",
             EngineError::Remote { code, .. } => match code.as_str() {
                 "network" => "offline",
@@ -169,14 +148,6 @@ impl EngineError {
                 }
                 other => other,
             },
-        }
-    }
-
-    /// Structured details for the UI (`details` next to `code`), if any.
-    pub fn details(&self) -> Option<serde_json::Value> {
-        match self {
-            EngineError::QuotaExceeded(d) | EngineError::QuotaOffline(d) => serde_json::to_value(d).ok(),
-            _ => None,
         }
     }
 }
@@ -368,6 +339,10 @@ pub struct Engine {
     /// Exports under way ([`Counted`]).
     pub(crate) exports: AtomicUsize,
     pub(crate) pack: modelpack::PackManager,
+    /// Origin of the Pelli API ([`pelli::api_url`]).
+    pub(crate) api_url: RwLock<String>,
+    pub(crate) plus: plus::PlusState,
+    pub(crate) telemetry: telemetry::Telemetry,
     /// Analysis worker threads forced by the host (CLI benchmarks), instead
     /// of the count derived from the settings.
     worker_override: RwLock<Option<usize>>,
@@ -385,6 +360,9 @@ impl Engine {
         let engine = Arc::new(Engine {
             secrets,
             pack,
+            api_url: RwLock::new(pelli::api_url()),
+            plus: plus::PlusState::new(),
+            telemetry: telemetry::Telemetry::default(),
             worker_override: RwLock::new(None),
             config,
             store: Mutex::new(store),
@@ -399,6 +377,22 @@ impl Engine {
         engine.reload_models();
         engine.init_model_pack();
         Ok(engine)
+    }
+
+    /// What a host starts once the engine is open: telemetry, today's
+    /// `app_opened`, and the daily check of the Plus licence, in the
+    /// background. An engine never started (the CLI's batch analysis, tests)
+    /// sends nothing to Pelli.
+    pub fn start_services(self: &Arc<Self>) {
+        self.start_telemetry();
+        let engine = self.clone();
+        let spawned = std::thread::Builder::new().name("services".into()).spawn(move || {
+            engine.app_opened();
+            engine.verify_license_if_due();
+        });
+        if let Err(e) = spawned {
+            log::warn!("cannot start the background services: {e}");
+        }
     }
 
     /// ONNX Runtime options from the settings.
@@ -731,9 +725,8 @@ impl Engine {
     }
 
     /// Start (or resume) the analysis of a project in the background.
-    /// Photos already analysed with the same file and models are skipped;
-    /// those analysed for the first time are counted on the Pelli monthly
-    /// quota (not in a [no-account build](no_account_build)).
+    /// Photos already analysed with the same file and models are skipped.
+    /// Maximum precision needs Plus (Standard otherwise).
     pub fn start_analysis(self: &Arc<Self>, project_id: &str, settings: CullSettings) -> Result<()> {
         let mut row = self.project_row(project_id)?;
         let cancel = {
@@ -753,7 +746,7 @@ impl Engine {
             .name(format!("analysis-{project_id}"))
             .spawn(move || {
                 let _running = Running(&engine.running, &project_id);
-                let job = AnalysisJob { engine: &engine, project: row, cancel, metered: !no_account_build() };
+                let job = AnalysisJob { engine: &engine, project: row, cancel, app: true };
                 let result =
                     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| job.run())).unwrap_or_else(|_| {
                         Err(EngineError::Remote { code: "internal".into(), message: "internal error".into() })
@@ -775,13 +768,13 @@ impl Engine {
         }
     }
 
-    /// Blocking variant for the CLI and tests (developer tools): never
-    /// counts photos on the Pelli quota, so it needs no account.
+    /// Blocking variant for the CLI and tests (developer tools): Maximum
+    /// precision whenever the pack is ready, no telemetry.
     pub fn analyze_blocking(self: &Arc<Self>, project_id: &str, settings: CullSettings) -> Result<AnalysisSummary> {
         let mut row = self.project_row(project_id)?;
         row.settings = settings;
         self.store.lock().upsert_project(&row)?;
-        let job = AnalysisJob { engine: self, project: row, cancel: Arc::new(AtomicBool::new(false)), metered: false };
+        let job = AnalysisJob { engine: self, project: row, cancel: Arc::new(AtomicBool::new(false)), app: false };
         job.run()
     }
 
@@ -824,12 +817,15 @@ impl Engine {
         Ok(self.url_for(&self.large_preview_path(project_id, photo_id)?))
     }
 
-    /// Natural-language search over CLIP embeddings, best first. The query
-    /// is embedded by the text tower of the CLIP model that analysed the
-    /// project (ViT-B/32 in Standard precision, ViT-L/14 in Maximum: their
-    /// embeddings are not comparable), and only photos analysed by that
-    /// model are ranked.
+    /// Natural-language search over CLIP embeddings, best first (Plus
+    /// only). The query is embedded by the text tower of the CLIP model that
+    /// analysed the project (ViT-B/32 in Standard precision, ViT-L/14 in
+    /// Maximum: their embeddings are not comparable), and only photos
+    /// analysed by that model are ranked.
     pub fn search(&self, project_id: &str, query: &str) -> Result<Vec<SearchHit>> {
+        if !self.plus_active() {
+            return Err(EngineError::PlusRequired);
+        }
         let prompt = query::to_clip_prompt(query);
         let maximum = self.project_row(project_id)?.precision == Some(cull_types::Precision::Maximum);
         let q = if maximum {

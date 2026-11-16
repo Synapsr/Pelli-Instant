@@ -4,8 +4,9 @@
 //! routed to [`cull_engine::commands::dispatch`] by a single invoke handler
 //! (but the app updates, answered by [`updates`]), engine events are
 //! re-emitted as Tauri events, previews are served by the asset protocol
-//! (scope = cache dir + opened project folders), and the Pelli token lives in
-//! the OS keychain.
+//! (scope = cache dir + opened project folders), the Pelli token lives in
+//! the OS keychain, and the engine's services (telemetry, the daily licence
+//! check) start with the app.
 
 mod updates;
 
@@ -30,7 +31,14 @@ const COMMANDS: &[&str] = &[
     "auth_poll",
     "auth_logout",
     "refresh_account",
-    "get_offers",
+    "plus_status",
+    "plus_offer",
+    "plus_checkout",
+    "plus_poll",
+    "plus_cancel_checkout",
+    "plus_activate",
+    "plus_release",
+    "telemetry_preview",
     "model_pack",
     "download_model_pack",
     "cancel_model_pack",
@@ -200,6 +208,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         events: Arc::new(TauriEvents(handle.clone())),
         secrets: secrets(),
     })?;
+    engine.start_services();
     app.manage(AppState { engine, host: Arc::new(TauriHost(handle.clone())) });
     updates::start(&handle);
     Ok(())

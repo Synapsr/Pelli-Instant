@@ -1,6 +1,7 @@
 import { Button, Progress, Spinner } from '@heroui/react'
 import { CircleCheck, ExternalLink, FolderSearch, Info, TriangleAlert, UploadCloud } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { PelliExportPromo } from '@/components/promo/PelliPromo'
 import { IconBox } from '@/components/ui/IconBox'
 import { api } from '@/lib/api'
 import { formatBytes, formatNumber } from '@/lib/format'
@@ -111,6 +112,7 @@ export function ExportReportView({ folder, revealPath, xmp }: { folder: string; 
           {t('export.lightroomHint')}
         </p>
       )}
+      {!error && !uploadReport && <PelliExportPromo className="mx-auto mt-5 max-w-md" />}
       <div className="mt-6 flex justify-center gap-2">
         <Button variant="flat" startContent={<FolderSearch className="size-4" />} onPress={() => void api().revealInFolder(revealPath)}>
           {isMac() ? t('common.revealInFinder') : t('common.revealInExplorer')}

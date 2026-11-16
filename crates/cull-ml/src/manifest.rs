@@ -49,11 +49,9 @@ pub(crate) struct ModelEntry {
     pub size: u64,
     #[serde(default)]
     pub required: bool,
-    /// `default` (shipped with the app), `gpu`, `maximum` (optional pack).
+    /// `default` (shipped with the app), `gpu`, `maximum` (optional pack,
+    /// without URL: Pelli hands them out to Pelli Instant Plus).
     pub bundle: String,
-    pub url: String,
-    #[serde(default)]
-    pub mirrors: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -229,8 +227,16 @@ mod tests {
             assert!(e.size > 0);
             assert!(!e.tag.is_empty());
             assert!(["default", "gpu", "maximum"].contains(&e.bundle.as_str()), "{}", e.id);
-            assert!(e.url.starts_with("https://"), "{}", e.id);
             assert!(!e.required || e.bundle == "default", "{}", e.id);
+        }
+        // The Maximum pack has no public URL (the app asks Pelli for
+        // short-lived ones); every other model has one.
+        let raw: serde_json::Value = serde_json::from_str(MANIFEST_JSON).unwrap();
+        for m in raw["models"].as_array().unwrap() {
+            let maximum = m["bundle"] == "maximum";
+            let url = m["url"].as_str();
+            assert_eq!(url.is_none() && m.get("mirrors").is_none(), maximum, "{}", m["id"]);
+            assert!(maximum || url.unwrap().starts_with("https://"), "{}", m["id"]);
         }
         let pack: Vec<&str> = bundle("maximum").unwrap().iter().map(|e| e.id.as_str()).collect();
         assert_eq!(
