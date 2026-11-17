@@ -220,6 +220,7 @@ pub fn dispatch(engine: &Arc<Engine>, host: &dyn Host, command: &str, args: &Val
             ok(engine.large_preview(&arg::<String>(args, "projectId")?, &arg::<String>(args, "photoId")?)?)
         }
         "search" => ok(engine.search(&arg::<String>(args, "projectId")?, &arg::<String>(args, "query")?)?),
+        "stats_overview" => ok(engine.stats_overview()?),
 
         "export_project" => {
             let options: ExportOptions = arg(args, "options")?;

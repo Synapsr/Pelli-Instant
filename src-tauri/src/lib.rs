@@ -54,6 +54,7 @@ const COMMANDS: &[&str] = &[
     "set_marks",
     "large_preview",
     "search",
+    "stats_overview",
     "export_project",
     "list_galleries",
     "upload_to_pelli",

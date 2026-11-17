@@ -84,6 +84,16 @@ CREATE TABLE IF NOT EXISTS upload (
     PRIMARY KEY (project_id, gallery_id, photo_id),
     FOREIGN KEY (project_id, photo_id) REFERENCES photo(project_id, id) ON DELETE CASCADE
 );
+-- Analyses that measured photos: how many, how long the whole run took
+-- (from the scan to the decisions) and in which precision. The measured
+-- speed of the statistics.
+CREATE TABLE IF NOT EXISTS analysis_run (
+    project_id      TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+    finished_at     INTEGER NOT NULL,
+    photos          INTEGER NOT NULL,
+    duration_ms     INTEGER NOT NULL,
+    precision       TEXT NOT NULL
+);
 "#;
 
 #[derive(Debug, Clone)]
@@ -159,6 +169,13 @@ fn parse_label(s: &str) -> ColorLabel {
         "blue" => ColorLabel::Blue,
         "purple" => ColorLabel::Purple,
         _ => ColorLabel::None,
+    }
+}
+
+fn precision_str(p: Precision) -> &'static str {
+    match p {
+        Precision::Standard => "standard",
+        Precision::Maximum => "maximum",
     }
 }
 
@@ -272,7 +289,7 @@ impl Store {
                 p.last_opened_at,
                 p.analyzed_at,
                 serde_json::to_string(&p.settings)?,
-                p.precision.map(|p| if p == Precision::Maximum { "maximum" } else { "standard" }),
+                p.precision.map(precision_str),
             ],
         )?;
         Ok(())
@@ -449,6 +466,38 @@ impl Store {
             params![project_id, photo_id, gallery_id, size as i64, mtime, now],
         )?;
         Ok(())
+    }
+
+    // -- analysis runs -----------------------------------------------------
+
+    /// Remembers an analysis that measured `photos` photos in `duration_ms`.
+    pub fn save_run(
+        &self,
+        project_id: &str,
+        photos: u32,
+        duration_ms: u64,
+        precision: Precision,
+        now: i64,
+    ) -> Result<(), EngineError> {
+        self.conn.execute(
+            "INSERT INTO analysis_run (project_id, finished_at, photos, duration_ms, precision)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![project_id, now, photos, duration_ms as i64, precision_str(precision)],
+        )?;
+        Ok(())
+    }
+
+    /// Every analysis run summed by precision: `(precision, photos, duration_ms)`.
+    pub fn run_totals(&self) -> Result<Vec<(Precision, u64, u64)>, EngineError> {
+        let mut st = self.conn.prepare(
+            "SELECT precision, SUM(photos), SUM(duration_ms) FROM analysis_run
+             GROUP BY precision ORDER BY precision DESC",
+        )?;
+        let rows = st.query_map([], |r| {
+            let precision = if r.get::<_, String>(0)? == "maximum" { Precision::Maximum } else { Precision::Standard };
+            Ok((precision, r.get::<_, i64>(1)?.max(0) as u64, r.get::<_, i64>(2)?.max(0) as u64))
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
     }
 
     // -- marks -------------------------------------------------------------
@@ -636,7 +685,14 @@ mod tests {
         // A rescan without "a" keeps its data but hides it.
         s.sync_photos("p", &[asset("b", "IMG_2.jpg")]).unwrap();
         assert_eq!(s.photos("p").unwrap().len(), 1);
+        // Analysis runs, summed by precision.
+        assert!(s.run_totals().unwrap().is_empty());
+        s.save_run("p", 100, 8_000, Precision::Standard, 1).unwrap();
+        s.save_run("p", 50, 2_000, Precision::Standard, 2).unwrap();
+        s.save_run("p", 30, 9_000, Precision::Maximum, 3).unwrap();
+        assert_eq!(s.run_totals().unwrap(), vec![(Precision::Standard, 150, 10_000), (Precision::Maximum, 30, 9_000)]);
         s.delete_project("p").unwrap();
         assert!(s.projects().unwrap().is_empty());
+        assert!(s.run_totals().unwrap().is_empty(), "forgotten with their project");
     }
 }

@@ -13,7 +13,8 @@
 //! Everything runs on the photographer's computer, and sorting needs no
 //! account and counts nothing. **Pelli Instant Plus** ([`plus`]: a licence
 //! bought for this device, or a Pelli Pro/Ultra account) unlocks the Maximum
-//! pack ([`modelpack`]) and AI search. The optional Pelli account
+//! pack ([`modelpack`]), AI search and the detailed statistics ([`stats`]),
+//! computed on this computer like everything else. The optional Pelli account
 //! ([`account`]) also sends photos to a Pelli gallery ([`upload`]).
 //! Anonymous usage statistics go to Pelli unless turned off ([`telemetry`]).
 //!
@@ -36,6 +37,7 @@ pub mod pipeline;
 pub mod plus;
 pub mod query;
 pub mod settings;
+pub mod stats;
 pub mod store;
 pub mod system;
 pub mod telemetry;

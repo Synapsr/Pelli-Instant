@@ -110,6 +110,9 @@ fn full_workflow_without_models() {
     let names: Vec<String> = events.0.lock().clone();
     assert!(names.iter().any(|n| n == "analysis-photo"));
     assert_eq!(names.last().map(String::as_str), Some("analysis-done"));
+    // The statistics count it; their details are part of Plus.
+    let stats = engine.stats_overview().unwrap();
+    assert_eq!((stats.photos, stats.shoots, stats.detail.is_none()), (8, 1, true));
 
     let data = engine.get_project(&project.id).unwrap();
     let by_name = |name: &str| data.photos.iter().find(|p| p.file_name == name).unwrap().clone();

@@ -12,7 +12,9 @@
 //! Re-running is incremental: photos whose file, and models, did not change
 //! are skipped; a missing thumbnail only triggers a decode. An analysis the
 //! app started runs in Maximum precision only with Plus, and its end is
-//! reported to the anonymous telemetry ([`crate::telemetry`]).
+//! reported to the anonymous telemetry ([`crate::telemetry`]). Every run
+//! that measured photos is kept in the library, for the measured speed of
+//! the statistics ([`crate::stats`]).
 //!
 //! A photo the photographer has not marked yet takes, when its analysis is
 //! saved, the rating its camera wrote in the file: stars, or a reject flag
@@ -409,9 +411,17 @@ impl AnalysisJob<'_> {
         let result = self.analyse(&state, &todo, models.as_deref(), maximum.as_deref(), precision, &models_id, started);
         drop(maximum);
         engine.release_maximum_models();
-        if let (Ok(summary), true) = (&result, self.app) {
+        if let Ok(summary) = &result {
             let (photos, raw, jpeg) = analysed_in_run(&todo, &state.lock().analyses, started_ms);
+            // The measured speed of the statistics, kept in the library.
             if photos > 0 {
+                let saved =
+                    engine.store.lock().save_run(&pid, photos, summary.duration_ms, summary.precision, now_ms());
+                if let Err(e) = saved {
+                    log::warn!("analysis run not saved: {e}");
+                }
+            }
+            if photos > 0 && self.app {
                 engine.track(
                     "analysis_completed",
                     serde_json::json!({
