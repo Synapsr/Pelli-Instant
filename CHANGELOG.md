@@ -5,6 +5,20 @@ becomes the text of its GitHub release and the `notes` of `latest.json`: the
 in-app announcement of a new version shows its first points, in English, or
 in French from the `Français` block.
 
+## 1.0.1 — 2026-11-17
+
+- **Not enough disk space? The app now says so**, with the space needed: when downloading the Maximum precision, during an analysis or an export.
+- **"See the selection"** at the end of a sort.
+- **With Plus, usage statistics are linked to your licence or your Pelli account**; the free version stays anonymous. Turned off in Settings › Privacy, nothing is sent.
+
+<details><summary>Français</summary>
+
+- **Plus assez d'espace disque ? L'app le dit clairement**, avec la place nécessaire : au téléchargement de la précision maximale, pendant une analyse ou un export.
+- **« Voir le tri »** à la fin d'un tri.
+- **Avec Plus, les statistiques d'usage sont associées à votre licence ou à votre compte Pelli** ; la version gratuite reste anonyme. Désactivées dans Réglages › Confidentialité, rien n'est envoyé.
+
+</details>
+
 ## 1.0.0 — 2026-11-17
 
 - **Free and unlimited, no account.** Sort as many shoots as you like with the Standard precision, 100% on your computer.
