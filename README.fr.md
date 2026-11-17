@@ -34,7 +34,7 @@ Pelli Instant trie vos séances photo à votre place. Déposez un dossier de RAW
 - **100 % local.** Les modèles d'IA tournent sur votre ordinateur avec ONNX Runtime, sur le processeur des Mac Apple Silicon (le plus rapide pour eux) et accélérés par DirectML sous Windows. Vos photos ne quittent jamais votre ordinateur, et le tri marche hors ligne.
 - **Rapide.** Des dizaines de photos par seconde : un bêta-testeur a trié 854 photos en 10 secondes environ.
 
-Pelli Instant est développé par l'équipe de [Pelli](https://pelli.io), la plateforme où les photographes livrent et vendent leur travail. L'app est open source, sous licence MIT. [Pelli Instant Plus](#pelli-instant-plus), facultatif et payé une seule fois, ajoute la précision maximale et la recherche IA.
+Pelli Instant est développé par l'équipe de [Pelli](https://pelli.io), la plateforme où les photographes livrent et vendent leur travail. L'app est open source, sous licence MIT. [Pelli Instant Plus](#pelli-instant-plus), facultatif et payé une seule fois, ajoute la précision maximale, la recherche IA et des statistiques détaillées.
 
 Vous cherchez une alternative open source à Aftershoot, Narrative Select ou FilterPixel, qui garde vos photos sur votre ordinateur ? C'est exactement ce que fait Pelli Instant.
 
@@ -73,6 +73,7 @@ Vous cherchez une alternative open source à Aftershoot, Narrative Select ou Fil
 | **Ça avance sans vous** | Une analyse, un export ou le téléchargement de la précision Maximale empêchent l'ordinateur de se mettre en veille et, sur Mac, gardent toute leur vitesse fenêtre masquée. L'écran peut toujours s'éteindre. |
 | **La plupart des appareils** | Canon CR2 et CR3, Nikon NEF, Sony ARW, Fujifilm RAF, DNG, Olympus et OM System ORF, Panasonic RW2, Pentax PEF, Samsung SRW, ainsi que JPEG, PNG et TIFF. |
 | **Reprendre là où vous en étiez** | Vos projets restent sur l'écran d'accueil. Rouvrir un dossier n'analyse que les photos nouvelles ou modifiées. |
+| **Vos statistiques** | *Statistiques*, sur l'écran d'accueil : les photos triées et les séances, depuis quand. Avec Plus, le détail sur toutes vos séances (voir plus bas). Calculées sur votre ordinateur à partir de sa propre bibliothèque, jamais envoyées. |
 | **Un démarrage guidé** | Une courte présentation au premier lancement, avec une voix que vous pouvez couper : comment il juge une photo, les raccourcis, les exports et la précision. À revoir depuis *Réglages → À propos*. |
 | **Pensé pour juger des photos** | Une interface sombre et neutre, comme Lightroom, pour juger les couleurs sur un fond neutre. En 9 langues. |
 
@@ -109,6 +110,7 @@ Le tri reste gratuit et illimité. **Plus**, c'est pour vos séances les plus ex
 | --- | --- |
 | **La précision maximale** | 5 modèles de plus, environ 777 Mo à télécharger une fois : RetinaFace ResNet-50 trouve les petits visages des photos de groupe (un second passage à 1 280 px), DINOv2 regroupe les rafales et les quasi-doublons (il sépare les doublons des scènes différentes environ deux fois plus nettement que le CLIP B/32 de la précision Standard : +0,25 de cosinus contre +0,11), CLIP ViT-L/14 (un modèle de vision environ 3,5 fois plus grand) pour la recherche et la note esthétique, RF-DETR-Seg juge les sujets sans visage exploitable (de dos, les animaux), avec la note esthétique LAION V2. Plus lent, plus fin. |
 | **La recherche IA** | Tapez « première danse », « robe bleue » ou « blue dress » : les bonnes photos remontent en tête. |
+| **Des statistiques détaillées** | Sur toutes vos séances : le taux de sélection, global et par séance ; pourquoi des photos sont rejetées (la raison principale donnée par l'IA, ou votre propre choix) ; combien de fois vous avez inversé le choix de l'IA, dans un sens et dans l'autre ; les photos par mois de prise de vue ; les rafales regroupées ; vos boîtiers et leur taux de sélection ; et la vitesse d'analyse mesurée sur votre ordinateur, par précision. Un tableau de vos séances ouvre chacune d'elles. Calculées sur votre ordinateur, jamais envoyées. |
 | **Aucune promotion Pelli** | La version gratuite montre deux petites cartes Pelli, sur l'écran d'accueil et à la fin d'un export. Plus les retire. |
 
 - **Une clé par ordinateur, transférable.** Le paiement se fait avec Stripe dans votre navigateur, et l'app s'active toute seule. Votre clé (`XXXX-XXXX-XXXX-XXXX`) s'affiche dans l'app et sur la page de confirmation : pour passer Plus sur un autre ordinateur, *Libérer cette licence* dans *Réglages → Pelli Instant Plus*, puis saisissez la clé sur l'autre. Réinstaller sur le même ordinateur demande seulement de ressaisir la clé.
@@ -122,7 +124,6 @@ Le tri reste gratuit et illimité. **Plus**, c'est pour vos séances les plus ex
 ### Bientôt
 
 - **Des conseils d'IA en local**, dans Plus : un modèle facultatif, lui aussi sur votre ordinateur, qui commente chaque photo ou toute une séance.
-- **Des statistiques détaillées**, dans Plus : votre taux de photos gardées, les raisons des rejets et plus, sur toutes vos séances.
 
 <p align="center">
   <img src="docs/images/fr/onboarding.webp" width="600" alt="La présentation de Pelli Instant : votre séance, triée en un instant. Gratuit, illimité, sans compte" />
@@ -190,6 +191,7 @@ Compilée depuis les sources, elle trie exactement comme l'app officielle : grat
 - **Vos photos sont triées sur votre ordinateur.** Pelli Instant les lit là où elles sont ; le tri ne les envoie jamais nulle part, pas même leurs noms de fichier. Ses mesures, ses décisions et vos marquages restent dans une base locale, ses aperçus dans un dossier de cache, tous deux dans votre compte utilisateur ([où exactement](docs/architecture.md#where-data-lives)).
 - **Vos dossiers restent intacts jusqu'à l'export.** L'export écrit des fichiers `.xmp` à côté de vos RAW, copie la sélection où vous le décidez, ou déplace les rejets dans `_Rejets Pelli`. Vos fichiers photo ne sont jamais modifiés ni supprimés.
 - **Sans compte, sans connexion.** Rien à créer, rien à quoi se connecter.
+- **Vos statistiques restent sur votre ordinateur.** L'écran *Statistiques* est calculé à partir de cette base locale et n'est jamais envoyé : il n'a rien à voir avec les statistiques d'usage ci-dessous.
 
 ### Les statistiques d'usage
 
@@ -232,7 +234,7 @@ Chaque message porte aussi un identifiant d'installation aléatoire (un nombre t
 <details>
 <summary><b>Pelli Instant est-il gratuit ?</b></summary>
 
-Oui, et sans limite : triez autant de photos que vous voulez, en précision Standard, sans compte. L'app est open source, sous licence MIT. [Plus](#pelli-instant-plus) est facultatif : 25 € en Europe ou 25 $ ailleurs, une seule fois, pour la précision maximale, la recherche IA et aucune carte Pelli.
+Oui, et sans limite : triez autant de photos que vous voulez, en précision Standard, sans compte. L'app est open source, sous licence MIT. [Plus](#pelli-instant-plus) est facultatif : 25 € en Europe ou 25 $ ailleurs, une seule fois, pour la précision maximale, la recherche IA, des statistiques détaillées et aucune carte Pelli.
 
 </details>
 

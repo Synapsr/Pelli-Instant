@@ -12,7 +12,8 @@ engine through one contract.
    └─ mock   simulated engine, in the browser                                         │
                                                                                       ▼
                                        cull-engine: library, pipeline, decisions, search, export,
-                                                    Plus, telemetry, Pelli account, Maximum pack
+                                                    statistics, Plus, telemetry, Pelli account,
+                                                    Maximum pack
                                          ├─ cull-decode    files, EXIF, RAW previews
                                          ├─ cull-ml        ONNX models (faces, eyes, expression, CLIP;
                                          │                 the Maximum pack's models)
@@ -37,10 +38,11 @@ engine through one contract.
 | Module | Role |
 | --- | --- |
 | `lib.rs` | `Engine`: projects, their in-memory state, analyses started in the background, and `Engine::busy` (an analysis, an export, an upload or the Maximum pack under way). |
-| `store.rs` | The library: one SQLite database for every project, plus a key/value table (settings, cached account, Plus licence, telemetry install id, the prepared pack). |
+| `store.rs` | The library: one SQLite database for every project, plus a key/value table (settings, cached account, Plus licence, telemetry install id, the prepared pack) and the analysis runs (photos, duration, precision). |
 | `pipeline.rs` | The analysis: decode, measure, store, decide, with the progress events. |
 | `export.rs` | XMP sidecars, copy of the selection, move of the rejects. |
 | `query.rs` | Search queries into English CLIP prompts (glossary). |
+| `stats.rs` | The statistics across every shoot (`stats_overview`): one pass over the decisions already in memory (verdicts are not stored, they are decided again when a project loads, and the home screen loads every project), plus the measured speed summed in SQL from the analysis runs. The totals for everyone, the details with Plus. About 20 ms for 100,000 photos. |
 | `settings.rs` | App settings: language, theme, `background`, `precision`, default criteria, `telemetry`, `onboarded`. |
 | `system.rs` | Cores, efficiency cores, memory; the background mode's thread count and priority; `KeepAwake`, which keeps a long job at full speed and the computer out of idle sleep. |
 | `modelpack.rs` | The Maximum pack: download with resume, SHA-256, preparation, loading for an analysis. |
@@ -83,7 +85,9 @@ engine through one contract.
    `analysis-photo` and `analysis-progress` so the grid fills in live. A
    photo whose file and models haven't changed is never analysed again; the
    models used (`models_id`) include the precision, so switching it analyses
-   the photos again.
+   the photos again. A run that measured photos is remembered (how many, how
+   long from the scan to the decisions, in which precision): the measured
+   speed of the statistics.
 5. **Decide.** `cull-analysis` groups similar shots (same camera, close in
    time, close embeddings and framing; exact copies whatever their date),
    splits the shoot into moments, scores each photo from 0 to 100 and gives
@@ -130,7 +134,7 @@ TanStack Virtual and framer-motion, bundled by Vite.
 | `src/lib/contract.ts` | The contract with the engine: every command (`CullApi`, `COMMANDS`), every event (`CullEvents`, among them `model-pack` and `update-status`), every type, every error code. |
 | `src/lib/api/` | The three transports. `tauri.ts`: Tauri `invoke` and events, in the desktop app. `http.ts`: the `pelli-cull serve` bridge, `POST /invoke/<command>` and events as server-sent events, when `VITE_BRIDGE_URL` is set. `mock/`: a simulated engine with procedurally drawn photos, for `pnpm dev`, screenshots and tests. `index.ts` picks one at start-up. |
 | `src/store/` | Zustand stores: the app (account, settings, projects), the analysis, the review (filters, selection, marks, undo), the workspace, the export, Plus (`plus-store.ts`), the Maximum pack (`pack-store.ts`), the updates (`update-store.ts`), and the photographer's preferences, kept in the webview's local storage (`prefs-store.ts`: sounds, voice-over, sub-folders…). |
-| `src/components/` | One folder per screen or flow: `boot`, `home`, `criteria` (before the first analysis), `analysis`, `review` (grid), `loupe`, `compare`, `export`, `settings`, `precision` (Standard or Maximum, the pack's download), `plus` (the Plus dialog and its settings), `privacy` (the telemetry switch and "What is sent?"), `promo` (the Pelli cards of the free version), `update`, `onboarding` (the welcome tour and its voice-over), plus `ui` for shared components. |
+| `src/components/` | One folder per screen or flow: `boot`, `home`, `criteria` (before the first analysis), `analysis`, `review` (grid), `loupe`, `compare`, `export`, `settings`, `precision` (Standard or Maximum, the pack's download), `plus` (the Plus dialog and its settings), `stats` (the Statistics view of the home screen, its locked preview without Plus), `privacy` (the telemetry switch and "What is sent?"), `promo` (the Pelli cards of the free version), `update`, `onboarding` (the welcome tour and its voice-over), plus `ui` for shared components. |
 | `src/lib/review/` | Pure logic with tests: keyboard shortcuts (`keyboard.ts`), selection, what the grid shows. |
 | `src/lib/i18n/` | 9 languages, `fr.ts` as the reference, kept in sync by a test. |
 | `src/assets/onboarding/` | The welcome tour's photos and voice-over, credited in [`CREDITS.md`](../src/assets/onboarding/CREDITS.md). |
@@ -142,9 +146,10 @@ talks to Pelli (`https://app.pelli.io/api/cull/*`, [docs/pelli-api.md](pelli-api
 `PELLI_API_URL` points a debug build elsewhere, for instance at `pnpm fake-pelli`)
 for three optional things.
 
-**Pelli Instant Plus** (`plus.rs`): the Maximum pack, AI search and no Pelli
-cards in the app. It comes from a licence bought for this computer, or from a
-signed-in Pelli account on a Pro or Ultra plan; the licence wins when both.
+**Pelli Instant Plus** (`plus.rs`): the Maximum pack, AI search, the detailed
+statistics and no Pelli cards in the app. It comes from a licence bought for
+this computer, or from a signed-in Pelli account on a Pro or Ultra plan; the
+licence wins when both.
 
 ```
  Pelli Instant                                   browser              app.pelli.io
@@ -164,9 +169,10 @@ signed-in Pelli account on a Pro or Ultra plan; the licence wins when both.
   `plus/verify` says whether the licence is still active (released elsewhere,
   refunded); anything else removes it. Offline, the token keeps working.
 - **What Plus unlocks in the engine**: `search` and `download_model_pack`
-  answer `plusRequired` without it, and `precision: "maximum"` runs in
-  Standard. The pack's download links come from `POST models`, for the
-  licence token or the account's Bearer.
+  answer `plusRequired` without it, `precision: "maximum"` runs in
+  Standard, and `stats_overview` leaves out its `detail` (the totals stay).
+  The pack's download links come from `POST models`, for the licence token
+  or the account's Bearer.
 - Every change of `PlusStatus` is an engine event `plus`.
 
 **Telemetry** (`telemetry.rs`): anonymous in the free version, linked to the
@@ -243,7 +249,7 @@ Nothing is written in your photo folders until you export.
 
 | What | macOS | Windows |
 | --- | --- | --- |
-| Library: projects, measures, decisions, marks, settings, Plus licence, telemetry install id (`library.sqlite`) | `~/Library/Application Support/io.pelli.instant/` | `%APPDATA%\io.pelli.instant\` |
+| Library: projects, measures, decisions, marks, analysis runs, settings, Plus licence, telemetry install id (`library.sqlite`) | `~/Library/Application Support/io.pelli.instant/` | `%APPDATA%\io.pelli.instant\` |
 | Maximum pack, when downloaded | `models/maximum/` next to the library | `models\maximum\` next to the library |
 | Preview cache, one folder per project | `~/Library/Caches/io.pelli.instant/previews/` | `%LOCALAPPDATA%\io.pelli.instant\previews\` |
 | Pelli token (release builds) | Keychain, service `io.pelli.instant` | Credential Manager, `io.pelli.instant` |

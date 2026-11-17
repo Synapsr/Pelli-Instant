@@ -34,7 +34,7 @@ Pelli Instant sorts a photo shoot for you. Drop a folder of RAW or JPEG files: i
 - **100 % local.** The AI models run on your computer with ONNX Runtime, on the processor of Apple Silicon Macs (the fastest there) and accelerated by DirectML on Windows. Your photos never leave your computer, and sorting works offline.
 - **Fast.** Dozens of photos a second: a beta tester sorted 854 photos in about 10 seconds.
 
-Pelli Instant is made by the team behind [Pelli](https://pelli.io), the platform where photographers deliver and sell their work. The app is open source under the MIT licence. An optional, one-time [Pelli Instant Plus](#pelli-instant-plus) adds maximum precision and AI search.
+Pelli Instant is made by the team behind [Pelli](https://pelli.io), the platform where photographers deliver and sell their work. The app is open source under the MIT licence. An optional, one-time [Pelli Instant Plus](#pelli-instant-plus) adds maximum precision, AI search and detailed statistics.
 
 Looking for an open-source alternative to Aftershoot, Narrative Select or FilterPixel, one that keeps your photos on your computer? That's what Pelli Instant is for.
 
@@ -73,6 +73,7 @@ Looking for an open-source alternative to Aftershoot, Narrative Select or Filter
 | **Works while you're away** | An analysis, an export or the Maximum download keeps the computer from going to sleep, and on a Mac keeps full speed with the window hidden. The screen can still turn off. |
 | **Most cameras** | Canon CR2 and CR3, Nikon NEF, Sony ARW, Fujifilm RAF, DNG, Olympus and OM System ORF, Panasonic RW2, Pentax PEF, Samsung SRW, plus JPEG, PNG and TIFF. |
 | **Picks up where you left off** | Your projects stay on the home screen. Opening a folder again only analyses new or changed photos. |
+| **Your statistics** | *Statistics*, on the home screen: the photos sorted and the shoots, since when. With Plus, the details across all your shoots (see below). Computed on your computer from its own library, never sent. |
 | **A guided start** | A short tour on first launch, with a voice-over you can mute: how it judges a photo, the keys, the exports and the precision. Replay it from *Settings → About*. |
 | **Made for judging photos** | A dark, neutral interface, like Lightroom, so you judge colours on a neutral surround. In 9 languages. |
 
@@ -109,6 +110,7 @@ Sorting stays free and unlimited. **Plus** is for your most demanding shoots: **
 | --- | --- |
 | **Maximum precision** | 5 more models, about 777 MB, downloaded once: RetinaFace ResNet-50 finds the small faces of group photos (a second pass at 1280 px), DINOv2 groups bursts and near-duplicates (it separates duplicates from different scenes about twice as clearly as Standard's CLIP B/32: +0.25 of cosine against +0.11), CLIP ViT-L/14 (a vision model about 3.5 times bigger) for search and the aesthetic score, RF-DETR-Seg judges subjects without a usable face (seen from behind, animals), with the LAION V2 aesthetic head. Slower, finer. |
 | **AI search** | Type "first dance", "blue dress" or "robe bleue": the matching photos come first. |
+| **Detailed statistics** | Across all your shoots: the keep rate, overall and per shoot; why photos were rejected (the main reason the AI gave, or your own choice); how often you turned the AI's call around, both ways; photos per month of capture; bursts stacked; your cameras and their keep rate; and the analysis speed measured on your computer, per precision. A table of your shoots opens each one. Computed on your computer, never sent. |
 | **No Pelli promotion** | The free version shows two small Pelli cards, on the home screen and at the end of an export. Plus removes them. |
 
 - **One key per computer, transferable.** Payment goes through Stripe in your browser, and the app activates by itself. Your key (`XXXX-XXXX-XXXX-XXXX`) is shown in the app and on the confirmation page: to move Plus to another computer, *Release this licence* in *Settings → Pelli Instant Plus*, then enter the key on the other one. Reinstalling on the same computer just needs the key again.
@@ -122,7 +124,6 @@ Sorting stays free and unlimited. **Plus** is for your most demanding shoots: **
 ### Coming soon
 
 - **Local AI advice**, in Plus: an optional model, on your computer too, that comments each photo or a whole shoot.
-- **Detailed statistics**, in Plus: your keep rate, the reasons for rejects and more, across all your shoots.
 
 <p align="center">
   <img src="docs/images/onboarding.webp" width="600" alt="The welcome tour of Pelli Instant: your shoot, sorted in an instant. Free, unlimited, no account" />
@@ -190,6 +191,7 @@ Built from source, it sorts exactly like the official app: free, unlimited, no a
 - **Your photos are sorted on your computer.** Pelli Instant reads them where they are; sorting never sends them anywhere, not even their file names. Its measures, decisions and your marks are kept in a local database, its previews in a cache folder, both in your user account ([where](docs/architecture.md#where-data-lives)).
 - **Your folders stay untouched until you export.** Exporting writes `.xmp` files next to your RAWs, copies the selection where you say, or moves the rejects to `_Rejets Pelli`. Your photo files are never modified or deleted.
 - **No account, no sign-in.** Nothing to create, nothing to log in to.
+- **Your statistics stay on your computer.** The *Statistics* screen is computed from that local database and is never sent: it has nothing to do with the usage statistics below.
 
 ### Usage statistics
 
@@ -232,7 +234,7 @@ Every message also carries a random install id (a random number, not tied to you
 <details>
 <summary><b>Is Pelli Instant free?</b></summary>
 
-Yes, and without limits: sort as many photos as you like, at the Standard precision, without an account. The app is open source under the MIT licence. [Plus](#pelli-instant-plus) is optional: 25 € in Europe or $25 elsewhere, once, for maximum precision, AI search and no Pelli cards.
+Yes, and without limits: sort as many photos as you like, at the Standard precision, without an account. The app is open source under the MIT licence. [Plus](#pelli-instant-plus) is optional: 25 € in Europe or $25 elsewhere, once, for maximum precision, AI search, detailed statistics and no Pelli cards.
 
 </details>
 
