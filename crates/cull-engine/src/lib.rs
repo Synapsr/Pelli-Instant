@@ -130,7 +130,9 @@ impl EngineError {
             EngineError::Io { source, .. } => io_code(source),
             EngineError::Decode(cull_decode::DecodeError::Io { source, .. }) => io_code(source),
             EngineError::Decode(_) => "internal",
-            EngineError::Db(rusqlite::Error::SqliteFailure(e, _)) if e.code == rusqlite::ErrorCode::DiskFull => "diskFull",
+            EngineError::Db(rusqlite::Error::SqliteFailure(e, _)) if e.code == rusqlite::ErrorCode::DiskFull => {
+                "diskFull"
+            }
             EngineError::Db(_) | EngineError::Json(_) | EngineError::Analysis(_) => "internal",
             EngineError::Ml(cull_ml::MlError::MissingModel(_)) | EngineError::Ml(cull_ml::MlError::Checksum(_)) => {
                 "modelsMissing"

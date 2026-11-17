@@ -613,7 +613,10 @@ mod tests {
         engine.store_license("7k2q-ab3d-9xyz-0mnp", &token).unwrap();
         assert!(engine.track("export_completed", json!({})));
         let payloads = sender.payloads();
-        assert_eq!(payloads.iter().map(|p| p.get("license").cloned()).collect::<Vec<_>>(), [None, None, Some(json!(token))]);
+        assert_eq!(
+            payloads.iter().map(|p| p.get("license").cloned()).collect::<Vec<_>>(),
+            [None, None, Some(json!(token))]
+        );
         assert_eq!(sender.bearers(), [None, Some("bearer".to_string()), None]);
     }
 
