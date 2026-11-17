@@ -9,6 +9,7 @@ import { StatsView } from '@/components/stats/StatsView'
 import { InstantLogo } from '@/components/ui/Logo'
 import { Backdrop } from '@/components/ui/Backdrop'
 import { WindowBar } from '@/components/ui/WindowBar'
+import { UploadPill } from '@/components/export/UploadPill'
 import { UpdateNotice } from '@/components/update/UpdateNotice'
 import { cn } from '@/lib/cn'
 import { useT } from '@/lib/i18n'
@@ -65,6 +66,7 @@ export function HomeScreen() {
       <WindowBar>
         <InstantLogo size="sm" className="text-white" />
         <div className="ml-auto flex items-center gap-1.5">
+          <UploadPill className="mr-1" />
           <UpdateNotice className="mr-1" />
           {(sorted || view === 'stats') && <StatsButton active={view === 'stats'} onPress={() => show(view === 'stats' ? 'home' : 'stats')} />}
           <PlusPill className="mr-1" />

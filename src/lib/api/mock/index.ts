@@ -72,7 +72,11 @@ export interface MockOptions {
    * and after how many polls; `mockOffer=usd`; `mockOffline=1`: Pelli
    * unreachable; `mockOnboarded=0`: first launch (welcome);
    * `mockTelemetry=0`; `mockProjects=4`: number of recent projects;
-   * `mockUpdate=available`: a newer version is published). Keys typed in
+   * `mockUpdate=available`: a newer version is published;
+   * `mockPreview=1616`: long edge of the previews embedded in RAW files
+   * without a JPEG twin, what a gallery gets for them (full size by
+   * default); `mockUploadError=storage_full`: the next upload to Pelli fails
+   * with that code). Keys typed in
    * the mock: starting with 0 →
    * `invalidKey`, 1 → `otherDevice`, 2 → `revoked`, any other well-formed key
    * activates Plus.
@@ -677,46 +681,58 @@ export function createMockApi(options: MockOptions = {}): CullApi {
   }
 
   // ---- upload ---------------------------------------------------------------------------
+  /** Photos an upload sends. */
+  function uploadSelection(ps: ProjectState, which: UploadRequest['which']): MockRecord[] {
+    return ensureRecords(ps).filter((r) => {
+      const decision = view(ps, r).decision
+      return decision === 'selected' || (which === 'selectedAndToReview' && decision === 'toReview')
+    })
+  }
+  /** Photos each gallery already received (`galleryId → record ids`), like the engine's library. */
+  const sent = new Map<string, Set<string>>()
+
   function runUpload(ps: ProjectState, request: UploadRequest): void {
     const projectId = ps.def.id
-    const records = ensureRecords(ps)
-    const wanted = records.filter((r) => {
-      const decision = view(ps, r).decision
-      return decision === 'selected' || (request.which === 'selectedAndToReview' && decision === 'toReview')
-    })
+    const selection = uploadSelection(ps, request.which)
     const gallery = request.galleryId ? MOCK_GALLERIES.find((g) => g.id === request.galleryId) : null
     const galleryId = gallery?.id ?? `gal-${hashString(request.newGallery?.title ?? 'new').toString(36)}`
     const slug = gallery?.slug ?? (request.newGallery?.title ?? 'galerie').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    const already = sent.get(galleryId) ?? new Set<string>()
+    sent.set(galleryId, already)
+    const wanted = selection.filter((r) => !already.has(r.id))
+    const skipped = selection.length - wanted.length
     let stopped = false
     ps.stopUpload = () => {
       stopped = true
     }
-    if (!online()) {
+    const fail = (code: string, message: string) => {
       ps.stopUpload = null
-      setTimeout(() => emit('upload-error', { projectId, code: 'offline', message: 'No network' }), 300)
-      return
+      setTimeout(() => emit('upload-error', { projectId, code, message }), 300)
     }
+    if (!online()) return fail('offline', 'No network')
+    // Behind Pelli's paywall (no plan, no trial): Pelli refuses the gallery.
+    if (auth.status === 'signedIn' && auth.account.entitlements?.sendToGallery === false) return fail('subscription_required', 'No active Pelli subscription')
+    const uploadError = params.get('mockUploadError')
+    if (uploadError) return fail(uploadError, uploadError)
     let done = 0
     let bytes = 0
+    const finish = () => {
+      ps.stopUpload = null
+      emit('upload-done', { projectId, galleryId, galleryUrl: `https://app.pelli.io/dashboard/gallery/${slug}`, uploaded: wanted.length, failed: 0, skipped })
+    }
     const tick = () => {
       if (stopped) return
       const n = Math.min(wanted.length - done, Math.max(1, Math.round(4 * speed)))
-      for (let i = 0; i < n; i++) bytes += Math.round(wanted[done + i].sizeBytes * 0.22)
+      for (let i = 0; i < n; i++) {
+        bytes += Math.round(wanted[done + i].sizeBytes * 0.22)
+        already.add(wanted[done + i].id)
+      }
       done += n
       emit('upload-progress', { projectId, galleryId, done, total: wanted.length, bytesSent: bytes, current: wanted[done - 1]?.fileName ?? null })
-      if (done < wanted.length) setTimeout(tick, 160)
-      else {
-        ps.stopUpload = null
-        emit('upload-done', {
-          projectId,
-          galleryId,
-          galleryUrl: `https://app.pelli.io/dashboard/gallery/${slug}`,
-          uploaded: wanted.length,
-          failed: 0,
-        })
-      }
+      if (done < wanted.length) setTimeout(tick, Math.max(160, 160 / speed))
+      else finish()
     }
-    setTimeout(tick, 400)
+    setTimeout(wanted.length ? tick : finish, 400)
   }
 
   // ---- app updates ------------------------------------------------------------------------
@@ -1094,6 +1110,15 @@ export function createMockApi(options: MockOptions = {}): CullApi {
         }),
       )
     },
+    uploadCheck: (projectId) =>
+      respond(() => {
+        const selection = uploadSelection(project(projectId), 'selected')
+        const rawOnly = selection.filter((r) => r.hasRaw && !r.hasJpeg)
+        const preview = Number(params.get('mockPreview')) || null
+        // Without `mockPreview`, the full-size previews of the mock's Canon bodies.
+        const longEdge = rawOnly.length ? (preview ?? Math.max(...rawOnly.map((r) => Math.max(r.width, r.height)))) : null
+        return { photos: selection.length, rawOnly: rawOnly.length, previewLongEdge: longEdge }
+      }, net(90)),
     uploadToPelli: (projectId, request) =>
       respond(() => {
         const ps = project(projectId)

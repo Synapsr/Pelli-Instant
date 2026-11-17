@@ -497,6 +497,21 @@ export interface UploadRequest {
   folderPerScene: boolean
 }
 
+/**
+ * What the photographer should know before sending (`uploadCheck`): the
+ * gallery always gets JPEGs, never RAW files; a RAW without a JPEG twin sends
+ * the preview its camera embedded in it, full size on most recent bodies,
+ * smaller on some (1616 px on a Sony A7 III).
+ */
+export interface UploadCheck {
+  /** photos the upload would send */
+  photos: number
+  /** of those, RAW files without a JPEG twin */
+  rawOnly: number
+  /** long edge (px) of the smallest preview embedded in those RAWs, among a sample; null without one */
+  previewLongEdge: number | null
+}
+
 export interface UploadProgress {
   projectId: string
   galleryId: string
@@ -712,6 +727,8 @@ export interface CullApi {
 
   exportProject(projectId: string, options: ExportOptions): Promise<ExportReport>
   listGalleries(): Promise<GallerySummary[]>
+  /** before sending the Selected photos: RAW files alone and the size of their embedded previews (local, no network) */
+  uploadCheck(projectId: string): Promise<UploadCheck>
   /** returns immediately; progress via events */
   uploadToPelli(projectId: string, request: UploadRequest): Promise<void>
   cancelUpload(projectId: string): Promise<void>
@@ -829,6 +846,7 @@ export const COMMANDS = {
   statsOverview: 'stats_overview',
   exportProject: 'export_project',
   listGalleries: 'list_galleries',
+  uploadCheck: 'upload_check',
   uploadToPelli: 'upload_to_pelli',
   cancelUpload: 'cancel_upload',
   revealInFolder: 'reveal_in_folder',

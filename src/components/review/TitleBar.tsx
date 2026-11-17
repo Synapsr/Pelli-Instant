@@ -2,6 +2,7 @@ import { Button, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Tooltip 
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronLeft, Ellipsis, FolderSearch, Keyboard, Lock, Microscope, RefreshCw, Search, Share } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { UploadPill } from '@/components/export/UploadPill'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { WindowBar } from '@/components/ui/WindowBar'
 import { UpdateNotice } from '@/components/update/UpdateNotice'
@@ -209,6 +210,7 @@ export function TitleBar() {
       </div>
 
       <div className="relative ml-auto flex items-center gap-1">
+        <UploadPill size={roomy ? 'count' : 'icon'} className="mr-1" />
         <UpdateNotice compact />
         <SensitivityPopover />
         <Dropdown placement="bottom-end">

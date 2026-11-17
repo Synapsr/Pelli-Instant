@@ -5,17 +5,15 @@ import { PelliExportPromo } from '@/components/promo/PelliPromo'
 import { IconBox } from '@/components/ui/IconBox'
 import { api } from '@/lib/api'
 import { formatBytes, formatNumber } from '@/lib/format'
+import { needsPlan } from '@/lib/gallery'
 import { useT } from '@/lib/i18n'
+import { PELLI_GALLERY_PLANS_URL } from '@/lib/links'
 import { isMac } from '@/lib/platform'
 import { useAppStore } from '@/store/app-store'
-import { useExportStore } from '@/store/export-store'
+import { uploadErrorText, useExportStore } from '@/store/export-store'
 
-/** Upload failures explained in the photographer's words (others show the engine message). */
-const UPLOAD_ERRORS = ['unauthorized', 'offline', 'storage_full', 'gallery_limit_reached', 'subscription_required', 'gallery_not_found'] as const
-type KnownUploadError = (typeof UPLOAD_ERRORS)[number]
-const isKnownUploadError = (code: string | null): code is KnownUploadError => UPLOAD_ERRORS.includes(code as KnownUploadError)
-
-export function ExportRunning() {
+/** The export under way; while photos go to Pelli, the dialog can close (`onHide`) and the upload goes on. */
+export function ExportRunning({ onHide }: { onHide: () => void }) {
   const t = useT()
   const phase = useExportStore((s) => s.phase)
   const upload = useExportStore((s) => s.upload)
@@ -34,15 +32,21 @@ export function ExportRunning() {
           <IconBox icon={UploadCloud} size="lg" />
           <p className="mt-5 text-base font-semibold text-foreground">{t('export.uploading')}</p>
           <div className="mt-5 w-full max-w-md">
-            <Progress aria-label={t('export.uploading')} value={value} size="sm" classNames={{ indicator: 'bg-[#7c6af0]', track: 'bg-default-100 dark:bg-white/[0.06]' }} />
+            <Progress aria-label={t('export.uploading')} value={value} isIndeterminate={!upload} size="sm" classNames={{ indicator: 'bg-[#7c6af0]', track: 'bg-default-100 dark:bg-white/[0.06]' }} />
             <p className="tabular mt-2 text-xs text-default-500">
-              {upload ? t('export.uploadProgress', { done: formatNumber(upload.done), total: formatNumber(upload.total), bytes: formatBytes(upload.bytesSent) }) : t('common.loading')}
+              {upload ? t('export.uploadProgress', { done: formatNumber(upload.done), total: formatNumber(upload.total), bytes: formatBytes(upload.bytesSent) }) : t('export.preparingGallery')}
             </p>
             {upload?.current && <p className="mt-0.5 truncate font-mono text-[11px] text-default-400">{upload.current}</p>}
           </div>
-          <Button size="sm" variant="light" className="mt-6" onPress={() => void cancelUpload()}>
-            {t('export.cancelUpload')}
-          </Button>
+          <div className="mt-7 flex gap-2">
+            <Button radius="full" className="btn-brand h-10 px-5 text-[13px] font-semibold" onPress={onHide}>
+              {t('export.uploadBackground')}
+            </Button>
+            <Button radius="full" variant="light" className="h-10 px-5 text-[13px] text-default-500" onPress={() => void cancelUpload()}>
+              {t('export.cancelUpload')}
+            </Button>
+          </div>
+          <p className="mt-3 max-w-sm text-xs leading-snug text-default-400">{t('export.uploadBackgroundHint')}</p>
         </>
       )}
     </div>
@@ -58,14 +62,15 @@ function Line({ children, tone = 'success' }: { children: ReactNode; tone?: 'suc
   )
 }
 
-export function ExportReportView({ folder, revealPath, xmp }: { folder: string; revealPath: string; xmp: boolean }) {
+export function ExportReportView() {
   const t = useT()
+  const context = useExportStore((s) => s.context)
   const report = useExportStore((s) => s.report)
   const uploadReport = useExportStore((s) => s.uploadReport)
   const error = useExportStore((s) => s.error)
   const errorCode = useExportStore((s) => s.errorCode)
   const signOut = useAppStore((s) => s.signOut)
-  const closeDialog = useAppStore((s) => s.closeDialog)
+  const folder = context?.rejectsFolder ?? '_Rejets Pelli'
 
   return (
     <div className="px-8 py-8">
@@ -102,37 +107,36 @@ export function ExportReportView({ folder, revealPath, xmp }: { folder: string; 
             </ul>
           </li>
         )}
-        {error && (
-          <Line tone="danger">
-            {errorCode === 'diskFull'
-              ? `${t('errors.diskFullTitle')}. ${t('errors.diskFull')}`
-              : isKnownUploadError(errorCode)
-                ? t(`export.uploadErrors.${errorCode}`)
-                : t('export.uploadError', { message: error })}
-          </Line>
-        )}
+        {error && <Line tone="danger">{uploadErrorText(errorCode, error)}</Line>}
       </ul>
-      {xmp && report && report.xmpWritten > 0 && (
+      {context?.xmp && report && report.xmpWritten > 0 && (
         <p className="mx-auto mt-4 flex max-w-md items-start gap-2 text-xs leading-snug text-default-500">
           <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
           {t('export.lightroomHint')}
         </p>
       )}
       {!error && !uploadReport && <PelliExportPromo className="mx-auto mt-5 max-w-md" />}
-      <div className="mt-6 flex justify-center gap-2">
-        <Button variant="flat" startContent={<FolderSearch className="size-4" />} onPress={() => void api().revealInFolder(revealPath)}>
-          {isMac() ? t('common.revealInFinder') : t('common.revealInExplorer')}
-        </Button>
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
+        {context && (
+          <Button variant="flat" startContent={<FolderSearch className="size-4" />} onPress={() => void api().revealInFolder(context.revealPath)}>
+            {isMac() ? t('common.revealInFinder') : t('common.revealInExplorer')}
+          </Button>
+        )}
         {uploadReport && (
           <Button color="primary" startContent={<ExternalLink className="size-4" />} onPress={() => void api().openExternal(uploadReport.galleryUrl)}>
             {t('export.openGallery')}
+          </Button>
+        )}
+        {needsPlan(errorCode) && (
+          <Button color="primary" endContent={<ExternalLink className="size-3.5" />} onPress={() => void api().openExternal(PELLI_GALLERY_PLANS_URL)}>
+            {t('export.gallery.seePlans')}
           </Button>
         )}
         {errorCode === 'unauthorized' && (
           <Button
             color="primary"
             onPress={() => {
-              closeDialog()
+              // Back to the options, signed out: the gallery card offers the sign-in.
               useExportStore.getState().reset()
               void signOut()
             }}

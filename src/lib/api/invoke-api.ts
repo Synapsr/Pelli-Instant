@@ -63,6 +63,7 @@ export function createInvokeApi(rawInvoke: Invoke, on: Subscribe): CullApi {
 
     exportProject: (projectId, options) => call(COMMANDS.exportProject, { projectId, options }),
     listGalleries: () => call(COMMANDS.listGalleries),
+    uploadCheck: (projectId) => call(COMMANDS.uploadCheck, { projectId }),
     uploadToPelli: (projectId, request) => call(COMMANDS.uploadToPelli, { projectId, request }),
     cancelUpload: (projectId) => call(COMMANDS.cancelUpload, { projectId }),
 

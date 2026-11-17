@@ -58,7 +58,11 @@ export const MOCK_PLANS: MockPlan[] = ['free', 'lite', 'pro', 'ultra', 'trial']
 
 const PLAN_LABELS: Record<MockPlan, string> = { free: 'Gratuit', lite: 'Lite', pro: 'Pro', ultra: 'Ultra', trial: 'Essai Ultra' }
 
-/** A signed-in Pelli account; Pro, Ultra and their trials include Plus. */
+/**
+ * A signed-in Pelli account; Pro, Ultra and their trials include Plus. A free
+ * account has no subscription and no running trial: Pelli's paywall, so no
+ * gallery (`sendToGallery: false`), as Pelli answers.
+ */
 export function mockAccount(plan: MockPlan): Account {
   return {
     name: 'Camille Dubois',
@@ -70,6 +74,7 @@ export function mockAccount(plan: MockPlan): Account {
     trialEndsAt: plan === 'trial' ? Date.now() + 11 * DAY : null,
     lifetime: false,
     plus: plan === 'pro' || plan === 'ultra' || plan === 'trial',
+    entitlements: { analyze: true, monthlyQuota: null, usedThisMonth: 0, resetsAt: 0, sendToGallery: plan !== 'free' },
   }
 }
 
