@@ -58,11 +58,31 @@
     ],
     "macOS": {
       "minimumSystemVersion": "12.0",
-      "hardenedRuntime": true
+      "hardenedRuntime": true,
+      "dmg": {
+        "background": "installer/dmg-background.tiff",
+        "windowSize": {
+          "width": 680,
+          "height": 472
+        },
+        "windowPosition": {
+          "x": 400,
+          "y": 180
+        },
+        "appPosition": {
+          "x": 180,
+          "y": 226
+        },
+        "applicationFolderPosition": {
+          "x": 500,
+          "y": 226
+        }
+      }
     },
     "windows": {
       "nsis": {
         "installMode": "currentUser",
+        "sidebarImage": "installer/nsis-sidebar.bmp",
         "languages": [
           "French",
           "English",

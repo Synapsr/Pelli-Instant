@@ -12,6 +12,7 @@ in French from the `Français` block.
 - The free version shows the photos you sorted and your shoots in the new Statistics view.
 - A gallery upload goes on in the background, with its progress in the title bar.
 - Sending to Pelli keeps a single copy of each photo in memory.
+- A new installer: on Mac, a window that shows where to drag Pelli Instant; on Windows, Pelli Instant's image on the first and last pages.
 
 <details><summary>Français</summary>
 
@@ -20,6 +21,7 @@ in French from the `Français` block.
 - La version gratuite montre vos photos triées et vos séances dans la nouvelle vue Statistiques.
 - L'envoi vers une galerie continue en arrière-plan, avec son avancement dans la barre du haut.
 - L'envoi vers Pelli ne garde qu'une copie de chaque photo en mémoire.
+- Un nouvel installeur : sur Mac, une fenêtre qui montre où glisser Pelli Instant ; sur Windows, l'image de Pelli Instant sur la première et la dernière page.
 
 </details>
 

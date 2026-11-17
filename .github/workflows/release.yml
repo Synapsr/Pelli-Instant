@@ -200,6 +200,10 @@ jobs:
 
       - name: Build the installer
         shell: bash
+        env:
+          # Tauri skips laying out the DMG window (background, icon positions)
+          # when CI=true. The macOS runners have a Finder session that can.
+          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
         run: |
           set -euo pipefail
           pnpm tauri build ${{ matrix.config }} ${PELLI_NO_UPDATER_CONFIG:-} \

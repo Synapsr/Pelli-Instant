@@ -354,6 +354,15 @@ stops with an error after bundling. The
 `--config '{"bundle":{"createUpdaterArtifacts":false}}'` above builds the
 installer without them; it is what the release workflow does in a fork.
 
+The DMG window's background (`src-tauri/installer/dmg-background.tiff`) and
+the side image of the Windows installer (`nsis-sidebar.bmp`) are rendered
+from the HTML pages next to them: edit the page, run
+`scripts/installer-images.sh` on a Mac (Google Chrome and ImageMagick), and
+commit the images. The DMG's icons sit at the positions set in
+`bundle.macOS.dmg` (`tauri.conf.json`), which the background is drawn
+around. The first DMG build asks to let your terminal control Finder: that
+is how the window is laid out.
+
 A release build you make this way keeps the updater: it checks this
 repository's releases and offers them, and installing one replaces your
 build with the official one. Launch it with

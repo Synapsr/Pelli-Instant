@@ -4,6 +4,8 @@
 
 Photos: [Pexels](https://www.pexels.com). The welcome tour shows photos published on Pexels under the [Pexels licence](https://www.pexels.com/license/) (free to use and modify, attribution not required; credited here anyway). They are resized to 960 px at most and converted to WebP; `eyes-closed.webp` is a crop of `family-floor.webp`'s original.
 
+The background of the macOS installer window (`src-tauri/installer/dmg-background.html`) shows six of them as prints.
+
 `family-blurry.webp` (blurred), `too-dark.webp` (under-exposed) and `pumpkin-blurry.webp` (motion blur) are deliberately degraded copies of the originals listed below, made to show what Pelli Instant sets aside. `pumpkin-a.webp` and `pumpkin-b.webp` are a real near-identical pair, the kind of burst the analysis stacks.
 
 | File | Photographer | Original |
