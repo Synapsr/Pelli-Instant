@@ -119,7 +119,7 @@ Sorting stays free and unlimited. **Plus** is for your most demanding shoots: **
 - **Already on Pelli Pro or Ultra?** Plus is included (lifetime deals and Pro or Ultra trials too): sign in with your Pelli account in *Settings → Pelli Instant Plus*.
 
 <p align="center">
-  <img src="docs/images/plus.webp" width="760" alt="The Pelli Instant Plus offer: maximum precision, AI search, no promotion, one payment" />
+  <img src="docs/images/plus.webp" width="760" alt="The Pelli Instant Plus offer: AI search, maximum precision, better-sorted bursts, detailed statistics, no promotion, $25 once" />
 </p>
 
 ### Coming soon

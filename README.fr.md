@@ -119,7 +119,7 @@ Le tri reste gratuit et illimité. **Plus**, c'est pour vos séances les plus ex
 - **Déjà chez Pelli en Pro ou Ultra ?** Plus est inclus (offres à vie et essais Pro ou Ultra compris) : connectez-vous avec votre compte Pelli dans *Réglages → Pelli Instant Plus*.
 
 <p align="center">
-  <img src="docs/images/fr/plus.webp" width="760" alt="L'offre Pelli Instant Plus : précision maximale, recherche IA, aucune promotion, un seul paiement" />
+  <img src="docs/images/fr/plus.webp" width="760" alt="L'offre Pelli Instant Plus : recherche IA, précision maximale, rafales mieux triées, statistiques détaillées, aucune promotion, 25 € une fois" />
 </p>
 
 ### Bientôt
