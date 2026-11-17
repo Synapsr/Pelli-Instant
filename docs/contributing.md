@@ -72,8 +72,12 @@ drawn photos. No Rust build needed. Query parameters pick the state:
 `mockOffer=usd` (the price in dollars), `mockOffline=1` (Pelli unreachable),
 `mockOnboarded=0` (first launch: the welcome tour), `mockTelemetry=0`,
 `mockProjects=4` (recent projects), `mockAuth=signedIn` (or `signedOut`)
-and `mockPlan=pro` (`free`, `lite`, `ultra`, `trial`) for the optional
-account, `mockCount=5000` (size of the shoot), `mockModels=missing`,
+and `mockPlan=pro` (`free`, `lite`, `ultra`, `trial`; `free` is behind
+Pelli's paywall, so no gallery) for the optional account,
+`mockPreview=1616` (the long edge of the previews embedded in RAW files
+without a JPEG twin, what a gallery gets for them),
+`mockUploadError=storage_full` (the next upload to Pelli fails with that
+code), `mockCount=5000` (size of the shoot), `mockModels=missing`,
 `mockPack=ready` (`paused`, `failed`; absent by default), `mockDisk=low`
 (not enough space for the Maximum pack),
 `mockUpdate=available` (`offline`, `disabled`), `mockLang=en` (`fr`, `es`,

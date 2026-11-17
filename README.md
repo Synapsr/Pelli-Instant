@@ -27,11 +27,11 @@ Drop a shoot: blurry shots, closed eyes and duplicates are set aside, the best p
 
 ## What is Pelli Instant?
 
-Pelli Instant sorts a photo shoot for you. Drop a folder of RAW or JPEG files: it flags blurry and shaken photos, closed eyes, bad exposure and duplicates, keeps the best shot of each burst, and splits the shoot into **Selected**, **To review** and **Rejected**. You go through its choices with the keyboard, change what you disagree with, and export: star ratings and colour labels for Lightroom, Capture One or Bridge, a copy of your selection, or the rejects filed away in a sub-folder.
+Pelli Instant sorts a photo shoot for you. Drop a folder of RAW or JPEG files: it flags blurry and shaken photos, closed eyes, bad exposure and duplicates, keeps the best shot of each burst, and splits the shoot into **Selected**, **To review** and **Rejected**. You go through its choices with the keyboard, change what you disagree with, and export: star ratings and colour labels for Lightroom, Capture One or Bridge, a copy of your selection, the rejects filed away in a sub-folder, or your selection sent to a Pelli gallery for your clients.
 
 - **Free and unlimited.** Sort as many shoots as you like, at the Standard precision, with nothing to pay and no monthly limit.
 - **No account.** Download, open, drop a folder. Nothing to sign up for.
-- **100 % local.** The AI models run on your computer with ONNX Runtime, on the processor of Apple Silicon Macs (the fastest there) and accelerated by DirectML on Windows. Your photos never leave your computer, and sorting works offline.
+- **100 % local.** The AI models run on your computer with ONNX Runtime, on the processor of Apple Silicon Macs (the fastest there) and accelerated by DirectML on Windows. Sorting never sends your photos anywhere and works offline: they leave your computer only if you send them to a Pelli gallery yourself.
 - **Fast.** Dozens of photos a second: a beta tester sorted 854 photos in about 10 seconds.
 
 Pelli Instant is made by the team behind [Pelli](https://pelli.io), the platform where photographers deliver and sell their work. The app is open source under the MIT licence. An optional, one-time [Pelli Instant Plus](#pelli-instant-plus) adds maximum precision, AI search and detailed statistics.
@@ -43,7 +43,7 @@ Looking for an open-source alternative to Aftershoot, Narrative Select or Filter
 1. **Drop a shoot.** Drag a folder onto the window, or choose one, with or without its sub-folders. A RAW and its JPEG twin count as one photo.
 2. **Let it sort.** Before the first analysis, Pelli Instant shows what it will check; turn off what you don't want, or just start. It reads the preview your camera embedded in each RAW (it never develops the RAW), measures focus, motion blur and exposure, finds faces and closed eyes, and groups bursts. The grid fills in as it goes.
 3. **Review.** Selected, To review, Rejected: each rejection says why (Blurry, Motion blur, Eyes closed, Duplicate…). Fix any call in one key. Your own choices always win over the AI's.
-4. **Export.** Ratings for Lightroom, a copy of the selection, or the rejects moved aside. Nothing is ever deleted.
+4. **Export.** Ratings for Lightroom, a copy of the selection, the rejects moved aside, or the selection sent to a Pelli gallery. Nothing is ever deleted.
 
 <p align="center">
   <img src="docs/images/review.webp" width="760" alt="Reviewing a shoot: the selected photos with their scores, with To review and Rejected one click away" />
@@ -69,8 +69,9 @@ Looking for an open-source alternative to Aftershoot, Narrative Select or Filter
 | **Ratings for Lightroom** | Writes stars, colour labels and Pick/Reject flags to an `.xmp` file next to each RAW, for Lightroom, Capture One, Bridge or darktable. You choose the stars and colour of each decision in the export (Selected ★★★ green, To review yellow, Rejected by default), and the colour names are written in your Lightroom's language. Selected photos arrive flagged *Picked* and rejects *Rejected* in Lightroom Classic 13.2 and later. Stars you gave in the camera count as yours, an existing `.xmp` keeps all its settings, and stars, labels and flags from another app stay unless you change them in Pelli Instant. |
 | **Copy the selection** | RAW, JPEG or both, to the folder of your choice, sub-folders kept. Pelli Instant tells you how much disk space the copy needs. Each file is copied whole or not at all, and exporting again doesn't copy a photo twice. |
 | **Rejects filed away** | Moves the rejects to a `_Rejets Pelli` sub-folder next to the originals: a RAW, its JPEG and its `.xmp` move together. Nothing is deleted. |
+| **Send to a Pelli gallery** | Your Selected photos in a new draft gallery of your [Pelli](https://pelli.io) account, one folder per moment of the shoot, ready to share with your clients for their picks. Pelli gets the JPEG of each photo, never the RAW: the camera's JPEG of a RAW + JPEG pair, and for a RAW alone the preview its camera embedded in it, full size on most recent cameras (the export says when it is smaller, 1,616 px on a Sony A7 III for instance). Sending again only sends what the gallery doesn't have yet. The upload goes on in the background while you keep culling, and ends with a link to the gallery. It needs a Pelli account: a new one starts with a 15-day free trial, after which sending to a gallery needs a Pelli subscription. |
 | **Gives way to your other apps** | A switch in *Settings → General* runs the analysis in the background, on fewer cores at a low priority: Lightroom and your browser stay smooth, sorting takes 3 to 5 times longer. Off by default, for the fastest sort. |
-| **Works while you're away** | An analysis, an export or the Maximum download keeps the computer from going to sleep, and on a Mac keeps full speed with the window hidden. The screen can still turn off. |
+| **Works while you're away** | An analysis, an export, an upload to Pelli or the Maximum download keeps the computer from going to sleep, and on a Mac keeps full speed with the window hidden. The screen can still turn off. |
 | **Most cameras** | Canon CR2 and CR3, Nikon NEF, Sony ARW, Fujifilm RAF, DNG, Olympus and OM System ORF, Panasonic RW2, Pentax PEF, Samsung SRW, plus JPEG, PNG and TIFF. |
 | **Picks up where you left off** | Your projects stay on the home screen. Opening a folder again only analyses new or changed photos. |
 | **Your statistics** | *Statistics*, on the home screen: the photos sorted and the shoots, since when. With Plus, the details across all your shoots (see below). Computed on your computer from its own library, never sent. |
@@ -190,7 +191,8 @@ Built from source, it sorts exactly like the official app: free, unlimited, no a
 
 - **Your photos are sorted on your computer.** Pelli Instant reads them where they are; sorting never sends them anywhere, not even their file names. Its measures, decisions and your marks are kept in a local database, its previews in a cache folder, both in your user account ([where](docs/architecture.md#where-data-lives)).
 - **Your folders stay untouched until you export.** Exporting writes `.xmp` files next to your RAWs, copies the selection where you say, or moves the rejects to `_Rejets Pelli`. Your photo files are never modified or deleted.
-- **No account, no sign-in.** Nothing to create, nothing to log in to.
+- **Your photos leave your computer only when you send them to a Pelli gallery.** Nothing is sent on its own: you sign in to your Pelli account, turn the gallery on in the export and click. Pelli then receives the JPEG of each Selected photo (never a RAW) with its file name and the EXIF data in it (capture time, camera, lens, and the location if your camera recorded one), the gallery title and the names of the moments' folders.
+- **No account needed to sort.** Nothing to create, nothing to log in to. A Pelli account only serves to send to a gallery, or to get Plus with a Pro or Ultra plan.
 - **Your statistics stay on your computer.** The *Statistics* screen is computed from that local database and is never sent: it has nothing to do with the usage statistics below.
 
 ### Usage statistics
@@ -217,7 +219,8 @@ Every message also carries a random install id (a random number, not tied to you
 ### What else talks to the internet
 
 - **Pelli Instant Plus, if you use it.** Showing the price asks Pelli for it (Pelli reads your country from the connection to choose euros or dollars, and doesn't keep it). Buying sends a hash of your computer's id, the language, the system and the app version, then waits for the payment. Activating a key sends the key and that hash. At most once a day when online, the app checks the licence is still valid; the Maximum pack is downloaded from links Pelli hands out after checking the licence, and each file is checked against its SHA-256.
-- **The optional Pelli account**, only if you sign in to get Plus with a Pro or Ultra plan: Pelli receives your computer's name, shown on the consent page in your browser; the token is then kept in the macOS Keychain or the Windows Credential Manager. Signing out deletes it.
+- **The optional Pelli account**, only if you sign in, to send to a gallery or to get Plus with a Pro or Ultra plan: Pelli receives your computer's name, shown on the consent page in your browser; the token is then kept in the macOS Keychain or the Windows Credential Manager. Signing out deletes it.
+- **Sending to a Pelli gallery**, only when you click: the gallery and its folders are created in your Pelli account, then each photo goes to Pelli's upload service with a short-lived upload token for that gallery. Which photos each gallery received is remembered in the local library, so sending again only sends what's new.
 - **Updates**: the app reads `latest.json` from the latest release on GitHub, and downloads an update only when you install it.
 - Requests to Pelli carry the app version, the system and the interface language. **No crash reporter.** ONNX Runtime's own telemetry is switched off.
 - **The AI models** are fixed files at pinned versions, and their SHA-256 fingerprints are checked when they load. Built from source, `pnpm models` downloads the Standard ones once from Hugging Face and the other sources listed in [`models/manifest.json`](models/manifest.json).
@@ -257,14 +260,14 @@ On the old computer, *Settings → Pelli Instant Plus → Release this licence* 
 <details>
 <summary><b>Does it work offline?</b></summary>
 
-Yes. Sorting, reviewing and exporting run entirely on your computer, without the internet. Plus works offline once activated. Buying or activating Plus, downloading the Maximum pack and updates need a connection.
+Yes. Sorting, reviewing and exporting run entirely on your computer, without the internet. Plus works offline once activated. Buying or activating Plus, downloading the Maximum pack, sending to a Pelli gallery and updates need a connection.
 
 </details>
 
 <details>
 <summary><b>Does Pelli Instant collect data?</b></summary>
 
-Only usage statistics, which you can turn off: how many photos you sort, how long it takes, the app version. Never your photos or their names. They are anonymous in the free version and linked to your licence or account with Plus. The full list is in [Privacy and telemetry](#privacy-and-telemetry).
+Only usage statistics, which you can turn off: how many photos you sort, how long it takes, the app version. Never your photos or their names: photos only go to Pelli when you send them to a gallery yourself. They are anonymous in the free version and linked to your licence or account with Plus. The full list is in [Privacy and telemetry](#privacy-and-telemetry).
 
 </details>
 

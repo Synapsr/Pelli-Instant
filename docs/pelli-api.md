@@ -2,7 +2,7 @@
 
 The HTTP contract the desktop app relies on. The server side lives in Pelli (not part of this repository); `scripts/fake-pelli.mjs` implements the same contract for local development, and a change to the contract lands on both sides together.
 
-Sorting never calls this API: the app sorts without an account, without a quota and offline. It talks to Pelli for Pelli Instant Plus, for anonymous telemetry (unless it is turned off) and for the optional Pelli account.
+Sorting never calls this API: the app sorts without an account, without a quota and offline. It talks to Pelli for Pelli Instant Plus, for anonymous telemetry (unless it is turned off) and for the optional Pelli account, which also sends a selection to a gallery when the photographer asks for it.
 
 - Base URL: `https://app.pelli.io`. Routes are `POST {base}/api/cull/<route>` with a JSON body (send `{}` when a route takes no input), except `GET plus/offer`; answers are JSON (`telemetry` answers `204` without body).
 - Another Pelli (staging, local, the fake): set `PELLI_API_URL`. **Release builds read it when they are compiled, never at run time**, so an official build always talks to the Pelli it was built for (a fake Pelli would hand out Plus); debug builds (`pnpm tauri dev`, `pnpm app:fake-pelli`, the dev bridge) also read it at run time (`cull_engine::pelli::api_url`).
@@ -148,7 +148,7 @@ Pelli stores no IP address for these events and makes no contact out of them; it
 
 ## Sign-in (optional)
 
-An account is only a second way to Plus: a Pro or Ultra plan includes it.
+An account is a second way to Plus (a Pro or Ultra plan includes it), and what sending to a gallery needs.
 
 ### `auth/create-session` (no auth)
 
@@ -309,7 +309,7 @@ Content-Type: image/jpeg
 - `name` and `folder` are **query parameters**, not form fields. Omit `folder` to upload to the gallery root. The gallery comes from the token, never from the request: do not send a `galleryId`.
 - One multipart field, named `file` (`fileField`). Max `maxFileSize` bytes (100 MB) per photo; larger files are refused (`413 file_too_large`).
 - No `source` parameter (the dashboard sends none; the Lightroom plugin sends `source=lightroom`, which would mislabel Cull uploads; `source=cull` is not a value the upload service is known to accept).
-- Prefer JPEGs (the JPEG twin of a RAW, or an export): RAW files are converted server-side and that conversion can fail (`422 raw_conversion_failed`).
+- Prefer JPEGs (the JPEG twin of a RAW, or an export): RAW files are converted server-side and that conversion can fail (`422 raw_conversion_failed`). Pelli Instant only ever sends JPEGs: the JPEG twin, or the largest preview embedded in a RAW alone.
 - Before a batch, check that its total size fits in `storage.limitBytes - storage.usedBytes`, and stop when it no longer does.
 - Concurrency: at most `maxConcurrency` (3) uploads in parallel; 1 on a slow connection.
 

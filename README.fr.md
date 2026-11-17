@@ -27,11 +27,11 @@ Déposez une séance : les photos floues, les yeux fermés et les doublons sont 
 
 ## Pelli Instant, c'est quoi ?
 
-Pelli Instant trie vos séances photo à votre place. Déposez un dossier de RAW ou de JPEG : il repère les photos floues ou bougées, les yeux fermés, les erreurs d'exposition et les doublons, garde la meilleure image de chaque rafale, et répartit la séance en **Sélectionnées**, **À vérifier** et **Rejetées**. Vous repassez derrière lui au clavier, vous corrigez ce qui ne vous convient pas, puis vous exportez : étoiles et étiquettes de couleur pour Lightroom, Capture One ou Bridge, copie de la sélection, ou rejets rangés dans un sous-dossier.
+Pelli Instant trie vos séances photo à votre place. Déposez un dossier de RAW ou de JPEG : il repère les photos floues ou bougées, les yeux fermés, les erreurs d'exposition et les doublons, garde la meilleure image de chaque rafale, et répartit la séance en **Sélectionnées**, **À vérifier** et **Rejetées**. Vous repassez derrière lui au clavier, vous corrigez ce qui ne vous convient pas, puis vous exportez : étoiles et étiquettes de couleur pour Lightroom, Capture One ou Bridge, copie de la sélection, rejets rangés dans un sous-dossier, ou sélection envoyée dans une galerie Pelli pour vos clients.
 
 - **Gratuit et illimité.** Triez autant de séances que vous voulez, en précision Standard, sans rien payer et sans limite mensuelle.
 - **Sans compte.** Téléchargez, ouvrez, déposez un dossier. Aucune inscription.
-- **100 % local.** Les modèles d'IA tournent sur votre ordinateur avec ONNX Runtime, sur le processeur des Mac Apple Silicon (le plus rapide pour eux) et accélérés par DirectML sous Windows. Vos photos ne quittent jamais votre ordinateur, et le tri marche hors ligne.
+- **100 % local.** Les modèles d'IA tournent sur votre ordinateur avec ONNX Runtime, sur le processeur des Mac Apple Silicon (le plus rapide pour eux) et accélérés par DirectML sous Windows. Le tri n'envoie jamais vos photos nulle part et marche hors ligne : elles ne quittent votre ordinateur que si vous les envoyez vous-même dans une galerie Pelli.
 - **Rapide.** Des dizaines de photos par seconde : un bêta-testeur a trié 854 photos en 10 secondes environ.
 
 Pelli Instant est développé par l'équipe de [Pelli](https://pelli.io), la plateforme où les photographes livrent et vendent leur travail. L'app est open source, sous licence MIT. [Pelli Instant Plus](#pelli-instant-plus), facultatif et payé une seule fois, ajoute la précision maximale, la recherche IA et des statistiques détaillées.
@@ -43,7 +43,7 @@ Vous cherchez une alternative open source à Aftershoot, Narrative Select ou Fil
 1. **Déposez une séance.** Glissez un dossier sur la fenêtre ou choisissez-le, avec ou sans ses sous-dossiers. Un RAW et son JPEG jumeau comptent pour une seule photo.
 2. **Laissez trier.** Avant la première analyse, Pelli Instant montre ce qu'il va vérifier : désactivez ce que vous ne voulez pas, ou lancez directement. Il lit l'aperçu que l'appareil a glissé dans chaque RAW (il ne développe jamais le RAW), mesure la netteté, le bougé et l'exposition, trouve les visages et les yeux fermés, et regroupe les rafales. La grille se remplit au fil de l'analyse.
 3. **Vérifiez.** Sélectionnées, À vérifier, Rejetées : chaque rejet dit pourquoi (Floue, Bougé, Yeux fermés, Doublon…). Une touche suffit pour changer d'avis, et vos choix passent toujours avant ceux de l'IA.
-4. **Exportez.** Notes pour Lightroom, copie de la sélection ou rejets mis de côté. Rien n'est jamais supprimé.
+4. **Exportez.** Notes pour Lightroom, copie de la sélection, rejets mis de côté ou sélection envoyée dans une galerie Pelli. Rien n'est jamais supprimé.
 
 <p align="center">
   <img src="docs/images/fr/review.webp" width="760" alt="Vérification d'une séance : les photos sélectionnées avec leur note, À vérifier et Rejetées à un clic" />
@@ -69,8 +69,9 @@ Vous cherchez une alternative open source à Aftershoot, Narrative Select ou Fil
 | **Des notes pour Lightroom** | Écrit étoiles, étiquettes de couleur et marqueurs Retenue et Rejetée dans un fichier `.xmp` à côté de chaque RAW, pour Lightroom, Capture One, Bridge ou darktable. Vous choisissez à l'export les étoiles et la couleur de chaque décision (par défaut : Sélectionnées ★★★ vert, À vérifier jaune, Rejetées en rejet), et les noms des couleurs sont écrits dans la langue de votre Lightroom. Les photos sélectionnées arrivent marquées *Retenue* et les rejetées *Rejetée* dans Lightroom Classic 13.2 et suivants. Les étoiles données dans le boîtier comptent comme les vôtres, un `.xmp` existant garde tous ses réglages, et les étoiles, étiquettes et marqueurs d'un autre logiciel restent, sauf si vous les changez dans Pelli Instant. |
 | **La copie de la sélection** | RAW, JPEG ou les deux, dans le dossier de votre choix, sous-dossiers compris. Pelli Instant vous dit combien de place prendra la copie. Chaque fichier est copié en entier ou pas du tout, et un nouvel export ne copie pas deux fois la même photo. |
 | **Les rejets rangés** | Déplace les rejets dans un sous-dossier `_Rejets Pelli`, à côté des originaux : un RAW, son JPEG et son `.xmp` partent ensemble. Rien n'est supprimé. |
+| **L'envoi dans une galerie Pelli** | Vos photos sélectionnées dans une nouvelle galerie en brouillon de votre compte [Pelli](https://pelli.io), un dossier par moment de la séance, prête à partager avec vos clients pour qu'ils choisissent leurs favorites. Pelli reçoit le JPEG de chaque photo, jamais le RAW : le JPEG de l'appareil pour un couple RAW + JPEG, et pour un RAW seul l'aperçu que l'appareil y a glissé, en pleine définition sur la plupart des boîtiers récents (l'export prévient quand il est plus petit, 1 616 px sur un Sony A7 III par exemple). Un nouvel envoi n'envoie que ce que la galerie n'a pas encore. L'envoi continue en arrière-plan pendant que vous triez, et se termine par un lien vers la galerie. Il faut un compte Pelli : un nouveau compte commence par un essai gratuit de 15 jours, après lequel l'envoi en galerie demande un abonnement Pelli. |
 | **La priorité à vos autres logiciels** | Un interrupteur dans *Réglages → Général* fait tourner l'analyse en arrière-plan, sur moins de cœurs et en basse priorité : Lightroom et votre navigateur restent fluides, le tri prend 3 à 5 fois plus de temps. Désactivé par défaut, pour le tri le plus rapide. |
-| **Ça avance sans vous** | Une analyse, un export ou le téléchargement de la précision Maximale empêchent l'ordinateur de se mettre en veille et, sur Mac, gardent toute leur vitesse fenêtre masquée. L'écran peut toujours s'éteindre. |
+| **Ça avance sans vous** | Une analyse, un export, un envoi vers Pelli ou le téléchargement de la précision Maximale empêchent l'ordinateur de se mettre en veille et, sur Mac, gardent toute leur vitesse fenêtre masquée. L'écran peut toujours s'éteindre. |
 | **La plupart des appareils** | Canon CR2 et CR3, Nikon NEF, Sony ARW, Fujifilm RAF, DNG, Olympus et OM System ORF, Panasonic RW2, Pentax PEF, Samsung SRW, ainsi que JPEG, PNG et TIFF. |
 | **Reprendre là où vous en étiez** | Vos projets restent sur l'écran d'accueil. Rouvrir un dossier n'analyse que les photos nouvelles ou modifiées. |
 | **Vos statistiques** | *Statistiques*, sur l'écran d'accueil : les photos triées et les séances, depuis quand. Avec Plus, le détail sur toutes vos séances (voir plus bas). Calculées sur votre ordinateur à partir de sa propre bibliothèque, jamais envoyées. |
@@ -190,7 +191,8 @@ Compilée depuis les sources, elle trie exactement comme l'app officielle : grat
 
 - **Vos photos sont triées sur votre ordinateur.** Pelli Instant les lit là où elles sont ; le tri ne les envoie jamais nulle part, pas même leurs noms de fichier. Ses mesures, ses décisions et vos marquages restent dans une base locale, ses aperçus dans un dossier de cache, tous deux dans votre compte utilisateur ([où exactement](docs/architecture.md#where-data-lives)).
 - **Vos dossiers restent intacts jusqu'à l'export.** L'export écrit des fichiers `.xmp` à côté de vos RAW, copie la sélection où vous le décidez, ou déplace les rejets dans `_Rejets Pelli`. Vos fichiers photo ne sont jamais modifiés ni supprimés.
-- **Sans compte, sans connexion.** Rien à créer, rien à quoi se connecter.
+- **Vos photos ne quittent votre ordinateur que si vous les envoyez dans une galerie Pelli.** Rien ne part tout seul : vous vous connectez à votre compte Pelli, activez la galerie dans l'export et cliquez. Pelli reçoit alors le JPEG de chaque photo sélectionnée (jamais un RAW) avec son nom de fichier et les données EXIF qu'il contient (heure de prise de vue, boîtier, objectif, et le lieu si votre appareil l'a enregistré), le titre de la galerie et le nom des dossiers des moments.
+- **Pas de compte pour trier.** Rien à créer, rien à quoi se connecter. Un compte Pelli ne sert qu'à envoyer dans une galerie, ou à obtenir Plus avec un forfait Pro ou Ultra.
 - **Vos statistiques restent sur votre ordinateur.** L'écran *Statistiques* est calculé à partir de cette base locale et n'est jamais envoyé : il n'a rien à voir avec les statistiques d'usage ci-dessous.
 
 ### Les statistiques d'usage
@@ -217,7 +219,8 @@ Chaque message porte aussi un identifiant d'installation aléatoire (un nombre t
 ### Ce qui parle aussi à internet
 
 - **Pelli Instant Plus, si vous l'utilisez.** Afficher le prix le demande à Pelli (Pelli lit votre pays depuis la connexion pour choisir euros ou dollars, et ne le garde pas). Acheter envoie une empreinte de l'identifiant de votre ordinateur, la langue, le système et la version de l'app, puis attend le paiement. Activer une clé envoie la clé et cette empreinte. Au plus une fois par jour en ligne, l'app vérifie que la licence est toujours valable ; la précision Maximale se télécharge depuis des liens que Pelli donne après avoir vérifié la licence, et chaque fichier est vérifié par son empreinte SHA-256.
-- **Le compte Pelli facultatif**, seulement si vous vous connectez pour obtenir Plus avec un forfait Pro ou Ultra : Pelli reçoit le nom de votre ordinateur, affiché sur la page d'autorisation dans votre navigateur ; le jeton est ensuite rangé dans le Trousseau macOS ou le Gestionnaire d'identification Windows. Se déconnecter l'efface.
+- **Le compte Pelli facultatif**, seulement si vous vous connectez, pour envoyer dans une galerie ou obtenir Plus avec un forfait Pro ou Ultra : Pelli reçoit le nom de votre ordinateur, affiché sur la page d'autorisation dans votre navigateur ; le jeton est ensuite rangé dans le Trousseau macOS ou le Gestionnaire d'identification Windows. Se déconnecter l'efface.
+- **L'envoi dans une galerie Pelli**, seulement quand vous cliquez : la galerie et ses dossiers sont créés dans votre compte Pelli, puis chaque photo part vers le service d'envoi de Pelli avec un jeton d'envoi de courte durée, propre à cette galerie. Les photos déjà reçues par chaque galerie sont notées dans la bibliothèque locale, pour qu'un nouvel envoi n'envoie que les nouvelles.
 - **Les mises à jour** : l'app lit le fichier `latest.json` de la dernière version publiée sur GitHub, et ne télécharge une mise à jour que lorsque vous l'installez.
 - Les requêtes à Pelli indiquent la version de l'app, le système et la langue de l'interface. **Aucun rapport de plantage.** La télémétrie propre à ONNX Runtime est désactivée.
 - **Les modèles d'IA** sont des fichiers figés, à des versions fixées, et leur empreinte SHA-256 est vérifiée au chargement. Depuis les sources, `pnpm models` télécharge une fois les modèles Standard depuis Hugging Face et les autres sources listées dans [`models/manifest.json`](models/manifest.json).
@@ -257,14 +260,14 @@ Sur l'ancien ordinateur, *Réglages → Pelli Instant Plus → Libérer cette li
 <details>
 <summary><b>Est-ce que ça marche hors ligne ?</b></summary>
 
-Oui. Trier, vérifier et exporter se fait entièrement sur votre ordinateur, sans internet. Plus marche hors ligne une fois activé. Acheter ou activer Plus, télécharger la précision Maximale et les mises à jour demande un réseau.
+Oui. Trier, vérifier et exporter se fait entièrement sur votre ordinateur, sans internet. Plus marche hors ligne une fois activé. Acheter ou activer Plus, télécharger la précision Maximale, envoyer dans une galerie Pelli et les mises à jour demandent un réseau.
 
 </details>
 
 <details>
 <summary><b>Pelli Instant collecte-t-il des données ?</b></summary>
 
-Seulement des statistiques d'usage, que vous pouvez couper : combien de photos vous triez, en combien de temps, la version de l'app. Jamais vos photos ni leurs noms. Elles sont anonymes dans la version gratuite et associées à votre licence ou à votre compte avec Plus. La liste complète est dans [Confidentialité et télémétrie](#confidentialité-et-télémétrie).
+Seulement des statistiques d'usage, que vous pouvez couper : combien de photos vous triez, en combien de temps, la version de l'app. Jamais vos photos ni leurs noms : les photos ne partent vers Pelli que si vous les envoyez vous-même dans une galerie. Les statistiques sont anonymes dans la version gratuite et associées à votre licence ou à votre compte avec Plus. La liste complète est dans [Confidentialité et télémétrie](#confidentialité-et-télémétrie).
 
 </details>
 

@@ -49,7 +49,7 @@ engine through one contract.
 | `plus.rs` | Pelli Instant Plus: the licence (key, device hash, signed token checked offline), the checkout, activation, release and the daily check. |
 | `telemetry.rs` | Anonymous telemetry, opt-out: the six events, the random install id, fire-and-forget sending. |
 | `account.rs`, `pelli.rs` | The optional Pelli account (browser sign-in, cached account; a Pro or Ultra plan includes Plus) and the client of the Pelli API. |
-| `upload.rs`, `uploader.rs` | Sending a selection to a Pelli gallery (switched off in the interface for now). |
+| `upload.rs`, `uploader.rs` | Sending the selection to a Pelli gallery: what goes (`upload_check`), the gallery and its folders, the upload service. |
 | `view.rs`, `commands.rs` | The JSON views of the contract and the command dispatcher. |
 
 ## How a shoot flows
@@ -189,8 +189,8 @@ install id; declining during the welcome tour sends nothing at all. The host
 starts it with `Engine::start_services`: the CLI's `analyze` and the tests
 never send anything.
 
-**The optional Pelli account** (`account.rs`, `pelli.rs`), only used to get
-Plus through a Pro or Ultra plan:
+**The optional Pelli account** (`account.rs`, `pelli.rs`), used to get Plus
+through a Pro or Ultra plan, and to send a selection to a gallery:
 
 ```
  Pelli Instant                                browser                  app.pelli.io
@@ -207,11 +207,49 @@ Plus through a Pro or Ultra plan:
   local library instead.
 - **The account** (`me`: name, plan, `plus`) is refreshed at start-up.
   Offline, the last known one is used.
-- **Sending to a Pelli gallery.** The engine can also upload the selection
-  to a gallery of the photographer's Pelli account, one folder per moment
-  (`upload.rs`, `uploader.rs`, `src/components/export/GallerySection.tsx`).
-  It is switched off in the interface for now (`SHOW_GALLERY_EXPORT` in
-  `src/components/export/ExportDialog.tsx`).
+
+**Sending to a Pelli gallery** (`upload.rs`, `uploader.rs`,
+`src/components/export`): an output of the export, for a signed-in
+account, and only when the photographer clicks.
+
+```
+ Pelli Instant                                                  app.pelli.io, upload service
+ upload_check: RAW files alone, size of their embedded previews (local, nothing sent)
+ upload_to_pelli ── POST galleries/create {requestId, title, type} ────────► draft gallery
+                 ── POST folders/create, one per moment ──────────────────► folders
+                 ── POST upload-token {galleryId} ────────────────────────► token, free storage
+                 ── POST {uploadUrl}?name=&folder=, 3 at a time ──────────► the photos
+```
+
+- **What goes**: the Selected photos (their final decision), each as a
+  JPEG, never a RAW: the camera's JPEG twin of a RAW, the file itself for a
+  JPEG, and for a RAW alone the largest preview its camera embedded, with
+  the RAW's EXIF (`cull_decode::best_jpeg_bytes`). Each JPEG is read straight
+  into its request body, built once and reused for every attempt: one copy
+  of a photo in memory while it is sent. `upload_check` reads a sample of
+  the RAW files alone and gives the long edge of their previews, so the
+  interface warns below 2,000 px (1,616 px on a Sony A7 III).
+- **Once, then only what is new**: the gallery's `requestId` derives from
+  the project, the title and the type, so sending again lands in the same
+  gallery (a gallery deleted in Pelli since gets a new one); the photos a
+  gallery received (size and date of the file) are kept in the library,
+  and sending again only sends the new or changed ones.
+- **On the way**: the storage is checked before anything is sent
+  (`storage_full`); three uploads at a time, retried after 2, 5 and 15 s,
+  with a new upload token on a `401`; a photo whose answer never came is
+  not sent again automatically (it may already be in the gallery). No
+  network, a refused account or gallery, or `subscription_required` stop
+  the batch. Events: `upload-progress`, `upload-done` (with `galleryUrl`,
+  the gallery's page in the Pelli dashboard) and `upload-error`;
+  `cancel_upload` stops once the photos under way are sent. The upload
+  keeps the computer awake and an update waits for it (`Engine::busy`).
+- **In the interface**: the gallery card of the export dialog
+  (`ExportDialog.tsx`, `GallerySection.tsx`) signs in through the browser,
+  links to Pelli's trial or plans, and holds the title and "one folder per
+  moment"; existing galleries, the delivery type and the photos To review
+  are built but hidden (`SHOW_GALLERY_OPTIONS`). Closed while photos are
+  sent, the dialog leaves a pill in the title bar (`UploadPill.tsx`) and a
+  notification says when the upload ends (`export-store.ts`).
 
 ## The Maximum pack
 
@@ -249,7 +287,7 @@ Nothing is written in your photo folders until you export.
 
 | What | macOS | Windows |
 | --- | --- | --- |
-| Library: projects, measures, decisions, marks, analysis runs, settings, Plus licence, telemetry install id (`library.sqlite`) | `~/Library/Application Support/io.pelli.instant/` | `%APPDATA%\io.pelli.instant\` |
+| Library: projects, measures, decisions, marks, analysis runs, the photos each Pelli gallery received, settings, Plus licence, telemetry install id (`library.sqlite`) | `~/Library/Application Support/io.pelli.instant/` | `%APPDATA%\io.pelli.instant\` |
 | Maximum pack, when downloaded | `models/maximum/` next to the library | `models\maximum\` next to the library |
 | Preview cache, one folder per project | `~/Library/Caches/io.pelli.instant/previews/` | `%LOCALAPPDATA%\io.pelli.instant\previews\` |
 | Pelli token (release builds) | Keychain, service `io.pelli.instant` | Credential Manager, `io.pelli.instant` |
