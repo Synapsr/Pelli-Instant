@@ -75,8 +75,10 @@ export const usePlusStore = create<PlusState>((set, get) => ({
     if (get().dialogOpen) {
       const next = viewAfterStatus(get().view, before, status)
       if (next.view !== get().view) set({ view: next.view, error: next.error ?? null, busy: false })
-    } else if (status.active && !before.active) {
+    } else if (status.active && !before.active && useAppStore.getState().dialog !== 'export') {
       // Paid while the dialog was closed (the window came back into focus).
+      // Not over the export dialog: signing in from its Pelli gallery card
+      // shows the account there, and the toast would cover its buttons.
       notify({ title: t('plus.success.title'), tone: 'success' })
     }
   },
