@@ -73,7 +73,7 @@ Vous cherchez une alternative open source à Aftershoot, Narrative Select ou Fil
 | **Ça avance sans vous** | Une analyse, un export ou le téléchargement de la précision Maximale empêchent l'ordinateur de se mettre en veille et, sur Mac, gardent toute leur vitesse fenêtre masquée. L'écran peut toujours s'éteindre. |
 | **La plupart des appareils** | Canon CR2 et CR3, Nikon NEF, Sony ARW, Fujifilm RAF, DNG, Olympus et OM System ORF, Panasonic RW2, Pentax PEF, Samsung SRW, ainsi que JPEG, PNG et TIFF. |
 | **Reprendre là où vous en étiez** | Vos projets restent sur l'écran d'accueil. Rouvrir un dossier n'analyse que les photos nouvelles ou modifiées. |
-| **Un démarrage guidé** | Une courte présentation au premier lancement, avec une voix que vous pouvez couper : comment il juge une photo, les raccourcis, les exports, la précision, et le choix de partager ou non des statistiques anonymes. À revoir depuis *Réglages → À propos*. |
+| **Un démarrage guidé** | Une courte présentation au premier lancement, avec une voix que vous pouvez couper : comment il juge une photo, les raccourcis, les exports et la précision. À revoir depuis *Réglages → À propos*. |
 | **Pensé pour juger des photos** | Une interface sombre et neutre, comme Lightroom, pour juger les couleurs sur un fond neutre. En 9 langues. |
 
 ### Clavier
@@ -169,7 +169,7 @@ Si macOS refuse l'accès à un dossier (Bureau, Documents, disque externe), auto
 
 ### Mises à jour
 
-Pelli Instant se met à jour tout seul. Quelques secondes après le lancement, puis toutes les six heures, il consulte la [dernière version publiée](https://github.com/Synapsr/Pelli-Instant/releases/latest) ; quand il y en a une plus récente, la fenêtre la propose. Un clic suffit pour l'installer : la mise à jour est téléchargée, sa signature est vérifiée avec la clé propre à Pelli Instant, et l'app redémarre sur la nouvelle version dès qu'aucune analyse, aucun export ni aucun téléchargement n'est en cours. *Réglages → À propos* permet de vérifier à la main. Les préversions ne sont jamais proposées.
+Pelli Instant se met à jour tout seul. Quelques secondes après le lancement, puis toutes les six heures, il consulte la [dernière version publiée](https://github.com/Synapsr/Pelli-Instant/releases/latest) ; quand il y en a une plus récente, elle est annoncée une fois au milieu de la fenêtre, avec ses nouveautés, puis reste proposée dans la barre du haut. Un clic suffit pour l'installer : la mise à jour est téléchargée, sa signature est vérifiée avec la clé propre à Pelli Instant, et l'app redémarre sur la nouvelle version dès qu'aucune analyse, aucun export ni aucun téléchargement n'est en cours. *Réglages → À propos* permet de vérifier à la main. Les préversions ne sont jamais proposées.
 
 ### Compiler depuis les sources
 
@@ -193,7 +193,7 @@ Compilée depuis les sources, elle trie exactement comme l'app officielle : grat
 
 ### Les statistiques anonymes
 
-Pelli Instant envoie quelques statistiques anonymes à Pelli (`app.pelli.io`), pour savoir combien de personnes l'utilisent et à quelle vitesse il trie. **Elles sont activées par défaut et un interrupteur les coupe :** à la dernière étape de la présentation (avec le détail de ce qui est envoyé), ou plus tard dans *Réglages → Confidentialité*. Le code est dans [`crates/cull-engine/src/telemetry.rs`](crates/cull-engine/src/telemetry.rs).
+Pelli Instant envoie quelques statistiques anonymes à Pelli (`app.pelli.io`), pour savoir combien de personnes l'utilisent et à quelle vitesse il trie. **Elles sont activées par défaut et un interrupteur les coupe** dans *Réglages → Confidentialité*, avec le détail de ce qui est envoyé. Le code est dans [`crates/cull-engine/src/telemetry.rs`](crates/cull-engine/src/telemetry.rs).
 
 | Événement | Quand | Ce qu'il dit |
 | --- | --- | --- |

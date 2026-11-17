@@ -40,6 +40,7 @@ import {
   MOCK_LICENSE_KEY,
   MOCK_PROJECTS,
   MOCK_SETTINGS,
+  MOCK_UPDATE_NOTES,
   MOCK_UPDATE_VERSION,
   mockAccount,
   mockPlusOffer,
@@ -731,7 +732,7 @@ export function createMockApi(options: MockOptions = {}): CullApi {
     if (status === 'disabled' || status === 'downloading' || status === 'restarting') return updateStatus
     if (!online()) {
       if (manual) setUpdate({ status: 'failed', code: 'offline', message: 'No network', version: null })
-    } else setUpdate(published ? { status: 'available', version: published } : { status: 'upToDate' })
+    } else setUpdate(published ? { status: 'available', version: published, notes: MOCK_UPDATE_NOTES } : { status: 'upToDate' })
     return updateStatus
   }
   // The launch check (8 s after launch in the app).

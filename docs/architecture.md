@@ -226,7 +226,10 @@ read `latest.json` from the latest GitHub release eight seconds after
 launch, then every six hours, and report only news (an offline computer
 hears nothing). The update commands (`update_status`, `check_for_update`,
 `install_update`) and the `update-status` event are answered by the shell,
-not by the engine. Installing downloads the bundle, checks its signature
+not by the engine; `available` carries the release notes (`notes` of
+`latest.json`), which `UpdateDialog` shows once per version, in English or
+from the notes' `Français` block, before the pill of the title bars takes
+over. Installing downloads the bundle, checks its signature
 against the public key in `src-tauri/tauri.conf.json`, waits while
 `Engine::busy()` is true, then installs and restarts. Debug builds never
 check; `PELLI_INSTANT_DISABLE_UPDATER=1` switches it off in a release build.

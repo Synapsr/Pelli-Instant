@@ -33,6 +33,8 @@ export interface PrefsState {
   voice: boolean
   /** what the export writes in the XMP sidecars (the photographer's own marks always win) */
   xmpMapping: XmpMapping
+  /** the last version the update announcement was closed for: it is not announced again */
+  dismissedUpdate: string | null
   setThumbSize: (size: number) => void
   toggleSidebar: () => void
   toggleInspector: () => void
@@ -42,6 +44,7 @@ export interface PrefsState {
   setVoice: (value: boolean) => void
   setXmpMapping: (decision: FinalDecision, patch: { rating?: number; label?: ColorLabel }) => void
   setLabelLanguage: (language: Language | null) => void
+  setDismissedUpdate: (version: string) => void
 }
 
 export const THUMB_MIN = 120
@@ -106,6 +109,7 @@ export const usePrefsStore = create<PrefsState>()(
       sounds: true,
       voice: true,
       xmpMapping: DEFAULT_XMP_MAPPING,
+      dismissedUpdate: null,
       setThumbSize: (size) => set({ thumbSize: Math.round(Math.min(THUMB_MAX, Math.max(THUMB_MIN, size))) }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       toggleInspector: () => set((s) => ({ inspectorOpen: !s.inspectorOpen })),
@@ -122,6 +126,7 @@ export const usePrefsStore = create<PrefsState>()(
           },
         })),
       setLabelLanguage: (labelLanguage) => set(({ xmpMapping }) => ({ xmpMapping: { ...xmpMapping, labelLanguage } })),
+      setDismissedUpdate: (dismissedUpdate) => set({ dismissedUpdate }),
     }),
     {
       name: 'pelli-cull:prefs',
@@ -139,6 +144,7 @@ export const usePrefsStore = create<PrefsState>()(
         sounds: s.sounds,
         voice: s.voice,
         xmpMapping: s.xmpMapping,
+        dismissedUpdate: s.dismissedUpdate,
       }),
     },
   ),

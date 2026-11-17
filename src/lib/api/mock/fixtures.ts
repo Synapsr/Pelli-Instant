@@ -103,7 +103,20 @@ export const MOCK_APP_INFO: AppInfo = {
 }
 
 /** The newer version `?mockUpdate=available` publishes. */
-export const MOCK_UPDATE_VERSION = '0.2.1'
+export const MOCK_UPDATE_VERSION = '1.1.0'
+
+/** Its release notes, written like a CHANGELOG.md section (English, then French). */
+export const MOCK_UPDATE_NOTES = `- **Send to a Pelli gallery** straight from the export.
+- Faster grid on shoots of 5,000 photos.
+- Fixes for Fujifilm RAF previews.
+
+<details><summary>Français</summary>
+
+- **Envoi vers une galerie Pelli**, directement depuis l’export.
+- Grille plus rapide sur les séances de 5 000 photos.
+- Corrections des aperçus RAF de Fujifilm.
+
+</details>`
 
 export const MOCK_SETTINGS: AppSettings = {
   theme: 'dark',

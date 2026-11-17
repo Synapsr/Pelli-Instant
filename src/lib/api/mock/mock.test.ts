@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SETTINGS, type CullEvents, type PlusStatus, type UpdateStatus } from '@/lib/contract'
-import { MOCK_UPDATE_VERSION, NEW_FOLDER } from './fixtures'
+import { MOCK_UPDATE_NOTES, MOCK_UPDATE_VERSION, NEW_FOLDER } from './fixtures'
 import { createMockApi } from './index'
 import { concepts } from './search'
 
@@ -312,7 +312,7 @@ describe('mock engine', () => {
     expect(await quiet.checkForUpdate()).toEqual({ status: 'upToDate' })
 
     const api = engine('mockUpdate=available')
-    expect(await api.checkForUpdate()).toEqual({ status: 'available', version: MOCK_UPDATE_VERSION })
+    expect(await api.checkForUpdate()).toEqual({ status: 'available', version: MOCK_UPDATE_VERSION, notes: MOCK_UPDATE_NOTES })
     const seen: string[] = []
     api.on('update-status', (s) => seen.at(-1) !== s.status && seen.push(s.status === 'restarting' ? `restarting:${s.waiting}` : s.status))
     api.on('analysis-done', () => seen.push('analysis-done'))

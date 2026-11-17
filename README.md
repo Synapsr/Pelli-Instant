@@ -169,7 +169,7 @@ If macOS refuses access to a folder (Desktop, Documents, an external drive), all
 
 ### Updates
 
-Pelli Instant updates itself. A few seconds after launch, then every six hours, it checks the [latest release](https://github.com/Synapsr/Pelli-Instant/releases/latest); when there is a newer version, the window offers it. Install it in one click: the update is downloaded, its signature is checked against Pelli Instant's own key, and the app restarts on the new version once no analysis, export or download is under way. *Settings → About* checks by hand. Prereleases are never offered.
+Pelli Instant updates itself. A few seconds after launch, then every six hours, it checks the [latest release](https://github.com/Synapsr/Pelli-Instant/releases/latest); when there is a newer version, it is announced once in the middle of the window, with what's new, and stays offered in the title bar. Install it in one click: the update is downloaded, its signature is checked against Pelli Instant's own key, and the app restarts on the new version once no analysis, export or download is under way. *Settings → About* checks by hand. Prereleases are never offered.
 
 ### Build from source
 

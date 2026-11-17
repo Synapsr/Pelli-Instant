@@ -504,7 +504,11 @@ export type UpdateStatus =
   | { status: 'idle' }
   | { status: 'checking' }
   | { status: 'upToDate' }
-  | { status: 'available'; version: string }
+  /**
+   * `notes`: the release notes of that version (its CHANGELOG.md section,
+   * Markdown), null when the release has none
+   */
+  | { status: 'available'; version: string; notes?: string | null }
   /** `progress` from 0 to 1, null while the size is unknown */
   | { status: 'downloading'; version: string; progress: number | null }
   /**

@@ -11,6 +11,7 @@ import { ShortcutsDialog } from './components/review/ShortcutsDialog'
 import { Workspace } from './components/review/Workspace'
 import { SettingsDialog } from './components/settings/SettingsDialog'
 import { PlusDialog } from './components/plus/PlusDialog'
+import { UpdateDialog } from '@/components/update/UpdateDialog'
 import { useApplyTheme } from './hooks/use-theme'
 import { api } from './lib/api'
 import { setNotifier } from './lib/notify'
@@ -68,6 +69,7 @@ export function App() {
       <ExportDialog />
       <ShortcutsDialog />
       <PlusDialog />
+      <UpdateDialog />
     </div>
   )
 }

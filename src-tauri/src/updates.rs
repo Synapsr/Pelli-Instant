@@ -41,6 +41,9 @@ pub enum UpdateStatus {
     UpToDate,
     Available {
         version: String,
+        /// The release notes (`notes` of latest.json: the CHANGELOG.md section
+        /// of that version), shown by the window's announcement.
+        notes: Option<String>,
     },
     Downloading {
         version: String,
@@ -169,8 +172,9 @@ async fn check(app: &AppHandle, manual: bool) -> UpdateStatus {
         Ok(Some(update)) => {
             log::info!("Pelli Instant {} is available", update.version);
             let version = update.version.clone();
+            let notes = update.body.clone().filter(|notes| !notes.trim().is_empty());
             *lock(&updates.pending) = Some(update);
-            UpdateStatus::Available { version }
+            UpdateStatus::Available { version, notes }
         }
         Ok(None) => {
             *lock(&updates.pending) = None;

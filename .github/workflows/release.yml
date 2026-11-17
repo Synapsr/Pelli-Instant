@@ -309,6 +309,32 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # The release's own words: its section of CHANGELOG.md (`## 1.0.0 — date`).
+      - uses: actions/checkout@v4
+        with:
+          path: repo
+          sparse-checkout: CHANGELOG.md
+          sparse-checkout-cone-mode: false
+
+      # A stable version must have its section; a prerelease may go without.
+      - name: Release notes from CHANGELOG.md
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          awk -v v="${tag#v}" '
+            /^## / { if (found) exit; split($0, h, " "); if (h[2] == v) { found = 1; next } }
+            found { print }
+          ' repo/CHANGELOG.md | sed -e '/./,$!d' > dist/release-notes.md
+          if [ ! -s dist/release-notes.md ]; then
+            if [[ "$tag" == *-* ]]; then
+              echo "Prerelease ${tag}, for testing." > dist/release-notes.md
+            else
+              echo "::error::CHANGELOG.md has no section for ${tag#v}."
+              exit 1
+            fi
+          fi
+          cat dist/release-notes.md
+
       # What installed copies of Pelli Instant read to find this release:
       # https://github.com/Synapsr/Pelli-Instant/releases/latest/download/latest.json
       # Each platform points at this release's own files, so an update never
@@ -327,7 +353,7 @@ jobs:
           win=$(entry PelliInstant-windows-x64-setup.exe)
           jq -n \
             --arg version "${tag#v}" \
-            --arg notes "What's new: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${tag}" \
+            --rawfile notes release-notes.md \
             --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --argjson mac "$mac" \
             --argjson win "$win" \
@@ -365,8 +391,10 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           name: Pelli Instant ${{ github.ref_name }}
+          body_path: dist/release-notes.md
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ contains(github.ref_name, '-') && 'false' || 'true' }}
           files: |
             dist/PelliInstant-macos-arm64.dmg
             dist/PelliInstant-macos-arm64.dmg.sha256

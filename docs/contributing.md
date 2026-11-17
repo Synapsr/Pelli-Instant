@@ -259,8 +259,14 @@ builds there.
 
 ## Releasing
 
-Bump the version in `package.json`, `src-tauri/tauri.conf.json` and the
-workspace `Cargo.toml`, then push a `vX.Y.Z` tag. The
+Write the version's section in [`CHANGELOG.md`](../CHANGELOG.md)
+(`## X.Y.Z — date`, the points that matter to photographers first, then the
+same in French in a `<details><summary>Français</summary>` block): it becomes
+the release's text and the `notes` of `latest.json`, and the in-app
+announcement of the next version shows its first five points. The workflow
+refuses a stable tag without its section. Bump the version in `package.json`,
+`src-tauri/tauri.conf.json` and the workspace `Cargo.toml`, then push a
+`vX.Y.Z` tag. The
 [release workflow](../.github/workflows/release.yml) builds the macOS Apple
 Silicon installer and the Windows x64 installer (DirectML), both with the
 Standard models inside (the fp16 CLIP model only in the Windows one), and publishes them in a GitHub Release with
