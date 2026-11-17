@@ -3,14 +3,22 @@
 //! Gallery and folders are created through the Pelli API; files go straight
 //! to Pelli's upload service with a short-lived gallery upload token, the
 //! same path the Lightroom plugin uses (`docs/pelli-api.md`).
+//!
+//! What a photo sends is always a JPEG, never a RAW: the camera's JPEG twin
+//! of a RAW + JPEG pair, the file itself for a JPEG, and for a RAW alone the
+//! largest JPEG preview its camera embedded in it (full size on most recent
+//! bodies, smaller on some: [`Engine::upload_check`] says how big).
 
 use crate::commands::{UploadRequest, UploadWhich};
 use crate::pelli::{GallerySummary, PelliClient};
+use crate::uploader::UploadFile;
 use crate::{Engine, EngineError, Result};
-use cull_types::{final_decision, FileKind, FinalDecision, PhotoAsset};
+use cull_types::{final_decision, FileKind, FinalDecision, PhotoAsset, Scene};
 use parking_lot::Mutex;
+use serde::Serialize;
 use serde_json::json;
 use std::collections::HashMap;
+use std::io::Read;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 
@@ -27,17 +35,56 @@ pub(crate) fn request_id(parts: &[&str]) -> String {
     )
 }
 
-/// Bytes sent for a photo: the camera JPEG twin when there is one, else the
-/// file's best full-quality JPEG (embedded preview of a RAW).
-pub(crate) fn upload_bytes(asset: &PhotoAsset) -> Result<(String, Vec<u8>)> {
-    let twin = std::iter::once(&asset.primary).chain(asset.companions.iter()).find(|f| f.kind == FileKind::Jpeg);
-    let (file, bytes) = match twin {
-        Some(f) => (f, std::fs::read(&f.path).map_err(|e| EngineError::io(&f.path, e))?),
-        None => (&asset.primary, cull_decode::best_jpeg_bytes(&asset.primary)?),
-    };
-    let stem = file.path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| asset.stem.clone());
-    Ok((format!("{stem}.jpg"), bytes))
+/// The camera JPEG of a photo, when it has one (itself, or a RAW's twin).
+fn jpeg_twin(asset: &PhotoAsset) -> Option<&cull_types::SourceFile> {
+    std::iter::once(&asset.primary).chain(asset.companions.iter()).find(|f| f.kind == FileKind::Jpeg)
 }
+
+/// A RAW without a JPEG twin: the gallery gets its embedded preview.
+fn raw_only(asset: &PhotoAsset) -> bool {
+    asset.primary.kind == FileKind::Raw && jpeg_twin(asset).is_none()
+}
+
+/// What is sent for a photo: the camera JPEG twin when there is one, else
+/// the file's best full-quality JPEG (the largest preview embedded in a
+/// RAW). The JPEG is read straight into the request body.
+pub(crate) fn upload_file(asset: &PhotoAsset) -> Result<UploadFile> {
+    let twin = jpeg_twin(asset);
+    let file = twin.unwrap_or(&asset.primary);
+    let stem = file.path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| asset.stem.clone());
+    UploadFile::build(&format!("{stem}.jpg"), |body| match twin {
+        Some(f) => std::fs::File::open(&f.path)
+            .and_then(|mut fh| fh.read_to_end(body))
+            .map(|_| ())
+            .map_err(|e| EngineError::io(&f.path, e)),
+        None => {
+            body.extend_from_slice(&cull_decode::best_jpeg_bytes(&asset.primary)?);
+            Ok(())
+        }
+    })
+}
+
+/// What the photographer should know before sending (`upload_check`).
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct UploadCheck {
+    /// Photos the upload would send.
+    pub photos: u32,
+    /// Of those, RAW files without a JPEG twin.
+    pub raw_only: u32,
+    /// Long edge, in pixels, of the smallest preview embedded in those RAWs
+    /// (among a sample): what the gallery gets for them. `None` without such
+    /// a photo, or when none could be read.
+    pub preview_long_edge: Option<u32>,
+}
+
+/// The photos an upload sends, each with its moment, and the moments of the
+/// shoot.
+type Selection = (Vec<(PhotoAsset, Option<u32>)>, Vec<Scene>);
+
+/// RAW files whose embedded previews [`Engine::upload_check`] reads (spread
+/// over the selection, so a second camera body shows up).
+const CHECK_SAMPLE: usize = 16;
 
 impl Engine {
     pub fn cancel_upload(&self, project_id: &str) {
@@ -74,6 +121,44 @@ impl Engine {
         Ok(())
     }
 
+    /// What an upload of `which` sends (by final decision: the
+    /// photographer's flag first, else the AI's verdict).
+    fn upload_selection(&self, project_id: &str, which: UploadWhich) -> Result<Selection> {
+        let state = self.state(project_id)?;
+        let st = state.lock();
+        let photos = st
+            .assets
+            .iter()
+            .filter(|a| {
+                let mark = st.marks.get(&a.id).copied().unwrap_or_default();
+                let d = final_decision(st.assessments.get(&a.id).map(|x| x.verdict), &mark);
+                d == FinalDecision::Selected
+                    || (which == UploadWhich::SelectedAndToReview && d == FinalDecision::ToReview)
+            })
+            .map(|a| (a.clone(), st.scene_of.get(&a.id).copied()))
+            .collect();
+        Ok((photos, st.scenes.clone()))
+    }
+
+    /// Before sending: how many photos would go, how many are RAW files
+    /// alone, and how big the previews embedded in those are. Reads a few
+    /// KiB of a few files; nothing leaves the computer.
+    pub fn upload_check(&self, project_id: &str, which: UploadWhich) -> Result<UploadCheck> {
+        let (photos, _) = self.upload_selection(project_id, which)?;
+        let raws: Vec<&PhotoAsset> = photos.iter().map(|(a, _)| a).filter(|a| raw_only(a)).collect();
+        let n = raws.len().min(CHECK_SAMPLE);
+        let preview_long_edge = (0..n)
+            .filter_map(|i| {
+                let asset = raws[i * raws.len() / n];
+                let probe = cull_decode::probe_previews(&asset.primary.path, 0).ok()?;
+                // The preview sent is the largest one (`best_jpeg_bytes`).
+                let largest = probe.previews.iter().max_by_key(|p| u64::from(p.width) * u64::from(p.height))?;
+                Some(largest.width.max(largest.height))
+            })
+            .min();
+        Ok(UploadCheck { photos: photos.len() as u32, raw_only: raws.len() as u32, preview_long_edge })
+    }
+
     fn run_upload(
         &self,
         client: &PelliClient,
@@ -82,22 +167,7 @@ impl Engine {
         cancel: &AtomicBool,
     ) -> Result<()> {
         let project = self.project_row(project_id)?;
-        let state = self.state(project_id)?;
-        let (photos, scenes): (Vec<(PhotoAsset, Option<u32>)>, Vec<cull_types::Scene>) = {
-            let st = state.lock();
-            let photos = st
-                .assets
-                .iter()
-                .filter(|a| {
-                    let mark = st.marks.get(&a.id).copied().unwrap_or_default();
-                    let d = final_decision(st.assessments.get(&a.id).map(|x| x.verdict), &mark);
-                    d == FinalDecision::Selected
-                        || (request.which == UploadWhich::SelectedAndToReview && d == FinalDecision::ToReview)
-                })
-                .map(|a| (a.clone(), st.scene_of.get(&a.id).copied()))
-                .collect();
-            (photos, st.scenes.clone())
-        };
+        let (photos, scenes) = self.upload_selection(project_id, request.which)?;
         if photos.is_empty() {
             return Err(EngineError::Remote { code: "nothingToUpload".into(), message: "no photo selected".into() });
         }
@@ -173,16 +243,8 @@ impl Engine {
         let target = crate::uploader::UploadTarget::fetch(client, &gallery.id)?;
         // The upload service does not enforce storage: check it here.
         if let Some(free) = target.storage_free {
-            let needed: u64 = photos
-                .iter()
-                .map(|(a, _)| {
-                    std::iter::once(&a.primary)
-                        .chain(a.companions.iter())
-                        .find(|f| f.kind == FileKind::Jpeg)
-                        .map(|f| f.size)
-                        .unwrap_or(a.primary.size / 3)
-                })
-                .sum();
+            let needed: u64 =
+                photos.iter().map(|(a, _)| jpeg_twin(a).map(|f| f.size).unwrap_or(a.primary.size / 3)).sum();
             if needed > free {
                 return Err(EngineError::Remote {
                     code: "storage_full".into(),
@@ -212,14 +274,13 @@ impl Engine {
                                 "bytesSent": bytes_sent.load(Ordering::Relaxed), "current": asset.rel_path }),
                     );
                     let folder = scene.and_then(|s| folders.get(&s)).map(String::as_str);
-                    let result = upload_bytes(asset).and_then(|(name, bytes)| {
-                        let n = bytes.len() as u64;
-                        match target.upload(client, folder, &name, bytes.clone()) {
+                    let result = upload_file(asset).and_then(|file| {
+                        match target.upload(client, folder, &file) {
                             // Folder deleted meanwhile: the gallery root still works.
-                            Err(e) if e.code() == "folder_not_found" => target.upload(client, None, &name, bytes),
+                            Err(e) if e.code() == "folder_not_found" => target.upload(client, None, &file),
                             other => other,
                         }
-                        .map(|_| n)
+                        .map(|_| file.size)
                     });
                     match result {
                         Ok(n) => {
@@ -356,6 +417,276 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::NewGallery;
+    use crate::testing::{fake_pelli, test_engine, FakePelli, Recorder, Request};
+    use crate::view::MarkPatch;
+    use cull_types::{CullSettings, Flag};
+    use image::{Rgb, RgbImage};
+    use serde_json::Value;
+    use std::path::Path;
+    use std::time::{Duration, Instant};
+
+    /// Textured, sharp frame (seeded so frames differ).
+    fn frame(seed: u32, w: u32, h: u32) -> Vec<u8> {
+        let img = RgbImage::from_fn(w, h, |x, y| {
+            let v = ((x / 7 + y / 5 + seed) % 2) * 160 + ((x * 31 + y * 17 + seed * 13) % 60);
+            Rgb([v as u8, (v / 2 + 40) as u8, (255 - v) as u8])
+        });
+        cull_decode::encode_jpeg(&img, 88)
+    }
+
+    /// A TIFF-based RAW whose only image is the JPEG preview its camera
+    /// embedded (IFD0 `JPEGInterchangeFormat`), like a Sony A7 III's 1616 px.
+    fn raw_with_preview(preview: &[u8]) -> Vec<u8> {
+        let mut out = b"II*\0".to_vec();
+        out.extend(8u32.to_le_bytes());
+        out.extend(2u16.to_le_bytes());
+        let data_at = 8 + 2 + 2 * 12 + 4;
+        for (tag, value) in [(0x0201u16, data_at), (0x0202, preview.len() as u32)] {
+            out.extend(tag.to_le_bytes());
+            out.extend(4u16.to_le_bytes());
+            out.extend(1u32.to_le_bytes());
+            out.extend(value.to_le_bytes());
+        }
+        out.extend(0u32.to_le_bytes());
+        out.extend_from_slice(preview);
+        out
+    }
+
+    /// Three JPEGs, a RAW + JPEG pair (the RAW unreadable: never sent) and a
+    /// RAW alone, analysed; every photo picked but `IMG_0003.jpg`, rejected.
+    fn shoot(dir: &Path, events: Arc<Recorder>) -> (Arc<Engine>, String, std::path::PathBuf) {
+        let root = dir.join("Mariage");
+        std::fs::create_dir_all(&root).unwrap();
+        for i in 1..=3 {
+            std::fs::write(root.join(format!("IMG_000{i}.jpg")), frame(i * 7, 900, 600)).unwrap();
+        }
+        std::fs::write(root.join("IMG_0200.dng"), b"II*\0not a real raw").unwrap();
+        std::fs::write(root.join("IMG_0200.jpg"), frame(50, 900, 600)).unwrap();
+        std::fs::write(root.join("IMG_0300.arw"), raw_with_preview(&frame(80, 1616, 1080))).unwrap();
+        let engine = test_engine(dir, events);
+        let project = engine.open_folder(&root, true).unwrap();
+        engine.analyze_blocking(&project.id, CullSettings::default()).unwrap();
+        let ids: HashMap<String, String> =
+            engine.get_project(&project.id).unwrap().photos.into_iter().map(|p| (p.file_name, p.id)).collect();
+        let flag = |flag| MarkPatch { flag: Some(flag), rating: None, label: None };
+        let picked: Vec<String> =
+            ["IMG_0001.jpg", "IMG_0002.jpg", "IMG_0200.dng", "IMG_0300.arw"].iter().map(|n| ids[*n].clone()).collect();
+        engine.set_marks(&project.id, &picked, flag(Flag::Pick)).unwrap();
+        engine.set_marks(&project.id, std::slice::from_ref(&ids["IMG_0003.jpg"]), flag(Flag::Reject)).unwrap();
+        // Signed in to Pelli (the token in the library, as in debug builds).
+        engine.kv_set("pelli.token", "access-token").unwrap();
+        (engine, project.id, root)
+    }
+
+    /// A fake Pelli that creates galleries and folders and accepts every
+    /// photo; `photo` answers the upload service.
+    fn pelli(photo: impl Fn(&Request) -> (u16, Value) + Send + Sync + 'static) -> FakePelli {
+        let base = Arc::new(Mutex::new(String::new()));
+        let origin = base.clone();
+        let fake = fake_pelli(move |req| match req.path.split('?').next().unwrap_or_default() {
+            "/api/cull/galleries/create" => (
+                200,
+                json!({ "gallery": { "id": "g1", "title": req.body["title"], "slug": "mariage", "status": "draft",
+                                     "imageCount": 0, "coverUrl": null, "createdAt": 1,
+                                     "url": "https://app.pelli.io/dashboard/gallery/mariage" },
+                        "password": null }),
+            ),
+            "/api/cull/folders/create" => {
+                (200, json!({ "folder": { "id": format!("f-{}", req.body["name"]), "name": req.body["name"] } }))
+            }
+            "/api/cull/upload-token" => (
+                200,
+                json!({ "uploadToken": "upload-token", "uploadUrl": format!("{}/api/photo", origin.lock()),
+                        "expiresAt": crate::now_ms() + 3_600_000, "maxFileSize": 104_857_600, "maxConcurrency": 1,
+                        "storage": { "usedBytes": 0, "limitBytes": 1u64 << 40 } }),
+            ),
+            "/api/photo" => photo(req),
+            _ => (404, json!({ "code": "not_found", "message": req.path })),
+        });
+        *base.lock() = fake.url.clone();
+        fake
+    }
+
+    fn new_gallery(title: &str) -> UploadRequest {
+        UploadRequest {
+            gallery_id: None,
+            new_gallery: Some(NewGallery { title: title.into(), kind: "selection".into() }),
+            which: UploadWhich::Selected,
+            folder_per_scene: true,
+        }
+    }
+
+    /// The `count`-th `name` event, once emitted.
+    fn wait_for(events: &Recorder, name: &str, count: usize) -> Value {
+        let start = Instant::now();
+        loop {
+            if let Some(v) = events.named(name).get(count - 1) {
+                return v.clone();
+            }
+            assert!(
+                start.elapsed() < Duration::from_secs(60),
+                "no {name} #{count}: {:?}",
+                events.named("upload-error")
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    /// Until the upload thread is gone (it ends just after its last event).
+    fn wait_idle(engine: &Engine) {
+        let start = Instant::now();
+        while engine.busy() {
+            assert!(start.elapsed() < Duration::from_secs(10), "still busy");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    /// The photos the upload service received: file name (query) and bytes.
+    fn received(pelli: &FakePelli) -> Vec<(String, Vec<u8>)> {
+        pelli
+            .requests()
+            .into_iter()
+            .filter(|r| r.path.starts_with("/api/photo?"))
+            .map(|r| {
+                let name = r.path.split(['?', '&']).find_map(|p| p.strip_prefix("name=")).unwrap_or_default();
+                let name = percent_encoding::percent_decode_str(name).decode_utf8_lossy().into_owned();
+                let start = r.raw.windows(4).position(|w| w == b"\r\n\r\n").unwrap() + 4;
+                let end = r.raw.windows(4).rposition(|w| w == b"\r\n--").unwrap();
+                (name, r.raw[start..end].to_vec())
+            })
+            .collect()
+    }
+
+    #[test]
+    fn sends_the_selection_once_then_only_what_is_new() {
+        let tmp = tempfile::tempdir().unwrap();
+        let events = Arc::new(Recorder::default());
+        let (engine, pid, root) = shoot(tmp.path(), events.clone());
+        let pelli = pelli(|req| {
+            assert_eq!(req.authorization.as_deref(), Some("upload-token"), "the raw upload token, no Bearer");
+            (200, json!({ "success": true, "imageId": "i" }))
+        });
+        *engine.api_url.write() = pelli.url.clone();
+
+        // What the photographer is told before sending: one RAW alone, whose
+        // camera embedded a 1616 px preview. Nothing asked to Pelli.
+        let check = engine.upload_check(&pid, UploadWhich::Selected).unwrap();
+        assert_eq!(check, UploadCheck { photos: 4, raw_only: 1, preview_long_edge: Some(1616) });
+        assert!(pelli.requests().is_empty());
+
+        engine.start_upload(&pid, new_gallery("Mariage")).unwrap();
+        let done = wait_for(&events, "upload-done", 1);
+        assert_eq!(
+            done,
+            json!({ "projectId": pid, "galleryId": "g1", "galleryUrl": "https://app.pelli.io/dashboard/gallery/mariage",
+                    "uploaded": 4, "failed": 0, "skipped": 0 })
+        );
+        let creates: Vec<Request> =
+            pelli.requests().into_iter().filter(|r| r.path == "/api/cull/galleries/create").collect();
+        assert_eq!(creates.len(), 1);
+        let request_id = request_id(&[&pid, "Mariage", "selection"]);
+        assert_eq!(creates[0].body, json!({ "requestId": request_id, "title": "Mariage", "type": "selection" }));
+        assert_eq!(creates[0].authorization.as_deref(), Some("Bearer access-token"));
+
+        // JPEGs only: the twin of the pair, the RAW alone's embedded preview.
+        let mut sent = received(&pelli);
+        sent.sort();
+        let names: Vec<&str> = sent.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, ["IMG_0001.jpg", "IMG_0002.jpg", "IMG_0200.jpg", "IMG_0300.jpg"]);
+        for (name, bytes) in &sent {
+            assert!(bytes.starts_with(&[0xFF, 0xD8]) && bytes.ends_with(&[0xFF, 0xD9]), "{name} is a JPEG");
+        }
+        assert_eq!(sent[2].1, std::fs::read(root.join("IMG_0200.jpg")).unwrap(), "the camera JPEG, as it is");
+        let preview = cull_decode::decode_jpeg(&sent[3].1, 4000).unwrap();
+        assert_eq!(preview.dimensions(), (1616, 1080));
+        wait_idle(&engine);
+
+        // Sending again lands in the same gallery (same request id) and
+        // sends nothing it already has.
+        engine.start_upload(&pid, new_gallery("Mariage")).unwrap();
+        let again = wait_for(&events, "upload-done", 2);
+        assert_eq!((again["uploaded"].as_u64(), again["skipped"].as_u64()), (Some(0), Some(4)));
+        let creates: Vec<Request> =
+            pelli.requests().into_iter().filter(|r| r.path == "/api/cull/galleries/create").collect();
+        assert_eq!(creates.len(), 2);
+        assert_eq!(creates[1].body["requestId"], request_id);
+        assert_eq!(received(&pelli).len(), 4);
+        wait_idle(&engine);
+
+        // One more pick: only that one is sent.
+        let id =
+            engine.get_project(&pid).unwrap().photos.into_iter().find(|p| p.file_name == "IMG_0003.jpg").unwrap().id;
+        engine.set_marks(&pid, &[id], MarkPatch { flag: Some(Flag::Pick), rating: None, label: None }).unwrap();
+        engine.start_upload(&pid, new_gallery("Mariage")).unwrap();
+        let third = wait_for(&events, "upload-done", 3);
+        assert_eq!((third["uploaded"].as_u64(), third["skipped"].as_u64()), (Some(1), Some(4)));
+        let sent = received(&pelli);
+        assert_eq!((sent.len(), sent[4].0.as_str()), (5, "IMG_0003.jpg"));
+        assert!(events.named("upload-error").is_empty());
+    }
+
+    #[test]
+    fn cancelling_stops_after_the_photo_under_way() {
+        let tmp = tempfile::tempdir().unwrap();
+        let events = Arc::new(Recorder::default());
+        let (engine, pid, _) = shoot(tmp.path(), events.clone());
+        let started = Arc::new(AtomicUsize::new(0));
+        let release = Arc::new(AtomicBool::new(false));
+        let (s, r) = (started.clone(), release.clone());
+        let pelli = pelli(move |_| {
+            s.fetch_add(1, Ordering::SeqCst);
+            let start = Instant::now();
+            while !r.load(Ordering::SeqCst) && start.elapsed() < Duration::from_secs(20) {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            (200, json!({ "success": true, "imageId": "i" }))
+        });
+        *engine.api_url.write() = pelli.url.clone();
+
+        engine.start_upload(&pid, new_gallery("Mariage")).unwrap();
+        let start = Instant::now();
+        while started.load(Ordering::SeqCst) == 0 {
+            assert!(start.elapsed() < Duration::from_secs(30), "no photo sent");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(engine.start_upload(&pid, new_gallery("Mariage")).unwrap_err().code(), "alreadyRunning");
+        engine.cancel_upload(&pid);
+        release.store(true, Ordering::SeqCst);
+        let error = wait_for(&events, "upload-error", 1);
+        assert_eq!((error["code"].as_str(), error["projectId"].as_str()), (Some("cancelled"), Some(pid.as_str())));
+        assert!(events.named("upload-done").is_empty());
+        wait_idle(&engine);
+        assert_eq!(started.load(Ordering::SeqCst), 1, "nothing sent after the cancel");
+
+        // The photo sent before the cancel is remembered: sending again
+        // finishes the job.
+        engine.start_upload(&pid, new_gallery("Mariage")).unwrap();
+        let done = wait_for(&events, "upload-done", 1);
+        assert_eq!((done["uploaded"].as_u64(), done["skipped"].as_u64()), (Some(3), Some(1)));
+        assert_eq!(started.load(Ordering::SeqCst), 4);
+    }
+
+    #[test]
+    fn behind_the_paywall_or_signed_out_nothing_is_sent() {
+        let tmp = tempfile::tempdir().unwrap();
+        let events = Arc::new(Recorder::default());
+        let (engine, pid, _) = shoot(tmp.path(), events.clone());
+        let pelli = fake_pelli(|req| match req.path.as_str() {
+            "/api/cull/galleries/create" => (403, json!({ "error": "subscription_required", "message": "trial over" })),
+            _ => (200, json!({ "success": true })),
+        });
+        *engine.api_url.write() = pelli.url.clone();
+        engine.start_upload(&pid, new_gallery("Mariage")).unwrap();
+        let error = wait_for(&events, "upload-error", 1);
+        assert_eq!(error["code"], "subscription_required");
+        assert_eq!(pelli.requests().len(), 1, "stopped at the gallery");
+        wait_idle(&engine);
+
+        engine.auth_logout().unwrap();
+        assert_eq!(engine.start_upload(&pid, new_gallery("Mariage")).unwrap_err().code(), "unauthorized");
+        assert_eq!(pelli.requests().len(), 1);
+    }
 
     #[test]
     fn request_ids_are_stable_uuids() {

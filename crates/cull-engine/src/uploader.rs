@@ -15,21 +15,40 @@ use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
 use std::time::Duration;
 
-/// One-file `multipart/form-data` body: `(Content-Type header, body)`.
-fn multipart(field: &str, filename: &str, content_type: &str, bytes: &[u8]) -> (String, Vec<u8>) {
-    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-    let boundary = format!("----PelliInstant{nanos:x}");
-    let safe: String = filename.chars().map(|c| if c == '"' || c.is_control() { '_' } else { c }).collect();
-    let mut body = Vec::with_capacity(bytes.len() + 256);
-    body.extend_from_slice(
-        format!(
-            "--{boundary}\r\nContent-Disposition: form-data; name=\"{field}\"; filename=\"{safe}\"\r\nContent-Type: {content_type}\r\n\r\n"
+/// A photo ready to send: its one-file `multipart/form-data` body, built
+/// once with the JPEG read straight into it. Every attempt (retries, the
+/// fallback to the gallery root) sends the same body, so a photo is in
+/// memory once while it is sent.
+pub(crate) struct UploadFile {
+    pub(crate) name: String,
+    content_type: String,
+    body: Vec<u8>,
+    /// Bytes of the photo itself, without the multipart framing.
+    pub(crate) size: u64,
+}
+
+impl UploadFile {
+    /// `fill` appends the JPEG to the body it is handed.
+    pub(crate) fn build(name: &str, fill: impl FnOnce(&mut Vec<u8>) -> Result<()>) -> Result<UploadFile> {
+        let nanos =
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+        let boundary = format!("----PelliInstant{nanos:x}");
+        let safe: String = name.chars().map(|c| if c == '"' || c.is_control() { '_' } else { c }).collect();
+        let mut body = format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{safe}\"\r\nContent-Type: image/jpeg\r\n\r\n"
         )
-        .as_bytes(),
-    );
-    body.extend_from_slice(bytes);
-    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
-    (format!("multipart/form-data; boundary={boundary}"), body)
+        .into_bytes();
+        let start = body.len();
+        fill(&mut body)?;
+        let size = (body.len() - start) as u64;
+        body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+        Ok(UploadFile {
+            name: name.to_string(),
+            content_type: format!("multipart/form-data; boundary={boundary}"),
+            body,
+            size,
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -176,28 +195,21 @@ impl UploadTarget {
         }
     }
 
-    /// Upload one JPEG, renewing the token once and retrying transient
+    /// Upload one photo, renewing the token once and retrying transient
     /// failures after 2 s, 5 s and 15 s.
-    pub(crate) fn upload(
-        &self,
-        client: &PelliClient,
-        folder_id: Option<&str>,
-        file_name: &str,
-        bytes: Vec<u8>,
-    ) -> Result<()> {
+    pub(crate) fn upload(&self, client: &PelliClient, folder_id: Option<&str>, file: &UploadFile) -> Result<()> {
         if let Some(max) = self.max_file_size {
-            if bytes.len() as u64 > max {
-                return Err(remote("file_too_large", file_name));
+            if file.size > max {
+                return Err(remote("file_too_large", file.name.as_str()));
             }
         }
         if self.grant.read().expires_at < crate::now_ms() + 60_000 {
             self.renew(client)?;
         }
-        let (content_type, body) = multipart("file", file_name, "image/jpeg", &bytes);
         let mut renewed = false;
         let mut delays = [2u64, 5, 15].into_iter();
         loop {
-            match self.attempt(folder_id, file_name, &body, &content_type) {
+            match self.attempt(folder_id, &file.name, &file.body, &file.content_type) {
                 Attempt::Done => return Ok(()),
                 Attempt::Unauthorized if !renewed => {
                     renewed = true;
@@ -220,11 +232,17 @@ mod tests {
 
     #[test]
     fn multipart_layout() {
-        let (ct, body) = multipart("f", "x\".jpg", "image/jpeg", b"\xff\xd8");
-        let boundary = ct.split("boundary=").nth(1).unwrap();
-        let s = String::from_utf8_lossy(&body);
+        let file = UploadFile::build("x\".jpg", |body| {
+            body.extend_from_slice(b"\xff\xd8");
+            Ok(())
+        })
+        .unwrap();
+        let boundary = file.content_type.split("boundary=").nth(1).unwrap();
+        let s = String::from_utf8_lossy(&file.body);
         assert!(s.starts_with(&format!("--{boundary}\r\n")));
-        assert!(s.contains("filename=\"x_.jpg\""));
+        assert!(s.contains("name=\"file\"; filename=\"x_.jpg\""));
         assert!(s.ends_with(&format!("--{boundary}--\r\n")));
+        assert_eq!(file.size, 2);
+        assert_eq!(file.name, "x\".jpg", "the name in the query keeps what the photographer named");
     }
 }

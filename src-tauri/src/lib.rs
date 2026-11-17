@@ -57,6 +57,7 @@ const COMMANDS: &[&str] = &[
     "stats_overview",
     "export_project",
     "list_galleries",
+    "upload_check",
     "upload_to_pelli",
     "cancel_upload",
     "reveal_in_folder",

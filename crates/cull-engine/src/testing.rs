@@ -84,8 +84,10 @@ pub(crate) struct Request {
     /// Path and query (`/api/cull/plus/offer?lang=fr`).
     pub(crate) path: String,
     pub(crate) authorization: Option<String>,
-    /// JSON body (`null` without one).
+    /// JSON body (`null` without one, or when it is not JSON).
     pub(crate) body: Value,
+    /// The body as received (an upload's multipart form).
+    pub(crate) raw: Vec<u8>,
 }
 
 pub(crate) struct FakePelli {
@@ -134,8 +136,12 @@ pub(crate) fn fake_pelli(answer: impl Fn(&Request) -> (u16, Value) + Send + Sync
                 if reader.read_exact(&mut body).is_err() {
                     return;
                 }
-                let request =
-                    Request { path, authorization, body: serde_json::from_slice(&body).unwrap_or(Value::Null) };
+                let request = Request {
+                    path,
+                    authorization,
+                    body: serde_json::from_slice(&body).unwrap_or(Value::Null),
+                    raw: body,
+                };
                 let (status, reply) = answer(&request);
                 seen.lock().push(request);
                 let reply = reply.to_string();

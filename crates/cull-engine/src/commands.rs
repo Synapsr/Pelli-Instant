@@ -230,6 +230,10 @@ pub fn dispatch(engine: &Arc<Engine>, host: &dyn Host, command: &str, args: &Val
             ok(engine.export_project(&arg::<String>(args, "projectId")?, &options)?)
         }
         "list_galleries" => ok(engine.list_galleries()?),
+        "upload_check" => {
+            let which = arg::<Option<UploadWhich>>(args, "which")?.unwrap_or(UploadWhich::Selected);
+            ok(engine.upload_check(&arg::<String>(args, "projectId")?, which)?)
+        }
         "upload_to_pelli" => {
             let request: UploadRequest = arg(args, "request")?;
             engine.start_upload(&arg::<String>(args, "projectId")?, request)?;
