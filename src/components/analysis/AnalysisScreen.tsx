@@ -593,8 +593,8 @@ function Failed() {
   const goHome = useAppStore((s) => s.goHome)
   return (
     <motion.div key="failed" className="flex max-w-md flex-col items-center text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <h1 className="text-[22px] font-semibold text-white">{t('analysis.errorTitle')}</h1>
-      <p className="selectable mt-2 text-sm text-white/55">{error?.message}</p>
+      <h1 className="text-[22px] font-semibold text-white">{error?.code === 'diskFull' ? t('errors.diskFullTitle') : t('analysis.errorTitle')}</h1>
+      <p className="selectable mt-2 text-sm text-white/55">{error?.code === 'diskFull' ? t('errors.diskFull') : error?.message}</p>
       <div className="mt-8 flex gap-3">
         {project && (
           <Button radius="full" className="btn-brand h-11 px-6 font-semibold" onPress={() => void analyze(project)}>

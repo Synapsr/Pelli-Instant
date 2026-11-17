@@ -456,6 +456,7 @@ export const it: Catalogue<typeof fr> = {
         failed: 'Il download non è riuscito.',
         failedOffline: 'Download interrotto: nessuna connessione a internet.',
         failedDisk: 'Spazio su disco insufficiente: servono {size} liberi.',
+        diskFullToast: 'La precisione massima ha bisogno di {size} liberi. Libera spazio, poi riprova.',
         failedChecksum: 'Un file è arrivato danneggiato. Riprova.',
         failedUnavailable: 'I modelli non sono disponibili al momento. Riprova più tardi.',
         readyToast: 'La precisione massima è pronta',
@@ -709,6 +710,8 @@ export const it: Catalogue<typeof fr> = {
   },
   errors: {
     generic: 'Si è verificato un errore',
+    diskFullTitle: 'Spazio su disco insufficiente',
+    diskFull: 'Libera spazio sul disco, poi riprova.',
     permissionDeniedTitle: 'Accesso alla cartella negato',
     permissionDeniedMac: 'Autorizza Pelli Instant in Impostazioni di Sistema › Privacy e sicurezza › File e cartelle, poi riprova.',
     permissionDeniedOther: 'Verifica di avere i permessi di lettura su questa cartella, poi riprova.',

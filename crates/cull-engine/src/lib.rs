@@ -120,6 +120,9 @@ impl EngineError {
             match e.kind() {
                 ErrorKind::PermissionDenied => "permissionDenied",
                 ErrorKind::NotFound => "notFound",
+                // A full disk (or a full quota) anywhere: previews, the
+                // library, an export, a download. The window says so.
+                ErrorKind::StorageFull | ErrorKind::QuotaExceeded => "diskFull",
                 _ => "internal",
             }
         }
@@ -127,6 +130,7 @@ impl EngineError {
             EngineError::Io { source, .. } => io_code(source),
             EngineError::Decode(cull_decode::DecodeError::Io { source, .. }) => io_code(source),
             EngineError::Decode(_) => "internal",
+            EngineError::Db(rusqlite::Error::SqliteFailure(e, _)) if e.code == rusqlite::ErrorCode::DiskFull => "diskFull",
             EngineError::Db(_) | EngineError::Json(_) | EngineError::Analysis(_) => "internal",
             EngineError::Ml(cull_ml::MlError::MissingModel(_)) | EngineError::Ml(cull_ml::MlError::Checksum(_)) => {
                 "modelsMissing"
@@ -250,6 +254,18 @@ mod tests {
             Some("OLYMPUS E-M1MarkII")
         );
         assert_eq!(camera_name(None, None), None);
+    }
+
+    #[test]
+    fn a_full_disk_is_named_as_such() {
+        use super::EngineError;
+        use std::io::{Error, ErrorKind};
+        let path = std::path::Path::new("/tmp/x");
+        assert_eq!(EngineError::io(path, Error::from(ErrorKind::StorageFull)).code(), "diskFull");
+        assert_eq!(EngineError::io(path, Error::from(ErrorKind::QuotaExceeded)).code(), "diskFull");
+        let full = rusqlite::Error::SqliteFailure(rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_FULL), None);
+        assert_eq!(EngineError::Db(full).code(), "diskFull");
+        assert_eq!(EngineError::io(path, Error::from(ErrorKind::Other)).code(), "internal");
     }
 }
 

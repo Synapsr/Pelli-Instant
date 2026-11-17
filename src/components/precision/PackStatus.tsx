@@ -6,7 +6,7 @@ import { cn } from '@/lib/cn'
 import type { ModelPack, ModelPackState } from '@/lib/contract'
 import { formatBytes, formatDuration, formatPercent } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import { usePackStore } from '@/store/pack-store'
+import { packSpaceNeeded, usePackStore } from '@/store/pack-store'
 
 /** Share of the pack already on disk, null when nothing is downloading. */
 export function packProgress(state: ModelPackState): number | null {
@@ -141,7 +141,7 @@ function describe(t: ReturnType<typeof useT>, pack: ModelPack): string {
     case 'failed': {
       if (state.code === 'cancelled') return t('settings.analysis.precision.paused', { percent: formatPercent(state.totalBytes ? state.receivedBytes / state.totalBytes : 0) })
       if (state.code === 'offline') return t('settings.analysis.precision.failedOffline')
-      if (state.code === 'diskFull') return t('settings.analysis.precision.failedDisk', { size: formatBytes(Math.max(0, pack.sizeBytes - state.receivedBytes)) })
+      if (state.code === 'diskFull') return t('settings.analysis.precision.failedDisk', { size: formatBytes(packSpaceNeeded(pack)) })
       if (state.code === 'checksum') return t('settings.analysis.precision.failedChecksum')
       if (state.code === 'notFound') return t('settings.analysis.precision.failedUnavailable')
       return t('settings.analysis.precision.failed')

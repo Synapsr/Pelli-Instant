@@ -456,6 +456,7 @@ export const en: Catalogue<typeof fr> = {
         failed: 'The download failed.',
         failedOffline: 'Download stopped: no internet connection.',
         failedDisk: 'Not enough disk space: {size} must be free.',
+        diskFullToast: 'Maximum precision needs {size} of free space. Free up some space, then try again.',
         failedChecksum: 'A file arrived damaged. Try again.',
         failedUnavailable: 'The models are not available right now. Try again later.',
         readyToast: 'Maximum precision is ready',
@@ -709,6 +710,8 @@ export const en: Catalogue<typeof fr> = {
   },
   errors: {
     generic: 'Something went wrong',
+    diskFullTitle: 'Not enough disk space',
+    diskFull: 'Free up some space on your disk, then try again.',
     permissionDeniedTitle: 'Folder access denied',
     permissionDeniedMac: 'Allow Pelli Instant in System Settings › Privacy & Security › Files and Folders, then try again.',
     permissionDeniedOther: 'Make sure you can read this folder, then try again.',

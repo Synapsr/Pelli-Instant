@@ -456,6 +456,7 @@ export const nl: Catalogue<typeof fr> = {
         failed: 'Het downloaden is mislukt.',
         failedOffline: 'Download onderbroken: geen internetverbinding.',
         failedDisk: 'Niet genoeg schijfruimte: er moet {size} vrij zijn.',
+        diskFullToast: 'Maximale precisie heeft {size} vrije ruimte nodig. Maak ruimte vrij en probeer het opnieuw.',
         failedChecksum: 'Een bestand is beschadigd aangekomen. Probeer het opnieuw.',
         failedUnavailable: 'De modellen zijn op dit moment niet beschikbaar. Probeer het later opnieuw.',
         readyToast: 'Maximale precisie is klaar',
@@ -709,6 +710,8 @@ export const nl: Catalogue<typeof fr> = {
   },
   errors: {
     generic: 'Er is iets misgegaan',
+    diskFullTitle: 'Niet genoeg schijfruimte',
+    diskFull: 'Maak ruimte vrij op je schijf en probeer het opnieuw.',
     permissionDeniedTitle: 'Toegang tot map geweigerd',
     permissionDeniedMac: 'Sta Pelli Instant toe in Systeeminstellingen › Privacy en beveiliging › Bestanden en mappen en probeer het opnieuw.',
     permissionDeniedOther: 'Controleer of je leesrechten hebt voor deze map en probeer het opnieuw.',

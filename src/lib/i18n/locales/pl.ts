@@ -516,6 +516,7 @@ export const pl: Catalogue<typeof fr> = {
         failed: 'Pobieranie nie powiodło się.',
         failedOffline: 'Pobieranie przerwane: brak połączenia z internetem.',
         failedDisk: 'Za mało miejsca na dysku: potrzeba {size} wolnego miejsca.',
+        diskFullToast: 'Maksymalna precyzja potrzebuje {size} wolnego miejsca. Zwolnij miejsce i spróbuj ponownie.',
         failedChecksum: 'Plik dotarł uszkodzony. Spróbuj ponownie.',
         failedUnavailable: 'Modele są teraz niedostępne. Spróbuj ponownie później.',
         readyToast: 'Maksymalna precyzja jest gotowa',
@@ -769,6 +770,8 @@ export const pl: Catalogue<typeof fr> = {
   },
   errors: {
     generic: 'Wystąpił błąd',
+    diskFullTitle: 'Za mało miejsca na dysku',
+    diskFull: 'Zwolnij miejsce na dysku i spróbuj ponownie.',
     permissionDeniedTitle: 'Brak dostępu do folderu',
     permissionDeniedMac: 'Zezwól na dostęp Pelli Instant w Ustawieniach systemowych › Prywatność i ochrona › Pliki i foldery, a potem spróbuj ponownie.',
     permissionDeniedOther: 'Sprawdź, czy masz uprawnienia do odczytu tego folderu, a potem spróbuj ponownie.',

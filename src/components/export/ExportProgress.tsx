@@ -103,7 +103,13 @@ export function ExportReportView({ folder, revealPath, xmp }: { folder: string; 
           </li>
         )}
         {error && (
-          <Line tone="danger">{isKnownUploadError(errorCode) ? t(`export.uploadErrors.${errorCode}`) : t('export.uploadError', { message: error })}</Line>
+          <Line tone="danger">
+            {errorCode === 'diskFull'
+              ? `${t('errors.diskFullTitle')}. ${t('errors.diskFull')}`
+              : isKnownUploadError(errorCode)
+                ? t(`export.uploadErrors.${errorCode}`)
+                : t('export.uploadError', { message: error })}
+          </Line>
         )}
       </ul>
       {xmp && report && report.xmpWritten > 0 && (

@@ -456,6 +456,7 @@ export const sv: Catalogue<typeof fr> = {
         failed: 'Nedladdningen misslyckades.',
         failedOffline: 'Nedladdningen avbröts: ingen internetanslutning.',
         failedDisk: 'Inte tillräckligt med diskutrymme: {size} måste vara ledigt.',
+        diskFullToast: 'Maximal precision behöver {size} ledigt utrymme. Frigör utrymme och försök igen.',
         failedChecksum: 'En fil kom fram skadad. Försök igen.',
         failedUnavailable: 'Modellerna är inte tillgängliga just nu. Försök igen senare.',
         readyToast: 'Maximal precision är klar',
@@ -709,6 +710,8 @@ export const sv: Catalogue<typeof fr> = {
   },
   errors: {
     generic: 'Något gick fel',
+    diskFullTitle: 'Inte tillräckligt med diskutrymme',
+    diskFull: 'Frigör utrymme på disken och försök igen.',
     permissionDeniedTitle: 'Åtkomst till mappen nekad',
     permissionDeniedMac: 'Tillåt Pelli Instant i Systeminställningar › Integritet och säkerhet › Filer och mappar och försök sedan igen.',
     permissionDeniedOther: 'Kontrollera att du har läsbehörighet till den här mappen och försök sedan igen.',

@@ -454,6 +454,7 @@ export const fr = {
         failed: 'Le téléchargement a échoué.',
         failedOffline: 'Téléchargement interrompu : pas de connexion internet.',
         failedDisk: 'Pas assez d’espace disque : il faut {size} de libre.',
+        diskFullToast: 'La précision maximale a besoin de {size} de libre. Libérez de la place, puis réessayez.',
         failedChecksum: 'Un fichier est arrivé abîmé. Réessayez.',
         failedUnavailable: 'Les modèles ne sont pas disponibles pour le moment. Réessayez plus tard.',
         readyToast: 'La précision maximale est prête',
@@ -707,6 +708,8 @@ export const fr = {
   },
   errors: {
     generic: 'Une erreur est survenue',
+    diskFullTitle: 'Pas assez d’espace disque',
+    diskFull: 'Libérez de la place sur votre disque, puis réessayez.',
     permissionDeniedTitle: 'Accès au dossier refusé',
     permissionDeniedMac: 'Autorisez Pelli Instant dans Réglages Système › Confidentialité et sécurité › Fichiers et dossiers, puis réessayez.',
     permissionDeniedOther: 'Vérifiez que vous avez les droits de lecture sur ce dossier, puis réessayez.',

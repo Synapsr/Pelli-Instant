@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { api, toCullError } from '@/lib/api'
 import type { ModelPack, Precision } from '@/lib/contract'
+import { formatBytes } from '@/lib/format'
 import { t } from '@/lib/i18n'
 import { notify } from '@/lib/notify'
 import { useAppStore } from './app-store'
@@ -25,6 +26,24 @@ interface PackState {
 
 const busy = (pack: ModelPack | null) => pack?.state.status === 'downloading' || pack?.state.status === 'preparing'
 
+/** The engine keeps this much free beyond the pack (`DISK_MARGIN` in modelpack.rs). */
+const DISK_MARGIN = 256 * 1024 * 1024
+
+/** Free space the Maximum pack still needs: what is left to download, plus the margin. */
+export function packSpaceNeeded(pack: ModelPack): number {
+  const received = pack.state.status === 'failed' || pack.state.status === 'downloading' ? pack.state.receivedBytes : 0
+  return Math.max(0, pack.sizeBytes - received) + DISK_MARGIN
+}
+
+/** A full disk is said wherever the download was started from, not only in the precision card. */
+function notifyDiskFull(pack: ModelPack) {
+  notify({
+    title: t('errors.diskFullTitle'),
+    description: t('settings.analysis.precision.diskFullToast', { size: formatBytes(packSpaceNeeded(pack)) }),
+    tone: 'danger',
+  })
+}
+
 export const usePackStore = create<PackState>((set, get) => ({
   pack: null,
 
@@ -46,6 +65,7 @@ export const usePackStore = create<PackState>((set, get) => ({
         .then((appInfo) => useAppStore.setState({ appInfo }))
       if (before === 'downloading' || before === 'preparing') notify({ title: t('settings.analysis.precision.readyToast'), tone: 'success' })
     }
+    if (pack.state.status === 'failed' && pack.state.code === 'diskFull' && before !== 'failed') notifyDiskFull(pack)
   },
 
   choose: async (precision) => {
@@ -72,7 +92,10 @@ export const usePackStore = create<PackState>((set, get) => ({
       const pack = get().pack
       if (pack) {
         const received = pack.state.status === 'failed' || pack.state.status === 'downloading' ? pack.state.receivedBytes : 0
-        set({ pack: { ...pack, state: { status: 'failed', code: e.code, message: e.message, receivedBytes: received, totalBytes: pack.sizeBytes } } })
+        const wasFailed = pack.state.status === 'failed'
+        const failed: ModelPack = { ...pack, state: { status: 'failed', code: e.code, message: e.message, receivedBytes: received, totalBytes: pack.sizeBytes } }
+        set({ pack: failed })
+        if (e.code === 'diskFull' && !wasFailed) notifyDiskFull(failed)
       }
     }
   },

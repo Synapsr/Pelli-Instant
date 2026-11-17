@@ -456,6 +456,7 @@ export const de: Catalogue<typeof fr> = {
         failed: 'Der Download ist fehlgeschlagen.',
         failedOffline: 'Download unterbrochen: keine Internetverbindung.',
         failedDisk: 'Nicht genug Speicherplatz: {size} müssen frei sein.',
+        diskFullToast: 'Die maximale Präzision braucht {size} freien Speicher. Geben Sie Speicherplatz frei und versuchen Sie es erneut.',
         failedChecksum: 'Eine Datei ist beschädigt angekommen. Versuchen Sie es erneut.',
         failedUnavailable: 'Die Modelle sind gerade nicht verfügbar. Versuchen Sie es später erneut.',
         readyToast: 'Die maximale Präzision ist bereit',
@@ -709,6 +710,8 @@ export const de: Catalogue<typeof fr> = {
   },
   errors: {
     generic: 'Es ist ein Fehler aufgetreten',
+    diskFullTitle: 'Nicht genug Speicherplatz',
+    diskFull: 'Geben Sie Speicherplatz frei und versuchen Sie es erneut.',
     permissionDeniedTitle: 'Zugriff auf den Ordner verweigert',
     permissionDeniedMac: 'Erlauben Sie Pelli Instant unter Systemeinstellungen › Datenschutz & Sicherheit › Dateien und Ordner und versuchen Sie es erneut.',
     permissionDeniedOther: 'Prüfen Sie, ob Sie Leserechte für diesen Ordner haben, und versuchen Sie es erneut.',
