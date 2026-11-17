@@ -1,8 +1,10 @@
 import { Button, Modal, ModalBody, ModalContent, Spinner } from '@heroui/react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { AlertCircle, ArrowLeft, BellOff, Check, Copy, ExternalLink, KeyRound, Layers, Lock, Microscope, Search, Sparkles, X, type LucideIcon } from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { AlertCircle, ArrowLeft, ArrowRight, BellOff, Check, Copy, ExternalLink, KeyRound, Layers, Lock, ScanFace, Search, Sparkles, X, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { PHOTOS } from '@/components/onboarding/photos'
 import { LiquidOrb } from '@/components/ui/LiquidOrb'
+import { PelliLogo } from '@/components/ui/Logo'
 import { useElementSize } from '@/hooks/use-element-size'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
@@ -18,19 +20,22 @@ import { useWorkspaceStore } from '@/store/workspace-store'
 const EASE = [0.22, 1, 0.36, 1] as const
 const POLL_MS = 3000
 
-/** What Plus brings, with the real numbers of the Maximum pack. */
-const BENEFITS: { key: 'maximum' | 'duplicates' | 'search' | 'noPromo' | 'once'; icon: LucideIcon }[] = [
-  { key: 'maximum', icon: Microscope },
+/** What Plus brings, in the photographer's words (the real numbers, no model names). */
+const BENEFITS: { key: 'maximum' | 'duplicates' | 'search' | 'noPromo'; icon: LucideIcon }[] = [
+  { key: 'maximum', icon: ScanFace },
   { key: 'duplicates', icon: Layers },
   { key: 'search', icon: Search },
   { key: 'noPromo', icon: BellOff },
-  { key: 'once', icon: KeyRound },
 ]
+
+/** The searches typed, one after the other, on the photo of the showcase. */
+const QUERIES = ['plus.showcase.q1', 'plus.showcase.q2', 'plus.showcase.q3'] as const
 
 /**
  * Pelli Instant Plus: the offer (25 € or $25 once), a licence key, the wait
  * while the browser checkout is open, the success, and the errors in plain
- * words. Signing in with a Pelli Pro or Ultra account is the second way,
+ * words. A photo on the left shows what Plus is for; the views change on the
+ * right. Signing in with a Pelli Pro or Ultra account is the second way,
  * always after the offer. One dialog for every entry point (Maximum, AI
  * search, settings, the Plus pill).
  */
@@ -41,12 +46,12 @@ export function PlusDialog() {
     <Modal
       isOpen={open}
       onClose={close}
-      size="lg"
+      size="3xl"
       radius="lg"
       backdrop="blur"
       hideCloseButton
       scrollBehavior="inside"
-      classNames={{ base: 'glass-strong max-h-[calc(100vh-40px)] rounded-[28px] text-foreground', backdrop: 'bg-black/55' }}
+      classNames={{ base: 'glass-strong max-h-[calc(100vh-40px)] max-w-[780px] overflow-hidden rounded-[28px] text-foreground', backdrop: 'bg-black/60' }}
     >
       <ModalContent>
         <ModalBody className="relative overflow-hidden p-0">
@@ -76,9 +81,11 @@ function PlusContent() {
   }, [dialogOpen, view, poll, pollSignIn])
 
   return (
-    <>
-      {/* Soft violet light behind the top of the dialog. */}
-      <span aria-hidden className="pointer-events-none absolute -top-40 left-1/2 h-72 w-[560px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(88,64,240,0.38),transparent)]" />
+    <div className="flex min-h-[540px]">
+      <Showcase />
+      <div className="relative min-w-0 flex-1">
+      {/* Soft violet light behind the top of the right side. */}
+      <span aria-hidden className="pointer-events-none absolute -top-40 left-1/2 h-72 w-[480px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(88,64,240,0.32),transparent)]" />
       <button
         type="button"
         onClick={close}
@@ -101,7 +108,56 @@ function PlusContent() {
           </AnimatePresence>
         </div>
       </motion.div>
-    </>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The left of the dialog: a real photo, an AI search typing on it, and the
+ * promise. Decorative but for the headline; still when motion is reduced.
+ */
+function Showcase() {
+  const t = useT()
+  const reduce = useReducedMotion()
+  const [index, setIndex] = useState(0)
+  const [typed, setTyped] = useState(0)
+  const query = t(QUERIES[index])
+  const shown = reduce ? query : query.slice(0, typed)
+  useEffect(() => {
+    if (reduce) return
+    const done = typed >= query.length
+    const timer = window.setTimeout(
+      () => {
+        if (done) {
+          setIndex((i) => (i + 1) % QUERIES.length)
+          setTyped(0)
+        } else setTyped((n) => n + 1)
+      },
+      done ? 1900 : 60,
+    )
+    return () => window.clearTimeout(timer)
+  }, [typed, query, reduce])
+
+  return (
+    <aside className="relative w-[300px] shrink-0 overflow-hidden">
+      <img src={PHOTOS.goldenField} alt="" aria-hidden className="absolute inset-0 size-full origin-[50%_80%] scale-[1.32] object-cover" />
+      <div aria-hidden className="absolute inset-0 bg-[linear-gradient(to_top,rgba(10,8,20,0.96)_8%,rgba(10,8,20,0.55)_42%,rgba(10,8,20,0.05)_70%)]" />
+      <div aria-hidden className="absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-[rgba(10,8,20,0.6)] via-[rgba(10,8,20,0.2)] to-transparent" />
+      <div aria-hidden className="absolute inset-x-5 top-5 flex h-10 items-center gap-2.5 rounded-full border border-white/15 bg-black/40 px-4 text-[13px] text-white shadow-[0_8px_30px_-8px_rgba(0,0,0,0.6)] backdrop-blur-md">
+        <Sparkles className="size-3.5 shrink-0 text-[#c9c1ff]" strokeWidth={2} />
+        <span className="min-w-0 truncate">
+          {shown}
+          <span className="ml-px inline-block h-[14px] w-px translate-y-[2px] animate-pulse bg-white/80" />
+        </span>
+      </div>
+      <div className="absolute inset-x-6 bottom-7">
+        <PlusMark className="size-10 rounded-xl" />
+        <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#c9c1ff]">{t('plus.name')}</p>
+        <h2 className="mt-1.5 text-balance text-[25px] font-semibold leading-[1.12] tracking-[-0.02em] text-white">{t('plus.headline')}</h2>
+        <p className="mt-2.5 text-pretty text-[13px] leading-relaxed text-white/70">{t('plus.lead')}</p>
+      </div>
+    </aside>
   )
 }
 
@@ -159,52 +215,72 @@ function OfferView() {
   // Opened from the search field: what it asked for comes first.
   const benefits = reason === 'search' ? [...BENEFITS].sort((a, b) => Number(b.key === 'search') - Number(a.key === 'search')) : BENEFITS
   return (
-    <div className="pb-5 pt-8">
-      <Header icon={<PlusMark />} eyebrow={t('plus.name')} title={t('plus.headline')} body={t('plus.lead')} />
-      <ul className="mx-7 mt-5 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-1.5">
+    <div className="px-7 pb-6 pt-7">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-default-400">{t('plus.includes')}</p>
+      <ul className="mt-3 flex flex-col gap-1">
         {benefits.map(({ key, icon: Icon }, i) => (
           <motion.li
             key={key}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, ease: EASE, delay: 0.05 + i * 0.04 }}
-            className="flex items-start gap-3 rounded-xl px-2.5 py-1.5"
+            initial={{ opacity: 0, x: 8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.4, ease: EASE, delay: 0.06 + i * 0.05 }}
+            className="flex items-start gap-3 py-1.5"
           >
-            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#5840f0]/15 text-[#b8adf8]" aria-hidden>
-              <Icon className="size-4" strokeWidth={1.9} />
+            <span
+              className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl border border-[#a599f5]/20 bg-gradient-to-b from-[#5840f0]/30 to-[#5840f0]/10 text-[#d0c9ff] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+              aria-hidden
+            >
+              <Icon className="size-[17px]" strokeWidth={1.8} />
             </span>
             <span className="min-w-0">
-              <span className="block text-[13px] font-semibold text-foreground">{t(`plus.benefits.${key}.title`)}</span>
-              <span className="block text-pretty text-[12px] leading-snug text-default-500">{t(`plus.benefits.${key}.body`)}</span>
+              <span className="block text-[14px] font-semibold tracking-[-0.01em] text-foreground">{t(`plus.benefits.${key}.title`)}</span>
+              <span className="mt-0.5 block text-pretty text-[12.5px] leading-snug text-default-500">{t(`plus.benefits.${key}.body`)}</span>
             </span>
           </motion.li>
         ))}
       </ul>
-      <div className="mt-4 flex flex-col items-center px-7">
-        <Button radius="full" className="btn-brand h-12 w-full text-[15px] font-semibold" isLoading={busy} onPress={() => void checkout()}>
-          <span className="tabular">{t('plus.cta', { price })}</span>
+
+      <div className="relative mt-5 overflow-hidden rounded-[22px] border border-[#a599f5]/25 bg-gradient-to-b from-[#5840f0]/[0.16] to-[#5840f0]/[0.04] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="tabular text-[34px] font-semibold leading-none tracking-[-0.03em] text-foreground">{price}</p>
+            <p className="mt-2 text-pretty text-[12px] leading-snug text-default-500">{t('plus.priceNote')}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setView('key')}
+            className="focus-ring -mr-1 -mt-1 shrink-0 rounded-full px-3 py-1.5 text-[12px] font-medium text-[#b8adf8] transition-[color,background-color] duration-150 hover:bg-white/[0.05] hover:text-[#d4ceff]"
+          >
+            {t('plus.haveKey')}
+          </button>
+        </div>
+        <Button radius="full" className="btn-brand mt-4 h-12 w-full text-[15px] font-semibold" isLoading={busy} onPress={() => void checkout()} endContent={busy ? undefined : <ArrowRight className="size-4" />}>
+          {t('plus.cta')}
         </Button>
-        <button
-          type="button"
-          onClick={() => setView('key')}
-          className="focus-ring mt-2 flex h-10 items-center rounded-full px-4 text-[13px] font-medium text-[#b8adf8] transition-[color,background-color] duration-150 hover:bg-white/[0.04] hover:text-[#d4ceff]"
-        >
-          {t('plus.haveKey')}
-        </button>
-        <p className="flex items-center gap-1.5 text-[11px] text-default-400">
-          <Lock className="size-3" aria-hidden />
+        <p className="mt-2.5 flex items-center justify-center gap-1.5 text-center text-[11px] text-default-400">
+          <Lock className="size-3 shrink-0" aria-hidden />
           {t('plus.secure')}
         </p>
       </div>
-      <div className="mx-7 mt-4 border-t border-white/[0.06] pt-3.5 text-center">
-        <p className="text-[13px] text-default-500">
-          {t('plus.included')}{' '}
-          <button type="button" onClick={() => void signIn()} className="focus-ring rounded font-medium text-foreground underline decoration-white/25 underline-offset-[3px] transition-colors hover:decoration-white/60">
-            {t('plus.signIn')}
-          </button>
-        </p>
-        <p className="mt-2 text-pretty text-[11px] text-default-400">{t('plus.soon')}</p>
-      </div>
+
+      <button
+        type="button"
+        onClick={() => void signIn()}
+        className="focus-ring group mt-3 flex w-full items-center gap-3 rounded-[18px] border border-white/[0.09] bg-white/[0.035] px-3.5 py-3 text-left transition-[background-color,border-color] duration-150 hover:border-white/[0.18] hover:bg-white/[0.06]"
+      >
+        <span className="flex h-9 w-16 shrink-0 items-center justify-center rounded-xl bg-white text-black" aria-hidden>
+          <PelliLogo className="h-[11px]" title="" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-semibold text-foreground">{t('plus.accountTitle')}</span>
+          <span className="block text-pretty text-[12px] leading-snug text-default-500">{t('plus.accountBody')}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-1 rounded-full bg-white/[0.08] px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors duration-150 group-hover:bg-white/[0.14]">
+          {t('plus.signIn')}
+          <ArrowRight className="size-3.5 transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden />
+        </span>
+      </button>
+      <p className="mt-3 text-pretty text-center text-[11px] text-default-400">{t('plus.soon')}</p>
     </div>
   )
 }

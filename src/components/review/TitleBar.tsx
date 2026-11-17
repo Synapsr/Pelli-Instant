@@ -1,7 +1,7 @@
 import { Button, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Tooltip } from '@heroui/react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronLeft, Ellipsis, FolderSearch, Keyboard, Lock, Microscope, RefreshCw, Search, Share } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { WindowBar } from '@/components/ui/WindowBar'
 import { UpdateNotice } from '@/components/update/UpdateNotice'
@@ -22,9 +22,11 @@ import { SensitivityPopover } from './SensitivityPopover'
 /** "All" first: the whole shoot, then its three piles. */
 const TABS: ('all' | 'selected' | 'toReview' | 'rejected')[] = ['all', 'selected', 'toReview', 'rejected']
 
+const EASE = [0.22, 1, 0.36, 1] as const
+
 /**
  * AI search is part of Plus: without it, the search icon carries a small
- * lock and opens the Plus dialog (⌘F too).
+ * lock in its corner and opens the Plus dialog (⌘F too).
  */
 function LockedSearch() {
   const t = useT()
@@ -37,7 +39,7 @@ function LockedSearch() {
     openDialog('search')
   }, [focusTick, openDialog])
   return (
-    <Tooltip content={t('review.search.locked')} delay={400} closeDelay={0}>
+    <Tooltip content={t('review.search.locked')} delay={300} closeDelay={0}>
       <Button
         isIconOnly
         size="sm"
@@ -48,58 +50,112 @@ function LockedSearch() {
         className="relative h-8 w-8 min-w-8 text-default-500 hover:text-foreground"
       >
         <Search className="size-4" />
-        <span aria-hidden className="absolute bottom-0.5 right-0.5 flex size-3.5 items-center justify-center rounded-full bg-[#5840f0] text-white shadow-[0_0_0_2px_#161616]">
-          <Lock className="size-2" strokeWidth={3} />
+        <span aria-hidden className="absolute right-[3px] top-[3px] flex size-3 items-center justify-center rounded-full bg-[#5840f0] text-white ring-2 ring-[#161616]">
+          <Lock className="size-[7px]" strokeWidth={3} />
         </span>
       </Button>
     </Tooltip>
   )
 }
 
-/** AI search folded into an icon until it is used (⌘F opens it). */
-function SearchToggle() {
+/** The room between `start` and the centred tabs, so nothing on the left runs under them. */
+function useRoomBeforeTabs(start: RefObject<HTMLElement | null>, tabs: RefObject<HTMLElement | null>): number {
+  const [room, setRoom] = useState(260)
+  useLayoutEffect(() => {
+    const measure = () => {
+      const from = start.current?.getBoundingClientRect()
+      const to = tabs.current?.getBoundingClientRect()
+      if (from && to) setRoom(Math.floor(to.left - from.left - 16))
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    if (tabs.current) observer.observe(tabs.current)
+    window.addEventListener('resize', measure)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [start, tabs])
+  return room
+}
+
+/**
+ * The project name, and the AI search next to it. Opened (⌘F or the icon),
+ * the field takes the place of the name, never wider than the room left of
+ * the tabs; it stays open while a search is shown.
+ */
+function TitleAndSearch({ tabs, plus }: { tabs: RefObject<HTMLDivElement | null>; plus: boolean }) {
   const t = useT()
+  const project = useReviewStore((s) => s.project)
+  const total = useReviewStore((s) => s.dateOrder.length)
   const active = useReviewStore((s) => s.search.hits !== null || s.search.status === 'loading' || s.search.query !== '')
   const focusTick = useWorkspaceStore((s) => s.searchFocusTick)
+  const seen = useRef(focusTick)
   const [open, setOpen] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  const room = useRoomBeforeTabs(box, tabs)
   useEffect(() => {
-    if (focusTick > 0) setOpen(true)
-  }, [focusTick])
-  const shown = open || active
+    if (focusTick === seen.current) return
+    seen.current = focusTick
+    if (plus) setOpen(true)
+  }, [focusTick, plus])
+  const shown = plus && (open || active)
+
   return (
-    <AnimatePresence initial={false} mode="wait">
-      {shown ? (
-        <motion.div
-          key="field"
-          initial={{ opacity: 0, width: 40 }}
-          animate={{ opacity: 1, width: 248 }}
-          exit={{ opacity: 0, width: 40 }}
-          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-          onBlur={(e) => {
-            if (!active && !e.currentTarget.contains(e.relatedTarget as Node)) setOpen(false)
-          }}
-        >
-          <SearchField autoFocus={open && !active} />
-        </motion.div>
-      ) : (
-        <Tooltip key="icon" content={`${t('review.search.badge')} (${modLabel()} F)`} delay={400} closeDelay={0}>
-          <Button
-            isIconOnly
-            size="sm"
-            variant="light"
-            radius="full"
-            aria-label={t('review.search.badge')}
-            onPress={() => {
-              setOpen(true)
-              useWorkspaceStore.getState().requestSearchFocus()
+    <div ref={box} className="flex min-w-0 items-center pl-0.5" data-tauri-drag-region>
+      <AnimatePresence initial={false} mode="wait">
+        {shown ? (
+          <motion.div
+            key="field"
+            initial={{ opacity: 0, width: 32 }}
+            animate={{ opacity: 1, width: Math.max(180, Math.min(300, room)) }}
+            exit={{ opacity: 0, width: 32, transition: { duration: 0.15 } }}
+            transition={{ duration: 0.28, ease: EASE }}
+            onBlur={(e) => {
+              if (!active && !e.currentTarget.contains(e.relatedTarget as Node)) setOpen(false)
             }}
-            className="h-8 w-8 min-w-8 text-default-500 hover:text-foreground"
           >
-            <Search className="size-4" />
-          </Button>
-        </Tooltip>
-      )}
-    </AnimatePresence>
+            <SearchField autoFocus={!active} />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="title"
+            className="flex min-w-0 items-center gap-1.5"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            data-tauri-drag-region
+          >
+            <div className="min-w-0" style={{ maxWidth: Math.max(72, Math.min(260, room - 40)) }} data-tauri-drag-region>
+              <h1 className="truncate text-[13px] font-semibold leading-tight text-foreground" data-tauri-drag-region>
+                {project?.name}
+              </h1>
+              <p className="tabular truncate text-[11px] leading-tight text-default-400" data-tauri-drag-region>
+                {t('common.photos', { count: total })}
+              </p>
+            </div>
+            {plus ? (
+              <Tooltip content={`${t('review.search.badge')} (${modLabel()} F)`} delay={300} closeDelay={0}>
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="light"
+                  radius="full"
+                  aria-label={t('review.search.badge')}
+                  onPress={() => setOpen(true)}
+                  className="h-8 w-8 min-w-8 text-default-500 hover:text-foreground"
+                >
+                  <Search className="size-4" />
+                </Button>
+              </Tooltip>
+            ) : (
+              <LockedSearch />
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   )
 }
 
@@ -111,13 +167,13 @@ export function TitleBar() {
   const refine = useAppStore((s) => s.settings?.precision === 'maximum' && s.appInfo?.capabilities.maximum === true) && plus && project?.precision === 'standard'
   const tab = useReviewStore((s) => s.filters.tab)
   const counts = useReviewStore((s) => s.tabCounts)
-  const total = useReviewStore((s) => s.dateOrder.length)
   const setTab = useReviewStore((s) => s.setTab)
   const goHome = useAppStore((s) => s.goHome)
   const openDialog = useAppStore((s) => s.openDialog)
   const current: FilterTab = TABS.includes(tab as (typeof TABS)[number]) ? tab : 'all'
   // A narrow window keeps the tabs clear of the tools: no dots, no count on "all".
   const roomy = useMediaQuery('(min-width: 1280px)')
+  const tabsRef = useRef<HTMLDivElement>(null)
 
   return (
     <WindowBar className="border-b border-white/[0.06] bg-[#161616]">
@@ -126,18 +182,11 @@ export function TitleBar() {
           <ChevronLeft className="size-[18px]" />
         </Button>
       </Tooltip>
-      <div className="min-w-0 max-w-[260px] pl-0.5" data-tauri-drag-region>
-        <h1 className="truncate text-[13px] font-semibold leading-tight text-foreground" data-tauri-drag-region>
-          {project?.name}
-        </h1>
-        <p className="tabular truncate text-[11px] leading-tight text-default-400" data-tauri-drag-region>
-          {t('common.photos', { count: total })}
-        </p>
-      </div>
+      <TitleAndSearch tabs={tabsRef} plus={plus} />
 
       <div className="pointer-events-none absolute inset-x-0 flex justify-center" data-tauri-drag-region>
+        <div ref={tabsRef} className="pointer-events-auto">
         <SegmentedControl
-          className="pointer-events-auto"
           label={t('review.tabsLabel')}
           value={current}
           onChange={(value) => setTab(value)}
@@ -156,11 +205,11 @@ export function TitleBar() {
             meta: value === 'all' && !roomy ? undefined : formatNumber(counts[value]),
           }))}
         />
+        </div>
       </div>
 
       <div className="relative ml-auto flex items-center gap-1">
         <UpdateNotice compact />
-        {plus ? <SearchToggle /> : <LockedSearch />}
         <SensitivityPopover />
         <Dropdown placement="bottom-end">
           <DropdownTrigger>

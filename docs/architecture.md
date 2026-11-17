@@ -169,8 +169,8 @@ signed-in Pelli account on a Pro or Ultra plan; the licence wins when both.
   licence token or the account's Bearer.
 - Every change of `PlusStatus` is an engine event `plus`.
 
-**Telemetry** (`telemetry.rs`): anonymous, on by default, off in the welcome
-tour or in *Settings → Privacy*. Six events (`onboarding_completed`,
+**Telemetry** (`telemetry.rs`): anonymous, on by default, off in
+*Settings → Privacy* (the welcome tour does not ask). Six events (`onboarding_completed`,
 `app_opened` once a day, `analysis_completed`, `export_completed`,
 `plus_activated`, `telemetry_disabled`), each with a random install id, the
 app version, the system, the processor architecture and the app language;

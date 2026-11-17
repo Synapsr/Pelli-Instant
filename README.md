@@ -73,7 +73,7 @@ Looking for an open-source alternative to Aftershoot, Narrative Select or Filter
 | **Works while you're away** | An analysis, an export or the Maximum download keeps the computer from going to sleep, and on a Mac keeps full speed with the window hidden. The screen can still turn off. |
 | **Most cameras** | Canon CR2 and CR3, Nikon NEF, Sony ARW, Fujifilm RAF, DNG, Olympus and OM System ORF, Panasonic RW2, Pentax PEF, Samsung SRW, plus JPEG, PNG and TIFF. |
 | **Picks up where you left off** | Your projects stay on the home screen. Opening a folder again only analyses new or changed photos. |
-| **A guided start** | A short tour on first launch, with a voice-over you can mute: how it judges a photo, the keys, the exports, the precision, and whether to share anonymous statistics. Replay it from *Settings → About*. |
+| **A guided start** | A short tour on first launch, with a voice-over you can mute: how it judges a photo, the keys, the exports and the precision. Replay it from *Settings → About*. |
 | **Made for judging photos** | A dark, neutral interface, like Lightroom, so you judge colours on a neutral surround. In 9 languages. |
 
 ### Keyboard
@@ -193,7 +193,7 @@ Built from source, it sorts exactly like the official app: free, unlimited, no a
 
 ### Anonymous statistics
 
-Pelli Instant sends a few anonymous statistics to Pelli (`app.pelli.io`), so we know how many people use it and how fast it sorts. **It is on by default and one switch turns it off:** in the last step of the welcome tour (with the details of what is sent), or later in *Settings → Privacy*. The code is in [`crates/cull-engine/src/telemetry.rs`](crates/cull-engine/src/telemetry.rs).
+Pelli Instant sends a few anonymous statistics to Pelli (`app.pelli.io`), so we know how many people use it and how fast it sorts. **It is on by default and one switch turns it off** in *Settings → Privacy*, with the details of what is sent. The code is in [`crates/cull-engine/src/telemetry.rs`](crates/cull-engine/src/telemetry.rs).
 
 | Event | When | What it says |
 | --- | --- | --- |

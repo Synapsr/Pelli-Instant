@@ -43,7 +43,7 @@ describe('i18n', () => {
     expect(translate('en', 'common.photos', { count: 0 })).toBe('0 photos')
     expect(translate('de', 'common.photos', { count: 2 })).toMatch(/^2 /)
     expect(translate('en', 'marks.stars', { count: 0 })).toBe('No stars')
-    expect(translate('fr', 'plus.cta', { price: '25 €' })).toBe('Passer à Plus — 25 €, une fois')
+    expect(translate('fr', 'plus.settings.buy', { price: '25 €' })).toBe('Passer à Plus — 25 €')
     expect(translate('en', 'home.seeAll', { count: 1284 })).toBe('See all (1,284)')
   })
 

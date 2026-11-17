@@ -79,19 +79,13 @@ function Keys() {
   )
 }
 
-/** The last step's telemetry choice, kept while the tour goes back and forth. */
-interface ReadyState {
-  telemetry: boolean
-  setTelemetry: (on: boolean) => void
-}
-
-const CONTENT: Record<Step, (ready: ReadyState) => ReactNode> = {
+const CONTENT: Record<Step, () => ReactNode> = {
   welcome: () => <Welcome />,
   eye: () => <EyeStep />,
   keys: () => <Keys />,
   export: () => <ExportStep />,
   precision: () => <PrecisionStep />,
-  ready: ({ telemetry, setTelemetry }) => <ReadyStep telemetry={telemetry} onTelemetry={setTelemetry} />,
+  ready: () => <ReadyStep />,
 }
 
 function EyeStep() {
@@ -189,14 +183,13 @@ function Progress({ index, onGo }: { index: number; onGo: (to: number) => void }
  * keynote style: the promise first (free, unlimited, no account, on your
  * computer), then one idea per step, shown live with real photos (what the
  * analysis catches, the keyboard, the export to Lightroom), the precision
- * (Standard free, Maximum with Plus), and the anonymous statistics switch.
+ * (Standard free, Maximum with Plus), and ready to start.
  */
 export function Onboarding() {
   const t = useT()
   const finishOnboarding = useAppStore((s) => s.finishOnboarding)
-  // Pre-checked the first time; a replay from the settings shows the current choice.
-  const [telemetry, setTelemetry] = useState(() => useAppStore.getState().settings?.telemetry ?? true)
-  const finish = useCallback(() => finishOnboarding(telemetry), [finishOnboarding, telemetry])
+  // The statistics keep their current setting (on unless turned off in Settings › Privacy).
+  const finish = useCallback(() => finishOnboarding(useAppStore.getState().settings?.telemetry ?? true), [finishOnboarding])
   const [index, setIndex] = useState(0)
   const step = STEPS[index]
   const last = index === STEPS.length - 1
@@ -245,7 +238,7 @@ export function Onboarding() {
         <AnimatePresence initial={false}>
           {!last && (
             <motion.div className="ml-auto" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.15 } }}>
-              {/* Skipping lands on the last step: the statistics choice is never skipped. */}
+              {/* Skipping lands on the last step, which starts the app. */}
               <Button size="sm" radius="full" variant="light" className="text-white/50 hover:text-white" onPress={() => go(STEPS.length - 1)}>
                 {t('onboarding.skip')}
               </Button>
@@ -265,7 +258,7 @@ export function Onboarding() {
             exit="exit"
             className="my-auto w-full"
           >
-            {CONTENT[step]({ telemetry, setTelemetry })}
+            {CONTENT[step]()}
           </motion.section>
         </AnimatePresence>
       </main>
