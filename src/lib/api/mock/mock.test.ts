@@ -112,6 +112,45 @@ describe('mock engine', () => {
     await expect(api.downloadModelPack()).rejects.toMatchObject({ code: 'plusRequired' })
   })
 
+  it('gives the totals of the statistics to everyone, their details with Plus', async () => {
+    const free = await engine('mockPlus=none&mockProjects=4').statsOverview()
+    const api = engine('mockPlus=active&mockProjects=4')
+    const projects = await api.listProjects()
+    const analysed = projects.filter((p) => p.analyzedAt !== null)
+    const stats = await api.statsOverview()
+    expect(free).toEqual({ ...stats, detail: null })
+    expect(stats.shoots).toBe(analysed.length)
+    expect(stats.photos).toBe(analysed.reduce((n, p) => n + p.photoCount, 0))
+    const detail = stats.detail!
+    const { selected, toReview, rejected } = detail.counts
+    expect(selected + toReview + rejected).toBe(stats.photos)
+    // Every rejected photo has its reason, every analysed one its month and camera.
+    expect(Object.values(detail.rejections).reduce((n, c) => n + c, 0)).toBe(rejected)
+    expect(detail.months.reduce((n, m) => n + m.photos, 0)).toBe(stats.photos)
+    expect(detail.cameras.reduce((n, c) => n + c.photos, 0)).toBe(stats.photos)
+    expect(detail.shoots.map((s) => s.shotAt)).toEqual([...detail.shoots.map((s) => s.shotAt)].sort((a, b) => b - a))
+    expect(stats.since).toBe(Math.min(...detail.shoots.map((s) => s.shotAt)))
+    expect(detail.speed).toEqual([expect.objectContaining({ precision: 'standard' })])
+    expect(detail.groups.count).toBeGreaterThan(0)
+  })
+
+  it('counts the photographer turning the AI around, both ways', async () => {
+    const api = engine('mockPlus=active&mockProjects=1')
+    const before = (await api.statsOverview()).detail!
+    const photos = (await api.getProject('prj-lea-thomas')).photos
+    const aiRejected = photos.find((p) => p.assessment?.verdict === 'reject' && p.mark.flag === 'none')!
+    const aiKept = photos.find((p) => p.assessment?.verdict === 'keep' && p.mark.flag === 'none')!
+    await api.setMarks('prj-lea-thomas', [aiRejected.id], { flag: 'pick' })
+    await api.setMarks('prj-lea-thomas', [aiKept.id], { flag: 'reject' })
+    const after = (await api.statsOverview()).detail!
+    expect(after.changes).toEqual({ ...before.changes, rescued: before.changes.rescued + 1, dropped: before.changes.dropped + 1 })
+    expect(after.rejections.byYou).toBe((before.rejections.byYou ?? 0) + 1)
+    expect(after.counts.selected).toBe(before.counts.selected)
+    // Forgotten with its project.
+    await api.removeProject('prj-lea-thomas')
+    expect(await api.statsOverview()).toEqual({ photos: 0, shoots: 0, since: null, detail: expect.objectContaining({ speed: [], shoots: [] }) })
+  })
+
   it('remembers the welcome and the telemetry choice', async () => {
     const api = engine('mockOnboarded=0')
     const settings = await api.getSettings()

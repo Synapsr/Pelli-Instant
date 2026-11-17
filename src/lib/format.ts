@@ -123,6 +123,27 @@ export function formatTimeRange(start: number | null, end: number | null, langua
   return `${dayA}, ${a} – ${formatCaptureDay(end, language)}, ${b}`
 }
 
+/** Short name of a month of capture ("juil."), in UTC like the capture times. `month`: 1 … 12. */
+export function formatMonthShort(year: number, month: number, language?: Language): string {
+  const l = lang(language)
+  return cached(`ms:${l}`, () => new Intl.DateTimeFormat(localeOf(l), { month: 'short', timeZone: 'UTC' })).format(Date.UTC(year, month - 1, 1))
+}
+
+/** Month and year of a capture ("juillet 2026"), in UTC like the capture times. */
+export function formatMonthYear(ms: number, language?: Language): string {
+  const l = lang(language)
+  return cached(`my:${l}`, () => new Intl.DateTimeFormat(localeOf(l), { month: 'long', year: 'numeric', timeZone: 'UTC' })).format(ms)
+}
+
+/** Day of a shoot ("24 oct.", with the year when not this one), in UTC like the capture times. */
+export function formatShootDay(ms: number, language?: Language): string {
+  const l = lang(language)
+  const sameYear = new Date(ms).getUTCFullYear() === new Date().getUTCFullYear()
+  return cached(`cdd:${l}:${sameYear}`, () =>
+    new Intl.DateTimeFormat(localeOf(l), { day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric', timeZone: 'UTC' }),
+  ).format(ms)
+}
+
 /** Calendar date of a real event (project opened…), local time zone. */
 export function formatDay(ms: number, language?: Language): string {
   const l = lang(language)

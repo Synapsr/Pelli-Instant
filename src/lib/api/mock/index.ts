@@ -54,6 +54,7 @@ import {
 } from './fixtures'
 import { MockImages } from './images'
 import { searchRecords } from './search'
+import { mockStats, type MockRun } from './stats'
 import { generateShoot, WEDDING_SCENES, type MockRecord } from './shoot'
 
 export interface MockOptions {
@@ -360,6 +361,8 @@ export function createMockApi(options: MockOptions = {}): CullApi {
 
   // ---- projects -------------------------------------------------------------------
   const projects = new Map<string, ProjectState>()
+  /** Analyses that measured photos, for the statistics (forgotten with their project, like the engine's). */
+  let runs: (MockRun & { projectId: string })[] = []
   const mockCount = Number(params.get('mockCount')) || null
   const projectLimit = Number(params.get('mockProjects'))
 
@@ -387,6 +390,11 @@ export function createMockApi(options: MockOptions = {}): CullApi {
       thumbsScheduled: false,
     }
     projects.set(def.id, state)
+    if (def.analyzed) {
+      // Its analysis, at the simulated Standard speed (19 photos/s, plus the scan).
+      const jitter = createRng(def.seed * 17).range(0.92, 1.12)
+      runs.push({ projectId: def.id, precision: 'standard', photos: def.count, durationMs: Math.round((def.count / 19) * 1000 * jitter + 1400) })
+    }
     return state
   }
   ;(projectLimit > 0 ? MOCK_PROJECTS.slice(0, projectLimit) : projectLimit === 0 && params.has('mockProjects') ? [] : MOCK_PROJECTS).forEach(addProject)
@@ -417,6 +425,7 @@ export function createMockApi(options: MockOptions = {}): CullApi {
   /** The photographer already reviewed part of an analysed shoot. */
   function seedMarks(ps: ProjectState): void {
     const rng = createRng(ps.def.seed * 31)
+    const turn = createRng(ps.def.seed * 53)
     const records = ps.records ?? []
     const reviewed = Math.floor(records.length * 0.35)
     for (let i = 0; i < reviewed; i++) {
@@ -426,6 +435,9 @@ export function createMockApi(options: MockOptions = {}): CullApi {
       if (a.verdict === 'keep' && rng.chance(0.3)) ps.marks.set(r.id, { flag: 'pick', rating: rng.pick([3, 4, 4, 5]), label: 'none' })
       else if (a.verdict === 'maybe' && rng.chance(0.35)) ps.marks.set(r.id, { flag: rng.chance(0.55) ? 'pick' : 'reject', rating: 0, label: 'none' })
       else if (a.verdict === 'keep' && rng.chance(0.06)) ps.marks.set(r.id, { flag: 'none', rating: 0, label: rng.pick(['green', 'blue', 'yellow'] as const) })
+      // Now and then, the photographer turns the AI around.
+      else if (a.verdict === 'reject' && turn.chance(0.06)) ps.marks.set(r.id, { flag: 'pick', rating: 0, label: 'none' })
+      else if (a.verdict === 'keep' && turn.chance(0.04)) ps.marks.set(r.id, { flag: 'reject', rating: 0, label: 'none' })
     }
   }
 
@@ -643,6 +655,7 @@ export function createMockApi(options: MockOptions = {}): CullApi {
       ps.analyzedAt = now()
       ps.precision = precision
       ps.stopAnalysis = null
+      runs.push({ projectId, precision, photos: ps.analyzed.size, durationMs: now() - started })
       progress('done', total, null)
       const reasons: Partial<Record<Reason, number>> = {}
       ps.assessments.forEach((a) => a.reasons.forEach((reason) => (reasons[reason] = (reasons[reason] ?? 0) + 1)))
@@ -969,6 +982,7 @@ export function createMockApi(options: MockOptions = {}): CullApi {
       respond(() => {
         projects.get(projectId)?.stopAnalysis?.()
         projects.delete(projectId)
+        runs = runs.filter((r) => r.projectId !== projectId)
       }),
     getProject: async (projectId) => {
       await wait(latency)
@@ -1023,6 +1037,18 @@ export function createMockApi(options: MockOptions = {}): CullApi {
         const ps = project(projectId)
         return searchRecords(ensureRecords(ps).filter((r) => ps.analyzed.has(r.id)), query)
       }, 320),
+    statsOverview: () =>
+      respond(() => {
+        const shoots = [...projects.values()].map((ps) => ({
+          id: ps.def.id,
+          name: ps.def.name,
+          createdAt: ps.createdAt,
+          precision: ps.precision,
+          photos: ensureRecords(ps).map((r) => view(ps, r)),
+          groups: ps.groups,
+        }))
+        return mockStats(shoots, runs, plusStatus().active)
+      }, 160),
 
     exportProject: async (projectId, exportOptions: ExportOptions): Promise<ExportReport> => {
       const ps = project(projectId)

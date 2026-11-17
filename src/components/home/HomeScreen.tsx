@@ -1,10 +1,11 @@
 import { Button, Tooltip } from '@heroui/react'
-import { ArrowRight, Settings } from 'lucide-react'
+import { ArrowRight, ChartColumn, Settings } from 'lucide-react'
 import { AnimatePresence, LayoutGroup, motion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
 import { useFolderDrop } from '@/hooks/use-folder-drop'
 import { PlusPill } from '@/components/plus/PlusPill'
 import { PelliHomePromo } from '@/components/promo/PelliPromo'
+import { StatsView } from '@/components/stats/StatsView'
 import { InstantLogo } from '@/components/ui/Logo'
 import { Backdrop } from '@/components/ui/Backdrop'
 import { WindowBar } from '@/components/ui/WindowBar'
@@ -19,12 +20,13 @@ import { AllProjects } from './AllProjects'
 import { DropZone } from './DropZone'
 import { ProjectCard } from './ProjectCard'
 
-type HomeView = 'home' | 'all'
+type HomeView = 'home' | 'all' | 'stats'
 
 /**
  * Home: one big drop target and the recent shoots underneath; "See all"
  * turns it into the full list of projects (the orb shrinks to the top, the
- * recent cards glide into the grid), and back.
+ * recent cards glide into the grid), and back. "Statistics", in the window
+ * bar once a shoot is sorted, shows the figures of every shoot.
  */
 export function HomeScreen() {
   const t = useT()
@@ -34,6 +36,7 @@ export function HomeScreen() {
   const { over } = useFolderDrop((path) => void openFolder(path), !dialogOpen)
   const [view, setView] = useState<HomeView>('home')
   const returning = useRef(false)
+  const sorted = useAppStore((s) => s.projects.some((p) => p.analyzedAt !== null))
 
   // On launch and after the welcome tour, the home arrives: the orb comes
   // from afar with a soft sound, the rest follows once it has landed.
@@ -47,7 +50,9 @@ export function HomeScreen() {
   }, [intro])
 
   const show = (next: HomeView) => {
-    returning.current = next === 'home'
+    // Back from the full list, the orb and the cards glide home; from the
+    // statistics, the home arrives again.
+    returning.current = next === 'home' && view === 'all'
     setView(next)
   }
 
@@ -61,6 +66,7 @@ export function HomeScreen() {
         <InstantLogo size="sm" className="text-white" />
         <div className="ml-auto flex items-center gap-1.5">
           <UpdateNotice className="mr-1" />
+          {(sorted || view === 'stats') && <StatsButton active={view === 'stats'} onPress={() => show(view === 'stats' ? 'home' : 'stats')} />}
           <PlusPill className="mr-1" />
           <Tooltip content={t('settings.title')} delay={400} closeDelay={0}>
             <Button isIconOnly variant="light" size="sm" radius="full" aria-label={t('settings.title')} onPress={() => openDialog('settings', 'general')} className="h-10 w-10 min-w-10 text-white/60 hover:text-white">
@@ -75,8 +81,10 @@ export function HomeScreen() {
           <AnimatePresence mode="popLayout" initial={false}>
             {view === 'home' ? (
               <HomeContent key="home" over={over} intro={intro} returning={returning.current} onSeeAll={() => show('all')} />
-            ) : (
+            ) : view === 'all' ? (
               <AllProjects key="all" over={over} onBack={() => show('home')} />
+            ) : (
+              <StatsView key="stats" onBack={() => show('home')} />
             )}
           </AnimatePresence>
         </LayoutGroup>
@@ -86,6 +94,26 @@ export function HomeScreen() {
 }
 
 const QUICK = { duration: 0.14, ease: 'easeIn' } as const
+
+/** The way to the statistics, in the window bar: lit while they are shown. */
+function StatsButton({ active, onPress }: { active: boolean; onPress: () => void }) {
+  const t = useT()
+  return (
+    <button
+      type="button"
+      onClick={onPress}
+      aria-pressed={active}
+      className={cn(
+        // 32 px tall, with a 40 px hit area.
+        'focus-ring relative mr-1 inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[12px] font-medium transition-[background-color,color,scale,box-shadow] duration-200 ease-out after:absolute after:-inset-1 after:content-[""] active:scale-[0.96]',
+        active ? 'bg-white/[0.1] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]' : 'text-white/60 hover:bg-white/[0.06] hover:text-white',
+      )}
+    >
+      <ChartColumn className="size-3.5" strokeWidth={2.1} aria-hidden />
+      {t('stats.open')}
+    </button>
+  )
+}
 
 function HomeContent({ over, intro, returning, onSeeAll }: { over: boolean; intro: boolean; returning: boolean; onSeeAll: () => void }) {
   const t = useT()

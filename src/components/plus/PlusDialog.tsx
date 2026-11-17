@@ -1,6 +1,6 @@
 import { Button, Modal, ModalBody, ModalContent, Spinner } from '@heroui/react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { AlertCircle, ArrowLeft, ArrowRight, BellOff, Check, Copy, ExternalLink, KeyRound, Layers, Lock, ScanFace, Search, Sparkles, X, type LucideIcon } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ArrowRight, BellOff, ChartColumn, Check, Copy, ExternalLink, KeyRound, Layers, Lock, ScanFace, Search, Sparkles, X, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { PHOTOS } from '@/components/onboarding/photos'
 import { LiquidOrb } from '@/components/ui/LiquidOrb'
@@ -21,10 +21,11 @@ const EASE = [0.22, 1, 0.36, 1] as const
 const POLL_MS = 3000
 
 /** What Plus brings, in the photographer's words (the real numbers, no model names). */
-const BENEFITS: { key: 'maximum' | 'duplicates' | 'search' | 'noPromo'; icon: LucideIcon }[] = [
+const BENEFITS: { key: 'maximum' | 'duplicates' | 'search' | 'stats' | 'noPromo'; icon: LucideIcon }[] = [
   { key: 'maximum', icon: ScanFace },
   { key: 'duplicates', icon: Layers },
   { key: 'search', icon: Search },
+  { key: 'stats', icon: ChartColumn },
   { key: 'noPromo', icon: BellOff },
 ]
 
@@ -37,7 +38,7 @@ const QUERIES = ['plus.showcase.q1', 'plus.showcase.q2', 'plus.showcase.q3'] as 
  * words. A photo on the left shows what Plus is for; the views change on the
  * right. Signing in with a Pelli Pro or Ultra account is the second way,
  * always after the offer. One dialog for every entry point (Maximum, AI
- * search, settings, the Plus pill).
+ * search, the statistics, settings, the Plus pill).
  */
 export function PlusDialog() {
   const open = usePlusStore((s) => s.dialogOpen)
@@ -51,7 +52,7 @@ export function PlusDialog() {
       backdrop="blur"
       hideCloseButton
       scrollBehavior="inside"
-      classNames={{ base: 'glass-strong max-h-[calc(100vh-40px)] max-w-[780px] overflow-hidden rounded-[28px] text-foreground', backdrop: 'bg-black/60' }}
+      classNames={{ base: 'glass-strong max-h-[calc(100vh-40px)] max-w-[860px] overflow-hidden rounded-[28px] text-foreground', backdrop: 'bg-black/60' }}
     >
       <ModalContent>
         <ModalBody className="relative overflow-hidden p-0">
@@ -212,19 +213,20 @@ function OfferView() {
   const setView = usePlusStore((s) => s.setView)
   const signIn = usePlusStore((s) => s.signIn)
   const reason = usePlusStore((s) => s.reason)
-  // Opened from the search field: what it asked for comes first.
-  const benefits = reason === 'search' ? [...BENEFITS].sort((a, b) => Number(b.key === 'search') - Number(a.key === 'search')) : BENEFITS
+  // Opened from the search field or the statistics: what it asked for comes first.
+  const first = reason === 'search' || reason === 'stats' ? reason : null
+  const benefits = first ? [...BENEFITS].sort((a, b) => Number(b.key === first) - Number(a.key === first)) : BENEFITS
   return (
-    <div className="px-7 pb-6 pt-7">
+    <div className="px-7 pb-5 pt-6">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-default-400">{t('plus.includes')}</p>
-      <ul className="mt-3 flex flex-col gap-1">
+      <ul className="mt-2.5 flex flex-col gap-0.5">
         {benefits.map(({ key, icon: Icon }, i) => (
           <motion.li
             key={key}
             initial={{ opacity: 0, x: 8 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, ease: EASE, delay: 0.06 + i * 0.05 }}
-            className="flex items-start gap-3 py-1.5"
+            className="flex items-start gap-3 py-1"
           >
             <span
               className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl border border-[#a599f5]/20 bg-gradient-to-b from-[#5840f0]/30 to-[#5840f0]/10 text-[#d0c9ff] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
@@ -240,12 +242,9 @@ function OfferView() {
         ))}
       </ul>
 
-      <div className="relative mt-5 overflow-hidden rounded-[22px] border border-[#a599f5]/25 bg-gradient-to-b from-[#5840f0]/[0.16] to-[#5840f0]/[0.04] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+      <div className="relative mt-4 overflow-hidden rounded-[22px] border border-[#a599f5]/25 bg-gradient-to-b from-[#5840f0]/[0.16] to-[#5840f0]/[0.04] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="tabular text-[34px] font-semibold leading-none tracking-[-0.03em] text-foreground">{price}</p>
-            <p className="mt-2 text-pretty text-[12px] leading-snug text-default-500">{t('plus.priceNote')}</p>
-          </div>
+          <p className="tabular min-w-0 text-[34px] font-semibold leading-none tracking-[-0.03em] text-foreground">{price}</p>
           <button
             type="button"
             onClick={() => setView('key')}
@@ -254,6 +253,7 @@ function OfferView() {
             {t('plus.haveKey')}
           </button>
         </div>
+        <p className="mt-2 text-pretty text-[12px] leading-snug text-default-500">{t('plus.priceNote')}</p>
         <Button radius="full" className="btn-brand mt-4 h-12 w-full text-[15px] font-semibold" isLoading={busy} onPress={() => void checkout()} endContent={busy ? undefined : <ArrowRight className="size-4" />}>
           {t('plus.cta')}
         </Button>
@@ -454,6 +454,8 @@ function SuccessView() {
           useWorkspaceStore.getState().requestSearchFocus()
         },
       }
+    // The statistics behind the dialog unlock as it closes.
+    if (reason === 'stats') return { label: t('plus.success.seeStats'), run: close }
     return { label: t('plus.success.done'), run: close }
   })()
 

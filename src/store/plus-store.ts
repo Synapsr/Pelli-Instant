@@ -7,7 +7,7 @@ import { NO_PLUS, normalizeKey, plusErrorCode, viewAfterStatus, type PlusErrorCo
 import { useAppStore } from './app-store'
 
 /** What opened the Plus dialog: its success view offers the next step that makes sense. */
-export type PlusReason = 'precision' | 'search' | 'settings' | 'pill' | 'onboarding'
+export type PlusReason = 'precision' | 'search' | 'stats' | 'settings' | 'pill' | 'onboarding'
 
 export interface PlusState {
   status: PlusStatus

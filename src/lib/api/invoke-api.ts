@@ -59,6 +59,7 @@ export function createInvokeApi(rawInvoke: Invoke, on: Subscribe): CullApi {
     setMarks: (projectId, photoIds, patch) => call(COMMANDS.setMarks, { projectId, photoIds, patch }),
     largePreview: (projectId, photoId) => call(COMMANDS.largePreview, { projectId, photoId }),
     search: (projectId, query) => call(COMMANDS.search, { projectId, query }),
+    statsOverview: () => call(COMMANDS.statsOverview),
 
     exportProject: (projectId, options) => call(COMMANDS.exportProject, { projectId, options }),
     listGalleries: () => call(COMMANDS.listGalleries),

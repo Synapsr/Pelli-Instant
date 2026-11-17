@@ -259,6 +259,94 @@ export interface SearchHit {
 }
 
 // ---------------------------------------------------------------------------
+// Statistics, computed by the engine on this computer and never sent
+// ---------------------------------------------------------------------------
+
+/**
+ * Why a photo ended up rejected: the main reason the AI gave (its most
+ * severe), `byYou` (rejected by the photographer, not by the AI) or `other`
+ * (rejected by the AI on its score alone).
+ */
+export type RejectionKey = Reason | 'byYou' | 'other'
+
+/** What the photographer did with the AI's verdicts. */
+export interface AiChanges {
+  /** photos the AI kept or rejected */
+  calls: number
+  /** rejected by the AI, kept by the photographer */
+  rescued: number
+  /** kept by the AI, rejected by the photographer */
+  dropped: number
+  /** photos the AI left to review */
+  toReview: number
+  /** of those, the ones the photographer kept or rejected */
+  decided: number
+}
+
+export interface MonthStats {
+  /** month of capture, "2026-07" (EXIF, read as UTC) */
+  month: string
+  photos: number
+  selected: number
+}
+
+export interface CameraStats {
+  name: string
+  photos: number
+  selected: number
+}
+
+/** Analyses in one precision, timed from the scan of the folder to the decisions. */
+export interface SpeedStats {
+  precision: Precision
+  photos: number
+  durationMs: number
+}
+
+export interface ShootStats {
+  /** the project's id */
+  id: string
+  name: string
+  /** capture time of its first photo (EXIF, read as UTC), else when the project was created */
+  shotAt: number
+  /** photos analysed */
+  photos: number
+  counts: DecisionCounts
+  precision: Precision | null
+}
+
+export interface StatsDetail {
+  /** final decisions of the photos analysed */
+  counts: DecisionCounts
+  rejections: Partial<Record<RejectionKey, number>>
+  changes: AiChanges
+  /** groups of similar shots (bursts, near-identical frames, copies) and the photos in them */
+  groups: { count: number; photos: number }
+  /** photos per month of capture, oldest first; photos without a date are left out */
+  months: MonthStats[]
+  /** the most used cameras (5 at most) */
+  cameras: CameraStats[]
+  /** measured speed, per precision used */
+  speed: SpeedStats[]
+  /** every shoot with a photo analysed, the latest first */
+  shoots: ShootStats[]
+}
+
+/**
+ * Statistics across every shoot of the library. The totals are for
+ * everyone; `detail` is part of Plus (null without it).
+ */
+export interface StatsOverview {
+  /** photos analysed, in every shoot */
+  photos: number
+  /** shoots with at least one photo analysed */
+  shoots: number
+  /** date of the first of them, null without any */
+  since: number | null
+  detail: StatsDetail | null
+}
+
+// ---------------------------------------------------------------------------
 // Account (Pelli) and Pelli Instant Plus
 // ---------------------------------------------------------------------------
 
@@ -302,9 +390,9 @@ export interface Account {
 export type PlusSource = 'license' | 'account'
 
 /**
- * Pelli Instant Plus on this computer: the Maximum precision, AI search and
- * no Pelli promotion. 25 € / $25 once, per device, or included in a Pelli Pro
- * or Ultra plan.
+ * Pelli Instant Plus on this computer: the Maximum precision, AI search, the
+ * detailed statistics and no Pelli promotion. 25 € / $25 once, per device, or
+ * included in a Pelli Pro or Ultra plan.
  */
 export interface PlusStatus {
   active: boolean
@@ -619,6 +707,8 @@ export interface CullApi {
   largePreview(projectId: string, photoId: string): Promise<string>
   /** AI search, part of Plus: error `plusRequired` without it */
   search(projectId: string, query: string): Promise<SearchHit[]>
+  /** statistics across every shoot, computed on this computer; `detail` only with Plus */
+  statsOverview(): Promise<StatsOverview>
 
   exportProject(projectId: string, options: ExportOptions): Promise<ExportReport>
   listGalleries(): Promise<GallerySummary[]>
@@ -736,6 +826,7 @@ export const COMMANDS = {
   setMarks: 'set_marks',
   largePreview: 'large_preview',
   search: 'search',
+  statsOverview: 'stats_overview',
   exportProject: 'export_project',
   listGalleries: 'list_galleries',
   uploadToPelli: 'upload_to_pelli',
