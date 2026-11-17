@@ -102,7 +102,7 @@ export const fr = {
     headline: { one: '{count} photo sélectionnée', other: '{count} photos sélectionnées' },
     subline: 'sur {total} · triées en {duration}',
     sublineFast: 'sur {total} · triées en moins d’une seconde',
-    review: 'Revoir le tri',
+    review: 'Voir le tri',
     back: 'Retour aux projets',
   },
   review: {

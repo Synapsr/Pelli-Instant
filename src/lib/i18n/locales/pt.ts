@@ -104,7 +104,7 @@ export const pt: Catalogue<typeof fr> = {
     headline: { one: '{count} foto selecionada', other: '{count} fotos selecionadas' },
     subline: 'de {total} · analisadas em {duration}',
     sublineFast: 'de {total} · analisadas em menos de um segundo',
-    review: 'Revisar a seleção',
+    review: 'Ver a seleção',
     back: 'Voltar aos projetos',
   },
   review: {

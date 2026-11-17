@@ -109,7 +109,7 @@ export const pl: Catalogue<typeof fr> = {
     },
     subline: 'z {total} · selekcja w {duration}',
     sublineFast: 'z {total} · selekcja w niecałą sekundę',
-    review: 'Przejrzyj selekcję',
+    review: 'Zobacz selekcję',
     back: 'Wróć do projektów',
   },
   review: {

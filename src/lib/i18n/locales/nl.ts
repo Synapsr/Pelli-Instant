@@ -104,7 +104,7 @@ export const nl: Catalogue<typeof fr> = {
     headline: { one: '{count} foto geselecteerd', other: '{count} foto’s geselecteerd' },
     subline: 'van {total} · gesorteerd in {duration}',
     sublineFast: 'van {total} · gesorteerd in minder dan een seconde',
-    review: 'Selectie nakijken',
+    review: 'Selectie bekijken',
     back: 'Terug naar projecten',
   },
   review: {

@@ -104,7 +104,7 @@ export const sv: Catalogue<typeof fr> = {
     headline: { one: '{count} bild vald', other: '{count} bilder valda' },
     subline: 'av {total} · sorterade på {duration}',
     sublineFast: 'av {total} · sorterade på under en sekund',
-    review: 'Granska urvalet',
+    review: 'Visa urvalet',
     back: 'Tillbaka till projekt',
   },
   review: {
