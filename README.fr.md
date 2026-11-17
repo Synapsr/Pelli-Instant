@@ -191,9 +191,9 @@ Compilée depuis les sources, elle trie exactement comme l'app officielle : grat
 - **Vos dossiers restent intacts jusqu'à l'export.** L'export écrit des fichiers `.xmp` à côté de vos RAW, copie la sélection où vous le décidez, ou déplace les rejets dans `_Rejets Pelli`. Vos fichiers photo ne sont jamais modifiés ni supprimés.
 - **Sans compte, sans connexion.** Rien à créer, rien à quoi se connecter.
 
-### Les statistiques anonymes
+### Les statistiques d'usage
 
-Pelli Instant envoie quelques statistiques anonymes à Pelli (`app.pelli.io`), pour savoir combien de personnes l'utilisent et à quelle vitesse il trie. **Elles sont activées par défaut et un interrupteur les coupe** dans *Réglages → Confidentialité*, avec le détail de ce qui est envoyé. Le code est dans [`crates/cull-engine/src/telemetry.rs`](crates/cull-engine/src/telemetry.rs).
+Pelli Instant envoie quelques statistiques d'usage à Pelli (`app.pelli.io`), pour savoir combien de personnes l'utilisent et à quelle vitesse il trie. Dans la version gratuite, elles sont anonymes ; avec Plus, elles sont associées à votre licence ou à votre compte Pelli. **Elles sont activées par défaut et un interrupteur les coupe** dans *Réglages → Confidentialité*, avec le détail de ce qui est envoyé. Le code est dans [`crates/cull-engine/src/telemetry.rs`](crates/cull-engine/src/telemetry.rs).
 
 | Événement | Quand | Ce qu'il dit |
 | --- | --- | --- |
@@ -204,9 +204,11 @@ Pelli Instant envoie quelques statistiques anonymes à Pelli (`app.pelli.io`), p
 | `plus_activated` | Plus vient d'être activé | Comment : achat, clé ou compte Pelli |
 | `telemetry_disabled` | Vous avez coupé les statistiques | Rien de plus : c'est le dernier message |
 
-Chaque message porte aussi un identifiant d'installation aléatoire (un nombre tiré au hasard, sans lien avec votre ordinateur, une licence ou un compte), la version de l'app, le système (Mac, Windows), le type de processeur (arm64, x64) et la langue de l'app. Jamais une photo, un nom de fichier, un dossier, votre nom ni rien de personnel. Pelli ne garde aucune adresse IP avec eux.
+Chaque message porte aussi un identifiant d'installation aléatoire (un nombre tiré au hasard, sans lien avec votre ordinateur), la version de l'app, le système (Mac, Windows), le type de processeur (arm64, x64) et la langue de l'app. Jamais une photo, un nom de fichier ni un dossier. Pelli ne garde aucune adresse IP avec eux.
 
-- **Coupées pendant la présentation, rien n'est jamais envoyé.**
+- **Version gratuite :** rien de plus, les statistiques sont anonymes.
+- **Avec Plus :** chaque message dit aussi à qui est ce Plus, pour que Pelli connaisse l'usage de ses clients : une licence ajoute son jeton (Pelli en montre la clé masquée ; il ne garde ni nom ni e-mail pour une licence), un compte Pelli Pro ou Ultra envoie son jeton de connexion, comme pour toute requête du compte.
+
 - **Coupées plus tard**, l'app envoie un dernier `telemetry_disabled`, puis plus rien, et efface l'identifiant. Les réactiver en crée un nouveau.
 - Chaque message part en arrière-plan (5 s au plus, sans nouvel essai, rien n'est gardé sur le disque) : les statistiques ne ralentissent et ne bloquent jamais rien.
 
@@ -260,7 +262,7 @@ Oui. Trier, vérifier et exporter se fait entièrement sur votre ordinateur, san
 <details>
 <summary><b>Pelli Instant collecte-t-il des données ?</b></summary>
 
-Seulement des statistiques anonymes, que vous pouvez couper : combien de photos vous triez, en combien de temps, la version de l'app. Jamais vos photos ni leurs noms. La liste complète est dans [Confidentialité et télémétrie](#confidentialité-et-télémétrie) ; les refuser pendant la présentation n'envoie absolument rien.
+Seulement des statistiques d'usage, que vous pouvez couper : combien de photos vous triez, en combien de temps, la version de l'app. Jamais vos photos ni leurs noms. Elles sont anonymes dans la version gratuite et associées à votre licence ou à votre compte avec Plus. La liste complète est dans [Confidentialité et télémétrie](#confidentialité-et-télémétrie).
 
 </details>
 

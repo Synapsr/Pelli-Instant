@@ -486,9 +486,9 @@ export const fr = {
       cleared: 'Cache vidé',
     },
     privacy: {
-      telemetry: 'Partager des statistiques anonymes',
+      telemetry: 'Partager des statistiques d’usage',
       telemetryHint: 'Le nombre de photos triées, la durée des tris et la version de l’app nous aident à améliorer Pelli Instant.',
-      never: 'Jamais envoyé : aucune photo, aucun nom de fichier, aucune donnée personnelle.',
+      never: 'Jamais envoyé : aucune photo, aucun nom de fichier, aucun chemin.',
       what: 'Qu’est-ce qui est envoyé ?',
       events: {
         onboarding_completed: 'Fin du premier lancement',
@@ -499,6 +499,7 @@ export const fr = {
         telemetry_disabled: 'Désactivation de la télémétrie, le dernier envoi',
       },
       common: 'Chaque envoi comprend aussi un identifiant aléatoire, la version de l’app, le système, l’architecture et la langue.',
+      linked: 'Anonymes dans la version gratuite. Avec Plus, elles sont associées à votre licence ou à votre compte Pelli.',
       installId: 'Identifiant d’installation',
       noInstallId: 'Aucun, la télémétrie est désactivée',
       example: 'Exemple d’envoi',

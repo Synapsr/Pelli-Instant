@@ -599,6 +599,25 @@ mod tests {
     }
 
     #[test]
+    fn statistics_name_plus_and_stay_anonymous_without_it() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (engine, _, sender) = engine(tmp.path());
+        // Free, even signed in to a Free account: anonymous.
+        sign_in(&engine, false);
+        assert!(engine.track("export_completed", json!({})));
+        // Plus from the account: its token goes along, as for every account request.
+        sign_in(&engine, true);
+        assert!(engine.track("export_completed", json!({})));
+        // Plus from a licence: its signed token, in the payload.
+        let token = token_for(&engine);
+        engine.store_license("7k2q-ab3d-9xyz-0mnp", &token).unwrap();
+        assert!(engine.track("export_completed", json!({})));
+        let payloads = sender.payloads();
+        assert_eq!(payloads.iter().map(|p| p.get("license").cloned()).collect::<Vec<_>>(), [None, None, Some(json!(token))]);
+        assert_eq!(sender.bearers(), [None, Some("bearer".to_string()), None]);
+    }
+
+    #[test]
     fn the_licence_wins_over_the_account() {
         let tmp = tempfile::tempdir().unwrap();
         let (engine, ..) = engine(tmp.path());

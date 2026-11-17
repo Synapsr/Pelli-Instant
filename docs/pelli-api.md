@@ -133,7 +133,7 @@ The five files of the Maximum pack (`clip-vit-l14-vision-int8.onnx`, `clip-vit-l
 }
 ```
 
-→ `204`. `installId`: a random UUID v4, created when telemetry is on, deleted when it is turned off, never linked to the device hash, a licence or an account. `platform`: `mac` | `windows` | `linux`; `arch`: `arm64` | `x64`; `locale`: the app language only, never a region. Validated strictly: an unknown event, field or property is `400 invalid_request`.
+→ `204`. `installId`: a random UUID v4, created when telemetry is on, deleted when it is turned off, never linked to the device hash. The free version sends nothing else: its statistics are anonymous. With Plus active, the event says whose Plus it is: a licence adds its signed token as `license` (optional field), a Pelli account sends its token in `Authorization: Bearer`, as every account request; Pelli then names the licence (masked key) or the account in its notes. `platform`: `mac` | `windows` | `linux`; `arch`: `arm64` | `x64`; `locale`: the app language only, never a region. Validated strictly: an unknown event, field or property is `400 invalid_request`.
 
 | `event` | When | `props` |
 |---|---|---|
@@ -144,7 +144,7 @@ The five files of the Maximum pack (`clip-vit-l14-vision-int8.onnx`, `clip-vit-l
 | `plus_activated` | Plus just became active | `via`: `purchase` \| `key` \| `account` |
 | `telemetry_disabled` | Telemetry was turned off: the last event of this install id | `{}` |
 
-Pelli stores no IP address for these events and makes no contact out of them; it counts them and posts some to its team's chat. The app sends each one fire-and-forget (5 s timeout, no retry, nothing queued on disk). Turned off in the welcome tour, nothing is ever sent. The code: `crates/cull-engine/src/telemetry.rs`.
+Pelli stores no IP address for these events and makes no contact out of them; it counts them and posts some to its team's chat. The app sends each one fire-and-forget (5 s timeout, no retry, nothing queued on disk). Turned off in *Settings → Privacy*, nothing more is sent after `telemetry_disabled`. The code: `crates/cull-engine/src/telemetry.rs`.
 
 ## Sign-in (optional)
 

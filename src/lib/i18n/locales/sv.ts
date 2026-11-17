@@ -488,9 +488,9 @@ export const sv: Catalogue<typeof fr> = {
       cleared: 'Cachen har tömts',
     },
     privacy: {
-      telemetry: 'Dela anonym statistik',
+      telemetry: 'Dela användningsstatistik',
       telemetryHint: 'Antalet sorterade bilder, hur lång tid det tar och appversionen hjälper oss att förbättra Pelli Instant.',
-      never: 'Skickas aldrig: inga bilder, inga filnamn, inga personuppgifter.',
+      never: 'Skickas aldrig: inga bilder, inga filnamn, inga sökvägar.',
       what: 'Vad skickas?',
       events: {
         onboarding_completed: 'Slutet av första starten',
@@ -501,6 +501,7 @@ export const sv: Catalogue<typeof fr> = {
         telemetry_disabled: 'Telemetrin avstängd, det sista meddelandet',
       },
       common: 'Varje meddelande innehåller också ett slumpmässigt id, appversionen, systemet, arkitekturen och språket.',
+      linked: 'Anonym i gratisversionen. Med Plus kopplas den till din licens eller ditt Pelli-konto.',
       installId: 'Installations-id',
       noInstallId: 'Inget, telemetrin är avstängd',
       example: 'Exempelmeddelande',

@@ -488,9 +488,9 @@ export const en: Catalogue<typeof fr> = {
       cleared: 'Cache cleared',
     },
     privacy: {
-      telemetry: 'Share anonymous statistics',
+      telemetry: 'Share usage statistics',
       telemetryHint: 'How many photos you sort, how long it takes and the app version help us improve Pelli Instant.',
-      never: 'Never sent: no photo, no file name, no personal data.',
+      never: 'Never sent: no photo, no file name, no path.',
       what: 'What is sent?',
       events: {
         onboarding_completed: 'End of the first launch',
@@ -501,6 +501,7 @@ export const en: Catalogue<typeof fr> = {
         telemetry_disabled: 'Telemetry turned off, the last message',
       },
       common: 'Each message also carries a random id, the app version, the system, the architecture and the language.',
+      linked: 'Anonymous in the free version. With Plus, they are linked to your licence or your Pelli account.',
       installId: 'Install id',
       noInstallId: 'None, telemetry is off',
       example: 'Example message',

@@ -55,21 +55,26 @@ impl EventSink for Recorder {
 
 /// Telemetry payloads, kept instead of sent.
 #[derive(Default)]
-pub(crate) struct TestSender(Mutex<Vec<Value>>);
+pub(crate) struct TestSender(Mutex<Vec<(Value, Option<String>)>>);
 
 impl TestSender {
     pub(crate) fn payloads(&self) -> Vec<Value> {
-        self.0.lock().clone()
+        self.0.lock().iter().map(|(p, _)| p.clone()).collect()
     }
 
     pub(crate) fn events(&self) -> Vec<String> {
-        self.0.lock().iter().map(|p| p["event"].as_str().unwrap_or_default().to_string()).collect()
+        self.0.lock().iter().map(|(p, _)| p["event"].as_str().unwrap_or_default().to_string()).collect()
+    }
+
+    /// The account token sent with each payload.
+    pub(crate) fn bearers(&self) -> Vec<Option<String>> {
+        self.0.lock().iter().map(|(_, b)| b.clone()).collect()
     }
 }
 
 impl TelemetrySender for TestSender {
-    fn send(&self, payload: Value) {
-        self.0.lock().push(payload);
+    fn send(&self, payload: Value, bearer: Option<String>) {
+        self.0.lock().push((payload, bearer));
     }
 }
 

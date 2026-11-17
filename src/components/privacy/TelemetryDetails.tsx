@@ -46,6 +46,7 @@ export function TelemetryContent({ preview, compact = false, className }: { prev
         })}
       </ul>
       <p className="mt-3 text-pretty text-[12px] leading-snug text-default-500">{t('settings.privacy.common')}</p>
+      <p className="mt-2 text-pretty text-[12px] leading-snug text-default-500">{t('settings.privacy.linked')}</p>
       {!compact && (
         <>
           <p className="mt-3 text-[11px] font-medium text-default-400">{t('settings.privacy.example')}</p>

@@ -488,9 +488,9 @@ export const nl: Catalogue<typeof fr> = {
       cleared: 'Cache geleegd',
     },
     privacy: {
-      telemetry: 'Anonieme statistieken delen',
+      telemetry: 'Gebruiksstatistieken delen',
       telemetryHint: 'Het aantal gesorteerde foto’s, hoe lang het duurt en de app-versie helpen ons Pelli Instant te verbeteren.',
-      never: 'Nooit verstuurd: geen foto’s, geen bestandsnamen, geen persoonsgegevens.',
+      never: 'Nooit verzonden: geen foto, geen bestandsnaam, geen pad.',
       what: 'Wat wordt er verstuurd?',
       events: {
         onboarding_completed: 'Einde van de eerste start',
@@ -501,6 +501,7 @@ export const nl: Catalogue<typeof fr> = {
         telemetry_disabled: 'Telemetrie uitgeschakeld, het laatste bericht',
       },
       common: 'Elk bericht bevat ook een willekeurige id, de app-versie, het systeem, de architectuur en de taal.',
+      linked: 'Anoniem in de gratis versie. Met Plus zijn ze gekoppeld aan je licentie of je Pelli-account.',
       installId: 'Installatie-id',
       noInstallId: 'Geen, telemetrie staat uit',
       example: 'Voorbeeldbericht',

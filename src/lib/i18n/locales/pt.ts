@@ -488,9 +488,9 @@ export const pt: Catalogue<typeof fr> = {
       cleared: 'Cache limpo',
     },
     privacy: {
-      telemetry: 'Compartilhar estatísticas anônimas',
+      telemetry: 'Compartilhar estatísticas de uso',
       telemetryHint: 'O número de fotos analisadas, a duração e a versão do app nos ajudam a melhorar o Pelli Instant.',
-      never: 'Nunca enviado: nenhuma foto, nenhum nome de arquivo, nenhum dado pessoal.',
+      never: 'Nunca enviado: nenhuma foto, nenhum nome de arquivo, nenhum caminho.',
       what: 'O que é enviado?',
       events: {
         onboarding_completed: 'Fim da primeira abertura',
@@ -501,6 +501,7 @@ export const pt: Catalogue<typeof fr> = {
         telemetry_disabled: 'Telemetria desativada, o último envio',
       },
       common: 'Cada envio também inclui um identificador aleatório, a versão do app, o sistema, a arquitetura e o idioma.',
+      linked: 'Anônimas na versão gratuita. Com o Plus, ficam associadas à sua licença ou à sua conta Pelli.',
       installId: 'Identificador da instalação',
       noInstallId: 'Nenhum, a telemetria está desativada',
       example: 'Exemplo de envio',

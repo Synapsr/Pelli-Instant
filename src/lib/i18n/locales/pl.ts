@@ -548,9 +548,9 @@ export const pl: Catalogue<typeof fr> = {
       cleared: 'Wyczyszczono pamięć podręczną',
     },
     privacy: {
-      telemetry: 'Udostępniaj anonimowe statystyki',
+      telemetry: 'Udostępniaj statystyki użycia',
       telemetryHint: 'Liczba posortowanych zdjęć, czas sortowania i wersja aplikacji pomagają nam ulepszać Pelli Instant.',
-      never: 'Nigdy nie wysyłamy: żadnych zdjęć, nazw plików ani danych osobowych.',
+      never: 'Nigdy nie wysyłamy: żadnego zdjęcia, nazwy pliku ani ścieżki.',
       what: 'Co jest wysyłane?',
       events: {
         onboarding_completed: 'Koniec pierwszego uruchomienia',
@@ -561,6 +561,7 @@ export const pl: Catalogue<typeof fr> = {
         telemetry_disabled: 'Wyłączenie telemetrii, ostatnia wysyłka',
       },
       common: 'Każda wysyłka zawiera też losowy identyfikator, wersję aplikacji, system, architekturę i język.',
+      linked: 'Anonimowe w wersji darmowej. Z Plus są powiązane z Twoją licencją lub kontem Pelli.',
       installId: 'Identyfikator instalacji',
       noInstallId: 'Brak, telemetria jest wyłączona',
       example: 'Przykładowa wysyłka',

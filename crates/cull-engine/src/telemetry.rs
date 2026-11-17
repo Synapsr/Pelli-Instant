@@ -1,4 +1,5 @@
-//! Anonymous telemetry: opt-out (`telemetry` setting, on by default).
+//! Usage statistics: opt-out (`telemetry` setting, on by default),
+//! anonymous in the free version, linked to Plus when Plus is active.
 //!
 //! A few events tell Pelli how the app is used:
 //!
@@ -14,8 +15,12 @@
 //! Each payload holds a random install id (a UUID kept in the library only
 //! while telemetry is on, deleted when it is turned off, a new one when it
 //! is turned back on), the app version, the platform, the processor
-//! architecture and the app language. Never a path, a file name, the device
-//! hash, the licence or the account. Events are sent fire-and-forget, each
+//! architecture and the app language. Never a path or a file name. With Plus
+//! active, each event also says whose Plus it is: the licence (its signed
+//! token, `license` in the payload) or the Pelli account (its token, in the
+//! `Authorization` header, as every account request); Pelli then names the
+//! licence or the account in its own notes. The free version sends neither:
+//! its statistics stay anonymous. Events are sent fire-and-forget, each
 //! on its own background thread (`POST /api/cull/telemetry`, 5 s timeout, no
 //! retry, nothing kept on disk): telemetry never slows down nor fails
 //! anything.
@@ -49,9 +54,10 @@ const APP_OPENED_KEY: &str = "telemetry.app_opened";
 const DAY_MS: i64 = 86_400_000;
 const TIMEOUT: Duration = Duration::from_secs(5);
 
-/// Delivers telemetry payloads; must return at once.
+/// Delivers telemetry payloads; must return at once. `bearer`: the Pelli
+/// account's token, when the account is what gives Plus.
 pub trait TelemetrySender: Send + Sync {
-    fn send(&self, payload: Value);
+    fn send(&self, payload: Value, bearer: Option<String>);
 }
 
 /// `POST <Pelli>/api/cull/telemetry`.
@@ -60,11 +66,15 @@ struct HttpSender {
 }
 
 impl TelemetrySender for HttpSender {
-    fn send(&self, payload: Value) {
+    fn send(&self, payload: Value, bearer: Option<String>) {
         let url = self.url.clone();
         let job = move || {
             let lang = payload["locale"].as_str().unwrap_or("en").to_string();
-            match crate::pelli::agent(TIMEOUT).post(&url).header("Accept-Language", &lang).send_json(&payload) {
+            let mut req = crate::pelli::agent(TIMEOUT).post(&url).header("Accept-Language", &lang);
+            if let Some(token) = bearer {
+                req = req.header("Authorization", format!("Bearer {token}"));
+            }
+            match req.send_json(&payload) {
                 Ok(r) if r.status().is_success() => {}
                 Ok(r) => log::debug!("telemetry {}: HTTP {}", payload["event"], r.status()),
                 Err(e) => log::debug!("telemetry {}: {e}", payload["event"]),
@@ -80,7 +90,7 @@ impl TelemetrySender for HttpSender {
 struct LogOnly;
 
 impl TelemetrySender for LogOnly {
-    fn send(&self, payload: Value) {
+    fn send(&self, payload: Value, _bearer: Option<String>) {
         log::info!("telemetry (a debug build sends it only to PELLI_API_URL): {payload}");
     }
 }
@@ -168,8 +178,25 @@ impl Engine {
     fn send_event(&self, event: &str, props: Value) -> bool {
         let Some(sender) = self.telemetry.sender.read().clone() else { return false };
         let Some(id) = self.install_id(true) else { return false };
-        sender.send(self.telemetry_payload(&id, event, props));
+        let mut payload = self.telemetry_payload(&id, event, props);
+        let (license, bearer) = self.plus_identity();
+        if let Some(token) = license {
+            payload["license"] = Value::String(token);
+        }
+        sender.send(payload, bearer);
         true
+    }
+
+    /// Whose Plus it is, for the statistics: the licence token, or the
+    /// account token when the account gives Plus. Neither without Plus.
+    fn plus_identity(&self) -> (Option<String>, Option<String>) {
+        if let Some(license) = self.valid_license() {
+            return (Some(license.token), None);
+        }
+        if self.account_plus() {
+            return (None, self.token());
+        }
+        (None, None)
     }
 
     /// `app_opened`, at most once a calendar day, once the welcome tour is

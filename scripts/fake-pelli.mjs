@@ -393,7 +393,7 @@ const TELEMETRY_PROPS = {
   plus_activated: { via: (v) => ['purchase', 'key', 'account'].includes(v) },
   telemetry_disabled: {},
 }
-const TELEMETRY_KEYS = ['installId', 'event', 'appVersion', 'platform', 'arch', 'locale', 'props']
+const TELEMETRY_KEYS = ['installId', 'event', 'appVersion', 'platform', 'arch', 'locale', 'props', 'license']
 
 /** Why a payload is refused, or null when it is valid. */
 function telemetryError(p) {

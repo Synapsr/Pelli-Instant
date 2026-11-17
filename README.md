@@ -191,9 +191,9 @@ Built from source, it sorts exactly like the official app: free, unlimited, no a
 - **Your folders stay untouched until you export.** Exporting writes `.xmp` files next to your RAWs, copies the selection where you say, or moves the rejects to `_Rejets Pelli`. Your photo files are never modified or deleted.
 - **No account, no sign-in.** Nothing to create, nothing to log in to.
 
-### Anonymous statistics
+### Usage statistics
 
-Pelli Instant sends a few anonymous statistics to Pelli (`app.pelli.io`), so we know how many people use it and how fast it sorts. **It is on by default and one switch turns it off** in *Settings → Privacy*, with the details of what is sent. The code is in [`crates/cull-engine/src/telemetry.rs`](crates/cull-engine/src/telemetry.rs).
+Pelli Instant sends a few usage statistics to Pelli (`app.pelli.io`), so we know how many people use it and how fast it sorts. In the free version they are anonymous; with Plus, they are linked to your licence or your Pelli account. **It is on by default and one switch turns it off** in *Settings → Privacy*, with the details of what is sent. The code is in [`crates/cull-engine/src/telemetry.rs`](crates/cull-engine/src/telemetry.rs).
 
 | Event | When | What it says |
 | --- | --- | --- |
@@ -204,9 +204,11 @@ Pelli Instant sends a few anonymous statistics to Pelli (`app.pelli.io`), so we 
 | `plus_activated` | Plus was activated | How: purchase, key or Pelli account |
 | `telemetry_disabled` | You turned the statistics off | Nothing more: it is the last message |
 
-Every message also carries a random install id (a random number, not tied to your computer, a licence or an account), the app version, the system (Mac, Windows), the processor type (arm64, x64) and the app language. Never a photo, a file name, a folder, your name or anything personal. Pelli stores no IP address with them.
+Every message also carries a random install id (a random number, not tied to your computer), the app version, the system (Mac, Windows), the processor type (arm64, x64) and the app language. Never a photo, a file name or a folder. Pelli stores no IP address with them.
 
-- **Turned off during the welcome tour, nothing is ever sent.**
+- **Free version:** nothing else, the statistics are anonymous.
+- **With Plus:** each message also says whose Plus it is, so Pelli knows its customers' use: a licence adds its token (Pelli shows its key, masked; it keeps no name or e-mail for a licence), a Pelli Pro or Ultra account sends its sign-in token, as for every account request.
+
 - **Turned off later**, the app sends one last `telemetry_disabled`, then nothing, and deletes the install id. Turning it on again creates a new one.
 - Each message is sent in the background (5 s at most, no retry, nothing kept on disk): statistics never slow down or block anything.
 
@@ -260,7 +262,7 @@ Yes. Sorting, reviewing and exporting run entirely on your computer, without the
 <details>
 <summary><b>Does Pelli Instant collect data?</b></summary>
 
-Only anonymous statistics, which you can turn off: how many photos you sort, how long it takes, the app version. Never your photos or their names. The full list is in [Privacy and telemetry](#privacy-and-telemetry); declining during the welcome tour sends nothing at all.
+Only usage statistics, which you can turn off: how many photos you sort, how long it takes, the app version. Never your photos or their names. They are anonymous in the free version and linked to your licence or account with Plus. The full list is in [Privacy and telemetry](#privacy-and-telemetry).
 
 </details>
 
