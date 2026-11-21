@@ -35,6 +35,10 @@ export interface PrefsState {
   xmpMapping: XmpMapping
   /** the last version the update announcement was closed for: it is not announced again */
   dismissedUpdate: string | null
+  /** successful exports on this computer, for the one-time support card */
+  exportsDone: number
+  /** the support card was closed, or one of its links opened: it doesn't show again */
+  supportCardClosed: boolean
   setThumbSize: (size: number) => void
   toggleSidebar: () => void
   toggleInspector: () => void
@@ -45,6 +49,8 @@ export interface PrefsState {
   setXmpMapping: (decision: FinalDecision, patch: { rating?: number; label?: ColorLabel }) => void
   setLabelLanguage: (language: Language | null) => void
   setDismissedUpdate: (version: string) => void
+  countExport: () => void
+  closeSupportCard: () => void
 }
 
 export const THUMB_MIN = 120
@@ -110,6 +116,8 @@ export const usePrefsStore = create<PrefsState>()(
       voice: true,
       xmpMapping: DEFAULT_XMP_MAPPING,
       dismissedUpdate: null,
+      exportsDone: 0,
+      supportCardClosed: false,
       setThumbSize: (size) => set({ thumbSize: Math.round(Math.min(THUMB_MAX, Math.max(THUMB_MIN, size))) }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       toggleInspector: () => set((s) => ({ inspectorOpen: !s.inspectorOpen })),
@@ -127,6 +135,8 @@ export const usePrefsStore = create<PrefsState>()(
         })),
       setLabelLanguage: (labelLanguage) => set(({ xmpMapping }) => ({ xmpMapping: { ...xmpMapping, labelLanguage } })),
       setDismissedUpdate: (dismissedUpdate) => set({ dismissedUpdate }),
+      countExport: () => set((s) => ({ exportsDone: (Number.isFinite(s.exportsDone) ? s.exportsDone : 0) + 1 })),
+      closeSupportCard: () => set({ supportCardClosed: true }),
     }),
     {
       name: 'pelli-cull:prefs',
@@ -145,6 +155,8 @@ export const usePrefsStore = create<PrefsState>()(
         voice: s.voice,
         xmpMapping: s.xmpMapping,
         dismissedUpdate: s.dismissedUpdate,
+        exportsDone: s.exportsDone,
+        supportCardClosed: s.supportCardClosed,
       }),
     },
   ),
