@@ -802,6 +802,12 @@ export const pl: Catalogue<typeof fr> = {
     homeCta: 'Bezpłatny okres próbny',
     export: 'Wyślij ten wybór klientom w galerii Pelli',
   },
+  support: {
+    title: 'Pelli Instant oszczędza Ci czas?',
+    body: 'Obserwuj Pelli na Instagramie: porady dotyczące selekcji, nowości i kulisy.',
+    instagram: 'Obserwuj @pelli.io na Instagramie',
+    github: 'Albo zostaw gwiazdkę na GitHubie: to nic nie kosztuje, a najbardziej nam pomaga.',
+  },
   onboarding: {
     skip: 'Pomiń',
     back: 'Wstecz',

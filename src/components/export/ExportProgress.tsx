@@ -2,6 +2,7 @@ import { Button, Progress, Spinner } from '@heroui/react'
 import { CircleCheck, ExternalLink, FolderSearch, Info, TriangleAlert, UploadCloud } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { PelliExportPromo } from '@/components/promo/PelliPromo'
+import { SupportCard, useSupportCard } from '@/components/promo/SupportCard'
 import { IconBox } from '@/components/ui/IconBox'
 import { api } from '@/lib/api'
 import { formatBytes, formatNumber } from '@/lib/format'
@@ -70,6 +71,7 @@ export function ExportReportView() {
   const error = useExportStore((s) => s.error)
   const errorCode = useExportStore((s) => s.errorCode)
   const signOut = useAppStore((s) => s.signOut)
+  const askSupport = useSupportCard()
   const folder = context?.rejectsFolder ?? '_Rejets Pelli'
 
   return (
@@ -115,7 +117,9 @@ export function ExportReportView() {
           {t('export.lightroomHint')}
         </p>
       )}
-      {!error && !uploadReport && <PelliExportPromo className="mx-auto mt-5 max-w-md" />}
+      {/* One card at a time: the one-time support card replaces the Pelli line when it shows. */}
+      {!error && askSupport && <SupportCard className="mx-auto mt-5 max-w-md" />}
+      {!error && !askSupport && !uploadReport && <PelliExportPromo className="mx-auto mt-5 max-w-md" />}
       <div className="mt-6 flex flex-wrap justify-center gap-2">
         {context && (
           <Button variant="flat" startContent={<FolderSearch className="size-4" />} onPress={() => void api().revealInFolder(context.revealPath)}>
