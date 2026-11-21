@@ -6,6 +6,7 @@ import { t } from '@/lib/i18n'
 import { notify } from '@/lib/notify'
 import { playSound } from '@/lib/sound'
 import { useAppStore } from './app-store'
+import { usePrefsStore } from './prefs-store'
 
 export type ExportPhase = 'configure' | 'exporting' | 'uploading' | 'done'
 
@@ -94,6 +95,7 @@ export const useExportStore = create<ExportState>((set, get) => ({
         await api().uploadToPelli(projectId, upload)
       } else {
         set({ phase: 'done' })
+        if (report.errors.length === 0) usePrefsStore.getState().countExport()
         playSound('exportDone')
       }
     } catch (error) {
@@ -161,6 +163,7 @@ export const useExportStore = create<ExportState>((set, get) => ({
   onUploadDone: (report) => {
     if (report.projectId !== get().projectId || get().phase !== 'uploading') return
     set({ phase: 'done', uploadReport: report })
+    if (report.failed === 0 && (get().report?.errors.length ?? 0) === 0) usePrefsStore.getState().countExport()
     playSound('exportDone')
     if (!get().background) return
     const skippedOnly = report.uploaded === 0 && (report.skipped ?? 0) > 0

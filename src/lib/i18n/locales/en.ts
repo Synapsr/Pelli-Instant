@@ -727,6 +727,12 @@ export const en: Catalogue<typeof fr> = {
     homeCta: 'Free trial',
     export: 'Send this selection to your clients with a Pelli gallery',
   },
+  support: {
+    title: 'Is Pelli Instant saving you time?',
+    body: 'Follow Pelli on Instagram for culling tips, news and behind the scenes.',
+    instagram: 'Follow @pelli.io on Instagram',
+    github: 'Or leave a star on GitHub: it’s free, and it’s the best way to help us.',
+  },
   onboarding: {
     skip: 'Skip',
     back: 'Back',
