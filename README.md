@@ -141,6 +141,8 @@ Sorting stays free and unlimited. **Plus** is for your most demanding shoots: **
 
 The Standard models come inside the installer, so Pelli Instant works as soon as it is installed, offline included; the Maximum pack is downloaded from the app, with Plus, only if you choose it. Each download has its SHA-256 fingerprint next to it (`.sha256`), and every release built by the [release workflow](.github/workflows/release.yml) comes with a `SHA256SUMS` file and a [build attestation](https://docs.github.com/actions/security-for-github-actions/using-artifact-attestations) you can check with `gh attestation verify <file> --repo Synapsr/Pelli-Instant`.
 
+On Windows, [Install on Windows](docs/install-windows.md) goes step by step: the SmartScreen warning, checking the download, updates and uninstalling.
+
 <details>
 <summary><b>Intel Macs</b></summary>
 
