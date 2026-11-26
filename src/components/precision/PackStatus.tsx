@@ -144,6 +144,8 @@ function describe(t: ReturnType<typeof useT>, pack: ModelPack): string {
       if (state.code === 'diskFull') return t('settings.analysis.precision.failedDisk', { size: formatBytes(packSpaceNeeded(pack)) })
       if (state.code === 'checksum') return t('settings.analysis.precision.failedChecksum')
       if (state.code === 'notFound') return t('settings.analysis.precision.failedUnavailable')
+      if (state.code === 'checkFailed') return t('settings.analysis.precision.failedCheck')
+      if (state.code === 'unsupported') return t('settings.analysis.precision.failedUnsupported')
       return t('settings.analysis.precision.failed')
     }
   }

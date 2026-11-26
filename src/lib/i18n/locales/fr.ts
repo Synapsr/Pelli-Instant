@@ -483,6 +483,8 @@ export const fr = {
         diskFullToast: 'La précision maximale a besoin de {size} de libre. Libérez de la place, puis réessayez.',
         failedChecksum: 'Un fichier est arrivé abîmé. Réessayez.',
         failedUnavailable: 'Les modèles ne sont pas disponibles pour le moment. Réessayez plus tard.',
+        failedCheck: 'Les modèles sont téléchargés mais ne fonctionnent pas correctement sur cet ordinateur. Réessayez ; si cela se reproduit, contactez-nous.',
+        failedUnsupported: 'La précision maximale n’est pas encore disponible pour cet ordinateur. Réessayez plus tard ou mettez Pelli Instant à jour.',
         readyToast: 'La précision maximale est prête',
       },
       intro: 'Ce que l’IA vérifie dans chaque nouvelle séance. Chaque séance garde ses propres critères : vous pouvez les changer avant l’analyse, puis pendant le tri.',

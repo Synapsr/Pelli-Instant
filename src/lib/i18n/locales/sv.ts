@@ -485,6 +485,8 @@ export const sv: Catalogue<typeof fr> = {
         diskFullToast: 'Maximal precision behöver {size} ledigt utrymme. Frigör utrymme och försök igen.',
         failedChecksum: 'En fil kom fram skadad. Försök igen.',
         failedUnavailable: 'Modellerna är inte tillgängliga just nu. Försök igen senare.',
+        failedCheck: 'Modellerna har laddats ned men fungerar inte korrekt på den här datorn. Försök igen; om det händer igen, kontakta oss.',
+        failedUnsupported: 'Maximal precision är inte tillgänglig för den här datorn än. Försök igen senare eller uppdatera Pelli Instant.',
         readyToast: 'Maximal precision är klar',
       },
       intro: 'Vad AI:n kontrollerar i varje ny fotografering. Varje fotografering behåller sina egna kriterier: du kan ändra dem före analysen och medan du granskar.',

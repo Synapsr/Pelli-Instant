@@ -485,6 +485,8 @@ export const nl: Catalogue<typeof fr> = {
         diskFullToast: 'Maximale precisie heeft {size} vrije ruimte nodig. Maak ruimte vrij en probeer het opnieuw.',
         failedChecksum: 'Een bestand is beschadigd aangekomen. Probeer het opnieuw.',
         failedUnavailable: 'De modellen zijn op dit moment niet beschikbaar. Probeer het later opnieuw.',
+        failedCheck: 'De modellen zijn gedownload, maar werken niet goed op deze computer. Probeer het opnieuw; gebeurt het weer, neem dan contact met ons op.',
+        failedUnsupported: 'Maximale precisie is nog niet beschikbaar voor deze computer. Probeer het later opnieuw of werk Pelli Instant bij.',
         readyToast: 'Maximale precisie is klaar',
       },
       intro: 'Wat de AI in elke nieuwe shoot controleert. Elke shoot houdt zijn eigen criteria: je kunt ze vóór de analyse aanpassen, en tijdens het nakijken.',

@@ -485,6 +485,8 @@ export const de: Catalogue<typeof fr> = {
         diskFullToast: 'Die maximale Präzision braucht {size} freien Speicher. Geben Sie Speicherplatz frei und versuchen Sie es erneut.',
         failedChecksum: 'Eine Datei ist beschädigt angekommen. Versuchen Sie es erneut.',
         failedUnavailable: 'Die Modelle sind gerade nicht verfügbar. Versuchen Sie es später erneut.',
+        failedCheck: 'Die Modelle wurden heruntergeladen, funktionieren auf diesem Computer aber nicht richtig. Versuchen Sie es erneut; wenn es wieder passiert, kontaktieren Sie uns.',
+        failedUnsupported: 'Die maximale Präzision ist für diesen Computer noch nicht verfügbar. Versuchen Sie es später erneut oder aktualisieren Sie Pelli Instant.',
         readyToast: 'Die maximale Präzision ist bereit',
       },
       intro: 'Was die KI in jedem neuen Shooting prüft. Jedes Shooting behält seine eigenen Kriterien: Sie können sie vor der Analyse und während der Auswahl ändern.',

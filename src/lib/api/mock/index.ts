@@ -282,7 +282,7 @@ export function createMockApi(options: MockOptions = {}): CullApi {
       : { ...MOCK_APP_INFO, platform: typeof window !== 'undefined' ? 'macos' : 'web' }
 
   // ---- Maximum pack -----------------------------------------------------------------
-  // `?mockPack=ready|paused|failed|absent`, `?mockDisk=low` (not enough space).
+  // `?mockPack=ready|paused|failed|checkFailed|absent`, `?mockDisk=low` (not enough space).
   const paramPack = params.get('mockPack')
   const freeBytes = params.get('mockDisk') === 'low' ? 420_000_000 : 182_000_000_000
   const initialPack = (): ModelPackState => {
@@ -291,6 +291,8 @@ export function createMockApi(options: MockOptions = {}): CullApi {
     if (stored === 'paused' || stored?.startsWith('part:'))
       return { status: 'failed', code: 'cancelled', message: 'Paused', receivedBytes: Number(stored.slice(5)) || Math.round(PACK_BYTES * 0.38), totalBytes: PACK_BYTES }
     if (stored === 'failed') return { status: 'failed', code: 'offline', message: 'No network', receivedBytes: Math.round(PACK_BYTES * 0.62), totalBytes: PACK_BYTES }
+    if (stored === 'checkFailed')
+      return { status: 'failed', code: 'checkFailed', message: 'dinov2-b14-fp32: wrong results', receivedBytes: PACK_BYTES, totalBytes: PACK_BYTES }
     return { status: 'absent' }
   }
   let packState: ModelPackState = initialPack()

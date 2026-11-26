@@ -555,6 +555,8 @@ export const pl: Catalogue<typeof fr> = {
         diskFullToast: 'Maksymalna precyzja potrzebuje {size} wolnego miejsca. Zwolnij miejsce i spróbuj ponownie.',
         failedChecksum: 'Plik dotarł uszkodzony. Spróbuj ponownie.',
         failedUnavailable: 'Modele są teraz niedostępne. Spróbuj ponownie później.',
+        failedCheck: 'Modele zostały pobrane, ale nie działają poprawnie na tym komputerze. Spróbuj ponownie; jeśli to się powtórzy, skontaktuj się z nami.',
+        failedUnsupported: 'Maksymalna precyzja nie jest jeszcze dostępna na tym komputerze. Spróbuj ponownie później lub zaktualizuj Pelli Instant.',
         readyToast: 'Maksymalna precyzja jest gotowa',
       },
       intro: 'Co AI sprawdza w każdej nowej sesji. Każda sesja zachowuje własne kryteria: możesz je zmienić przed analizą, a potem podczas przeglądania.',

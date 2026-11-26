@@ -485,6 +485,8 @@ export const es: Catalogue<typeof fr> = {
         diskFullToast: 'La precisión máxima necesita {size} libres. Libera espacio y vuelve a intentarlo.',
         failedChecksum: 'Un archivo ha llegado dañado. Vuelve a intentarlo.',
         failedUnavailable: 'Los modelos no están disponibles por ahora. Vuelve a intentarlo más tarde.',
+        failedCheck: 'Los modelos se han descargado, pero no funcionan correctamente en este ordenador. Vuelve a intentarlo; si vuelve a ocurrir, contáctanos.',
+        failedUnsupported: 'La precisión máxima aún no está disponible para este ordenador. Vuelve a intentarlo más tarde o actualiza Pelli Instant.',
         readyToast: 'La precisión máxima está lista',
       },
       intro: 'Lo que revisa la IA en cada sesión nueva. Cada sesión conserva sus propios criterios: puedes cambiarlos antes del análisis y durante la revisión.',
