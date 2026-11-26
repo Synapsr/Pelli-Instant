@@ -206,12 +206,13 @@ Pelli Instant sends a few usage statistics to Pelli (`app.pelli.io`), so we know
 | `analysis_completed` | A sort ended | The number of photos (RAW, JPEG), the duration, the precision, how many were selected, to review and rejected, the number of bursts |
 | `export_completed` | An export finished | The number of photos and the outputs chosen (ratings, copy, rejects moved) |
 | `plus_activated` | Plus was activated | How: purchase, key or Pelli account |
+| `model_pack_failed` | The Maximum pack failed to download or install | The step, an error code and which model, never a path or message. Always anonymous, even with Plus |
 | `telemetry_disabled` | You turned the statistics off | Nothing more: it is the last message |
 
 Every message also carries a random install id (a random number, not tied to your computer), the app version, the system (Mac, Windows), the processor type (arm64, x64) and the app language. Never a photo, a file name or a folder. Pelli stores no IP address with them.
 
 - **Free version:** nothing else, the statistics are anonymous.
-- **With Plus:** each message also says whose Plus it is, so Pelli knows its customers' use: a licence adds its token (Pelli shows its key, masked; it keeps no name or e-mail for a licence), a Pelli Pro or Ultra account sends its sign-in token, as for every account request.
+- **With Plus:** each message but `model_pack_failed` also says whose Plus it is, so Pelli knows its customers' use: a licence adds its token (Pelli shows its key, masked; it keeps no name or e-mail for a licence), a Pelli Pro or Ultra account sends its sign-in token, as for every account request.
 
 - **Turned off later**, the app sends one last `telemetry_disabled`, then nothing, and deletes the install id. Turning it on again creates a new one.
 - Each message is sent in the background (5 s at most, no retry, nothing kept on disk): statistics never slow down or block anything.

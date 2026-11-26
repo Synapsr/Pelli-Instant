@@ -151,7 +151,7 @@ Compatibility: a Pelli that predates `arch` refuses the field (`400 invalid_requ
 }
 ```
 
-→ `204`. `installId`: a random UUID v4, created when telemetry is on, deleted when it is turned off, never linked to the device hash. The free version sends nothing else: its statistics are anonymous. With Plus active, the event says whose Plus it is: a licence adds its signed token as `license` (optional field), a Pelli account sends its token in `Authorization: Bearer`, as every account request; Pelli then names the licence (masked key) or the account in its notes. `platform`: `mac` | `windows` | `linux`; `arch`: `arm64` | `x64`; `locale`: the app language only, never a region. Validated strictly: an unknown event, field or property is `400 invalid_request`.
+→ `204`. `installId`: a random UUID v4, created when telemetry is on, deleted when it is turned off, never linked to the device hash. The free version sends nothing else: its statistics are anonymous. With Plus active, every event but `model_pack_failed` says whose Plus it is: a licence adds its signed token as `license` (optional field), a Pelli account sends its token in `Authorization: Bearer`, as every account request; Pelli then names the licence (masked key) or the account in its notes. `platform`: `mac` | `windows` | `linux`; `arch`: `arm64` | `x64`; `locale`: the app language only, never a region. Validated strictly: an unknown event, field or property is `400 invalid_request`.
 
 | `event` | When | `props` |
 |---|---|---|
@@ -160,7 +160,7 @@ Compatibility: a Pelli that predates `arch` refuses the field (`400 invalid_requ
 | `analysis_completed` | An analysis that analysed at least one photo ended | `photos`, `raw`, `jpeg` (this run), `seconds` (one decimal), `precision` (`standard` \| `maximum`), `selected`, `toReview`, `rejected`, `groups` (the project) |
 | `export_completed` | An export finished | `photos`, `xmp`, `copied`, `moved` (booleans: the outputs chosen) |
 | `plus_activated` | Plus just became active | `via`: `purchase` \| `key` \| `account` |
-| `model_pack_failed` | The Maximum pack failed (once per failure; not a pause, nor at each launch) | `stage`, `code`, `model` (below) |
+| `model_pack_failed` | The Maximum pack failed (once per failure; not a pause, nor at each launch). Anonymous | `stage`, `code`, `model` (below) |
 | `telemetry_disabled` | Telemetry was turned off: the last event of this install id | `{}` |
 
 `model_pack_failed` (app 1.1.1+), for example:
@@ -178,9 +178,11 @@ Compatibility: a Pelli that predates `arch` refuses the field (`400 invalid_requ
 ```
 
 - `stage`: `download` (asking for the links, downloading, verifying the files), `prepare` (loading and checking the models after a download or at launch), `load` (loading them for an analysis).
-- `code`: `checkFailed` (a model loads but computes wrong results on this computer, or does not load), `unsupported` (Pelli gave no URL for a file of this architecture), `checksum` (a file arrived damaged 3 times), `notFound` (the storage has no such file, or its links keep expiring), `offline`, `diskFull`, `plusRequired` (Pelli refused the links while downloading), `internal` (anything else). The app may add codes: accept any string of letters (`^[a-zA-Z]{1,32}$`).
-- `model`: the manifest id of the model concerned (`dinov2-b14-fp32`, `clip-l14-vision-int8`… : `^[a-z0-9-]{1,64}$`), or `null` when the failure concerns no single model (`offline` before any file, `diskFull`).
-- Nothing else: no message, path or file name. `platform`, `arch` and `appVersion` are the common fields above.
+- `stage` (closed list): `download`, `prepare`, `load`.
+- `code` (closed list, `PACK_FAILURE_CODES` in `crates/cull-engine/src/modelpack.rs`): `checkFailed` (a model loads but computes wrong results on this computer, or does not load), `checksum` (a file arrived damaged 3 times, or changed on disk), `diskFull`, `internal` (anything else; the app sends any unexpected code as `internal`), `notFound` (the storage has no such file, or its links keep expiring), `offline`, `plusRequired` (Pelli refused the links while downloading), `unsupported` (Pelli gave no link for a file of this version).
+- `model` (closed list, or `null`): `clip-l14-vision-int8`, `clip-l14-text`, `dinov2-b14-fp32`, `rfdetr-seg-s`, `retinaface-r50` (the manifest ids of the pack's files); `null` when the failure concerns no single model (`offline` before any file, `diskFull`, an unknown id).
+- **Always anonymous**: never `license` in the body nor `Authorization`, even with Plus. Nothing else: no message, path or file name. `platform`, `arch` and `appVersion` are the common fields above.
+- An update waiting for the photographer (`updateRequired`) and a pause are not failures: not sent.
 
 Pelli stores no IP address for these events and makes no contact out of them; it counts them and posts some to its team's chat. The app sends each one fire-and-forget (5 s timeout, no retry, nothing queued on disk). Turned off in *Settings → Privacy*, nothing more is sent after `telemetry_disabled`. The code: `crates/cull-engine/src/telemetry.rs`.
 

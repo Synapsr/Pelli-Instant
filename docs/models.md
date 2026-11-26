@@ -134,10 +134,14 @@ than the app), the pack fails at once with `unsupported`.
    changed, and shown as paused if only parts are on disk. A failed check
    is remembered too: the next launches show it without preparing the same
    files again, until *Try again* (which downloads the failing model's file
-   again before preparing) or an update of the app. Files the pack no
-   longer uses (1.1.0's int8 DINOv2) are deleted at launch; if the pack was
-   in use, the new file downloads at once when Maximum is chosen and Plus
-   active.
+   again before preparing) or an update of the app.
+5. **Update of an older pack.** A 1.1.0 pack (its int8 DINOv2 on disk,
+   the fp32 one missing) is shown as `updateRequired`: *Settings → Analysis*
+   says the update is needed, with its size (347 MB) and a button; nothing
+   downloads on its own, and analyses run in Standard meanwhile. The old
+   files are deleted only once the new pack is downloaded, verified and
+   checked (`ready`): a failed or refused update (offline, full disk, a
+   Pelli without the new file) keeps them, and so does going back to 1.1.0.
 
 The pack lives in the app's data folder, `models/maximum/` next to the
 library ([where](architecture.md#where-data-lives)), never in the cache:
@@ -162,14 +166,22 @@ the `failed` state with a code, and the downloaded bytes stay on disk:
 
 Under the message, *Details* shows the code and the technical message
 (with the app version and the processor), with a *Copy* button for
-support; the home folder in a path is written `~`, never the user name.
+support. Messages are redacted before they are shown, logged or stored
+(`crates/cull-engine/src/redact.rs`): the home folder written `~`, no
+licence token, key, Bearer nor link signature. The log file keeps only the
+Maximum pack's, the models', the start's and the updates' records (Info
+and above): never the rest of the engine's (photo and folder names),
+telemetry payloads nor other libraries' records.
 Every failure but a pause is also reported as the `model_pack_failed`
-telemetry event (code and model id only, unless telemetry is off), and
+telemetry event, anonymous even with Plus (stage, code and model id only,
+unless telemetry is off), and
 written to the app's log file (macOS `~/Library/Logs/io.pelli.instant/`,
 Windows `%LOCALAPPDATA%\io.pelli.instant\logs\`, `pelli-instant.log`).
 A CI job (`.github/workflows/maximum-pack.yml`) downloads the pack on a
 Windows x64 runner and a macOS arm64 one (Apple M1) and runs the check
-there.
+there; weekly, and before every release, `scripts/probe-model-origins.mjs`
+checks that each file still answers at its origin (HTTP 200, the manifest's
+size), whatever the caches hold.
 
 **Debug builds only:** `PELLI_MODELS_BASE_URL=http://localhost:8000 pnpm tauri dev`
 downloads every file of the pack from `<base>/<file name>` instead of asking

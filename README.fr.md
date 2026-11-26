@@ -206,12 +206,13 @@ Pelli Instant envoie quelques statistiques d'usage à Pelli (`app.pelli.io`), po
 | `analysis_completed` | Un tri est terminé | Le nombre de photos (RAW, JPEG), la durée, la précision, combien sont sélectionnées, à vérifier et rejetées, le nombre de rafales |
 | `export_completed` | Un export est terminé | Le nombre de photos et les sorties choisies (notes, copie, rejets rangés) |
 | `plus_activated` | Plus vient d'être activé | Comment : achat, clé ou compte Pelli |
+| `model_pack_failed` | Le pack Maximum n'a pas pu se télécharger ou s'installer | L'étape, un code d'erreur et le modèle concerné, jamais un chemin ni un message. Toujours anonyme, même avec Plus |
 | `telemetry_disabled` | Vous avez coupé les statistiques | Rien de plus : c'est le dernier message |
 
 Chaque message porte aussi un identifiant d'installation aléatoire (un nombre tiré au hasard, sans lien avec votre ordinateur), la version de l'app, le système (Mac, Windows), le type de processeur (arm64, x64) et la langue de l'app. Jamais une photo, un nom de fichier ni un dossier. Pelli ne garde aucune adresse IP avec eux.
 
 - **Version gratuite :** rien de plus, les statistiques sont anonymes.
-- **Avec Plus :** chaque message dit aussi à qui est ce Plus, pour que Pelli connaisse l'usage de ses clients : une licence ajoute son jeton (Pelli en montre la clé masquée ; il ne garde ni nom ni e-mail pour une licence), un compte Pelli Pro ou Ultra envoie son jeton de connexion, comme pour toute requête du compte.
+- **Avec Plus :** chaque message sauf `model_pack_failed` dit aussi à qui est ce Plus, pour que Pelli connaisse l'usage de ses clients : une licence ajoute son jeton (Pelli en montre la clé masquée ; il ne garde ni nom ni e-mail pour une licence), un compte Pelli Pro ou Ultra envoie son jeton de connexion, comme pour toute requête du compte.
 
 - **Coupées plus tard**, l'app envoie un dernier `telemetry_disabled`, puis plus rien, et efface l'identifiant. Les réactiver en crée un nouveau.
 - Chaque message part en arrière-plan (5 s au plus, sans nouvel essai, rien n'est gardé sur le disque) : les statistiques ne ralentissent et ne bloquent jamais rien.
