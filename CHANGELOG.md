@@ -5,7 +5,7 @@ becomes the text of its GitHub release and the `notes` of `latest.json`: the
 in-app announcement of a new version shows its first points, in English, or
 in French from the `Français` block.
 
-## Unreleased
+## 1.1.1 — 2026-11-26
 
 - **Maximum precision now installs on Windows, and on the Macs where it failed.** It downloaded, then stopped at the preparation step on every Windows computer and on some Macs: one of its models gave results that depended on the processor, wrong on many of them. It is replaced by its full-precision version, exact on every processor (the pack is now about 1 GB instead of 777 MB). If Maximum precision was already installed, *Settings → Analysis* offers to download the new file (347 MB); until then analyses run in Standard, and the previous files stay on disk until the new one is checked.
 - When Maximum precision cannot work on a computer, the app now says so clearly instead of "The download failed", and no longer tries again at every launch. *Try again* downloads the faulty file again.
