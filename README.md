@@ -109,7 +109,7 @@ Sorting stays free and unlimited. **Plus** is for your most demanding shoots: **
 
 | With Plus | What it brings |
 | --- | --- |
-| **Maximum precision** | 5 more models, about 777 MB, downloaded once: RetinaFace ResNet-50 finds the small faces of group photos (a second pass at 1280 px), DINOv2 groups bursts and near-duplicates (it separates duplicates from different scenes about twice as clearly as Standard's CLIP B/32: +0.25 of cosine against +0.11), CLIP ViT-L/14 (a vision model about 3.5 times bigger) for search and the aesthetic score, RF-DETR-Seg judges subjects without a usable face (seen from behind, animals), with the LAION V2 aesthetic head. Slower, finer. |
+| **Maximum precision** | 5 more models, about 1 GB, downloaded once: RetinaFace ResNet-50 finds the small faces of group photos (a second pass at 1280 px), DINOv2 groups bursts and near-duplicates (it separates duplicates from different scenes about twice as clearly as Standard's CLIP B/32: +0.25 of cosine against +0.11), CLIP ViT-L/14 (a vision model about 3.5 times bigger) for search and the aesthetic score, RF-DETR-Seg judges subjects without a usable face (seen from behind, animals), with the LAION V2 aesthetic head. Slower, finer. |
 | **AI search** | Type "first dance", "blue dress" or "robe bleue": the matching photos come first. |
 | **Detailed statistics** | Across all your shoots: the keep rate, overall and per shoot; why photos were rejected (the main reason the AI gave, or your own choice); how often you turned the AI's call around, both ways; photos per month of capture; bursts stacked; your cameras and their keep rate; and the analysis speed measured on your computer, per precision. A table of your shoots opens each one. Computed on your computer, never sent. |
 | **No Pelli promotion** | The free version shows two small Pelli cards, on the home screen and at the end of an export. Plus removes them. |
@@ -206,12 +206,13 @@ Pelli Instant sends a few usage statistics to Pelli (`app.pelli.io`), so we know
 | `analysis_completed` | A sort ended | The number of photos (RAW, JPEG), the duration, the precision, how many were selected, to review and rejected, the number of bursts |
 | `export_completed` | An export finished | The number of photos and the outputs chosen (ratings, copy, rejects moved) |
 | `plus_activated` | Plus was activated | How: purchase, key or Pelli account |
+| `model_pack_failed` | The Maximum pack failed to download or install | The step, an error code and which model, never a path or message. Always anonymous, even with Plus |
 | `telemetry_disabled` | You turned the statistics off | Nothing more: it is the last message |
 
 Every message also carries a random install id (a random number, not tied to your computer), the app version, the system (Mac, Windows), the processor type (arm64, x64) and the app language. Never a photo, a file name or a folder. Pelli stores no IP address with them.
 
 - **Free version:** nothing else, the statistics are anonymous.
-- **With Plus:** each message also says whose Plus it is, so Pelli knows its customers' use: a licence adds its token (Pelli shows its key, masked; it keeps no name or e-mail for a licence), a Pelli Pro or Ultra account sends its sign-in token, as for every account request.
+- **With Plus:** each message but `model_pack_failed` also says whose Plus it is, so Pelli knows its customers' use: a licence adds its token (Pelli shows its key, masked; it keeps no name or e-mail for a licence), a Pelli Pro or Ultra account sends its sign-in token, as for every account request.
 
 - **Turned off later**, the app sends one last `telemetry_disabled`, then nothing, and deletes the install id. Turning it on again creates a new one.
 - Each message is sent in the background (5 s at most, no retry, nothing kept on disk): statistics never slow down or block anything.
@@ -224,7 +225,7 @@ Every message also carries a random install id (a random number, not tied to you
 - **Updates**: the app reads `latest.json` from the latest release on GitHub, and downloads an update only when you install it.
 - Requests to Pelli carry the app version, the system and the interface language. **No crash reporter.** ONNX Runtime's own telemetry is switched off.
 - **The AI models** are fixed files at pinned versions, and their SHA-256 fingerprints are checked when they load. Built from source, `pnpm models` downloads the Standard ones once from Hugging Face and the other sources listed in [`models/manifest.json`](models/manifest.json).
-- **Removing a project** from the home screen deletes its previews and analysis, never your photos. **Deleting the Maximum pack** (*Settings → Analysis*) frees its 777 MB.
+- **Removing a project** from the home screen deletes its previews and analysis, never your photos. **Deleting the Maximum pack** (*Settings → Analysis*) frees its 1 GB.
 
 ## Languages
 
@@ -244,7 +245,7 @@ Yes, and without limits: sort as many photos as you like, at the Standard precis
 <details>
 <summary><b>Standard or Maximum precision?</b></summary>
 
-Standard comes with the app, is fast, and suits most shoots. Maximum, part of Plus, adds bigger models, about 777 MB to download once: a second face detector for group photos, a model that tells bursts and near-duplicates apart from different scenes more clearly, a bigger CLIP model for search and the aesthetic score, and the outline of people and animals, so a subject without a visible face (seen from behind, back-lit) is judged on its own focus and exposure. The analysis is slower and needs more memory.
+Standard comes with the app, is fast, and suits most shoots. Maximum, part of Plus, adds bigger models, about 1 GB to download once: a second face detector for group photos, a model that tells bursts and near-duplicates apart from different scenes more clearly, a bigger CLIP model for search and the aesthetic score, and the outline of people and animals, so a subject without a visible face (seen from behind, back-lit) is judged on its own focus and exposure. The analysis is slower and needs more memory.
 
 With Plus, choose it in *Settings → Analysis → Precision* (or in the welcome tour): the download starts in the background, resumes where it stopped if you pause it or quit, and every file is checked before use. Until it is ready, analyses run in Standard. A shoot already sorted can be analysed again in Maximum.
 

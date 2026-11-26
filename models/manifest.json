@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "comment": "Models of Pelli Instant. 'bundle': 'default' = shipped with the desktop app (scripts/fetch-models.mjs puts them in this folder, gitignored); 'gpu' = only useful with DirectML/CUDA (fetch with --gpu); 'maximum' = the optional Maximum pack of Pelli Instant Plus, downloaded by the app into its data folder from short-lived links Pelli hands out to Plus (POST /api/cull/models), hence no URL here (for development, fetch with --maximum and PELLI_INSTANT_LICENSE or PELLI_MODELS_BASE_URL: see scripts/fetch-models.mjs). Every file is verified by cull-ml at load (this file is compiled into cull-ml). Every license allows commercial closed-source distribution. The Face Blendshapes model, converted by Pelli (no upstream ONNX), is public at its URL below (see models/README.md).",
+  "comment": "Models of Pelli Instant. 'bundle': 'default' = shipped with the desktop app (scripts/fetch-models.mjs puts them in this folder, gitignored); 'gpu' = only useful with DirectML/CUDA (fetch with --gpu); 'maximum' = the optional Maximum pack of Pelli Instant Plus (a model with 'arch' is only for that processor: 'arm64' or 'x64'), downloaded by the app into its data folder from short-lived links Pelli hands out to Plus (POST /api/cull/models), hence no URL here (for development, fetch with --maximum and PELLI_INSTANT_LICENSE or PELLI_MODELS_BASE_URL: see scripts/fetch-models.mjs). Every file is verified by cull-ml at load (this file is compiled into cull-ml). Every license allows commercial closed-source distribution. The Face Blendshapes model, converted by Pelli (no upstream ONNX), is public at its URL below (see models/README.md).",
   "models": [
     {
       "id": "yunet",
@@ -122,15 +122,15 @@
       "bundle": "maximum"
     },
     {
-      "id": "dinov2-b14-int8",
-      "tag": "dinov2-b14-int8",
-      "file": "dinov2-base-int8.onnx",
-      "sha256": "f3006646af1ed07acceeefdd701e9be6e46e0b701ac0a1ab8e4ba7260e338302",
-      "size": 90948899,
+      "id": "dinov2-b14-fp32",
+      "tag": "dinov2-b14-fp32",
+      "file": "dinov2-base-fp32.onnx",
+      "sha256": "f16115e628d65b7cc7b1e16c504e2af682169aabf3fff4edfe906118f522e204",
+      "size": 346608174,
       "license": "Apache-2.0",
       "licenseUrl": "https://github.com/facebookresearch/dinov2/blob/main/LICENSE",
-      "source": "Meta DINOv2 ViT-B/14, ONNX export + int8 dynamic quantization by onnx-community",
-      "purpose": "Burst / near-duplicate embedding in Maximum precision: CLS token (768-d, L2-normalised) of the whole photo squashed to 224x224, int8 on CPU (cosine to fp32 >= 0.968); fixed input shape via session dimension overrides",
+      "source": "Meta DINOv2 ViT-B/14, fp32 ONNX export by onnx-community (onnx-community/dinov2-base-ONNX @ 9a1732c7, onnx/model.onnx)",
+      "purpose": "Burst / near-duplicate embedding in Maximum precision: CLS token (768-d, L2-normalised) of the whole photo squashed to 224x224, fp32 on CPU; fixed input shape via session dimension overrides. fp32 rather than the int8 export of 1.1.0 (91 MB), whose results depend on the processor's integer kernels (garbage on x86: cosine 0.13 to fp32 on photos), and rather than the fp16 export (175.6 MB): on x86 as exact but 20-30 % slower and heavier in memory (weights cast at run time), on arm64 computed in half precision (cosine to fp32 0.988-0.991 on photos)",
       "required": false,
       "bundle": "maximum"
     },

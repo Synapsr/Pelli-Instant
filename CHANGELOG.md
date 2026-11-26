@@ -5,6 +5,22 @@ becomes the text of its GitHub release and the `notes` of `latest.json`: the
 in-app announcement of a new version shows its first points, in English, or
 in French from the `Français` block.
 
+## Unreleased
+
+- **Maximum precision now installs on Windows, and on the Macs where it failed.** It downloaded, then stopped at the preparation step on every Windows computer and on some Macs: one of its models gave results that depended on the processor, wrong on many of them. It is replaced by its full-precision version, exact on every processor (the pack is now about 1 GB instead of 777 MB). If Maximum precision was already installed, *Settings → Analysis* offers to download the new file (347 MB); until then analyses run in Standard, and the previous files stay on disk until the new one is checked.
+- When Maximum precision cannot work on a computer, the app now says so clearly instead of "The download failed", and no longer tries again at every launch. *Try again* downloads the faulty file again.
+- The app keeps a log file (`pelli-instant.log`, in `~/Library/Logs/io.pelli.instant` on Mac and `%LOCALAPPDATA%\io.pelli.instant\logs` on Windows) about Maximum precision, its models and updates, to help us when something goes wrong: no photo or folder name, no user name, no licence.
+- With usage statistics on, a failed installation of Maximum precision is reported anonymously (the step, the error code and the model only).
+
+<details><summary>Français</summary>
+
+- **La précision maximale s'installe maintenant sur Windows, et sur les Mac où elle échouait.** Elle se téléchargeait, puis s'arrêtait à l'étape de préparation sur tous les PC Windows et sur certains Mac : un de ses modèles donnait des résultats qui dépendaient du processeur, faux sur beaucoup d'entre eux. Il est remplacé par sa version en pleine précision, exacte sur tous les processeurs (le pack fait maintenant environ 1 Go au lieu de 777 Mo). Si la précision maximale était déjà installée, *Réglages → Analyse* propose de télécharger le nouveau fichier (347 Mo) ; en attendant, les analyses se font en Standard, et les anciens fichiers restent sur le disque jusqu'à ce que le nouveau soit vérifié.
+- Quand la précision maximale ne peut pas fonctionner sur un ordinateur, l'app le dit clairement au lieu de « Le téléchargement a échoué », et ne réessaie plus à chaque lancement. *Réessayer* télécharge à nouveau le fichier en cause.
+- L'app tient un fichier journal (`pelli-instant.log`, dans `~/Library/Logs/io.pelli.instant` sur Mac et `%LOCALAPPDATA%\io.pelli.instant\logs` sur Windows) sur la précision maximale, ses modèles et les mises à jour, pour nous aider quand quelque chose ne va pas : aucun nom de photo ni de dossier, ni nom d'utilisateur, ni licence.
+- Avec les statistiques d'utilisation activées, l'échec de l'installation de la précision maximale est signalé anonymement (l'étape, le code d'erreur et le modèle seulement).
+
+</details>
+
 ## 1.1.0 — 2026-11-17
 
 - **Send your selection to a Pelli gallery**, straight from the export: a new gallery named after the shoot, one folder per moment, the camera JPEGs (never the RAW files). Sign in with Pelli, or try Pelli free for 15 days.

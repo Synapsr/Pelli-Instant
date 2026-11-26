@@ -24,8 +24,23 @@ env:
   ORT_CACHE_DIR: ${{ github.workspace }}/.ort-cache
 
 jobs:
+  # Every model file still downloadable from its origin (HTTP 200, the
+  # manifest's size): the installers bundle the Standard ones, and the
+  # released app downloads the Maximum pack from them through Pelli.
+  model-origins:
+    name: Model origins
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/probe-model-origins.mjs
+
   build:
     name: Installer ${{ matrix.label }}
+    needs: model-origins
     strategy:
       fail-fast: false
       matrix:

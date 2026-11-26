@@ -36,6 +36,7 @@ pub mod pelli;
 pub mod pipeline;
 pub mod plus;
 pub mod query;
+pub mod redact;
 pub mod settings;
 pub mod stats;
 pub mod store;

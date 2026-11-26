@@ -793,6 +793,12 @@ export type ErrorCode =
   | 'diskFull'
   /** a downloaded model does not match its checksum (Maximum pack) */
   | 'checksum'
+  /** a model of the Maximum pack loads but computes wrong results on this computer (or does not load); not retried at launch */
+  | 'checkFailed'
+  /** Pelli offers no Maximum pack file for this processor (a Pelli older than the app) */
+  | 'unsupported'
+  /** the Maximum pack of an older version is on disk, its new files are not: kept and used by nothing until the photographer downloads the update */
+  | 'updateRequired'
   /** the feature is part of Plus (AI search, Maximum pack) */
   | 'plusRequired'
   /** licence key unknown */
