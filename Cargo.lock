@@ -819,7 +819,7 @@ checksum = "914a755b7c2d4af2bdcff7ce1739e2db9a1b81a9b07123d8015786ae03c0980d"
 
 [[package]]
 name = "cull-analysis"
-version = "1.1.0"
+version = "1.1.1-rc.1"
 dependencies = [
  "cull-types",
  "image",
@@ -831,7 +831,7 @@ dependencies = [
 
 [[package]]
 name = "cull-cli"
-version = "1.1.0"
+version = "1.1.1-rc.1"
 dependencies = [
  "axum",
  "cull-engine",
@@ -846,7 +846,7 @@ dependencies = [
 
 [[package]]
 name = "cull-decode"
-version = "1.1.0"
+version = "1.1.1-rc.1"
 dependencies = [
  "cull-types",
  "fast_image_resize",
@@ -864,7 +864,7 @@ dependencies = [
 
 [[package]]
 name = "cull-engine"
-version = "1.1.0"
+version = "1.1.1-rc.1"
 dependencies = [
  "base64 0.23.1",
  "crossbeam-channel",
@@ -893,7 +893,7 @@ dependencies = [
 
 [[package]]
 name = "cull-ml"
-version = "1.1.0"
+version = "1.1.1-rc.1"
 dependencies = [
  "cull-types",
  "fast_image_resize",
@@ -909,7 +909,7 @@ dependencies = [
 
 [[package]]
 name = "cull-types"
-version = "1.1.0"
+version = "1.1.1-rc.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -3258,7 +3258,7 @@ dependencies = [
 
 [[package]]
 name = "pelli-cull-app"
-version = "1.1.0"
+version = "1.1.1-rc.1"
 dependencies = [
  "cull-engine",
  "keyring",
