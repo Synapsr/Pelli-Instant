@@ -33,7 +33,7 @@ The first Rust build downloads a prebuilt ONNX Runtime (cached in
 `pnpm models` is idempotent: files already there with the right checksum are
 skipped. `pnpm models --gpu` adds the fp16 CLIP model that DirectML runs
 (+176 MB), `pnpm models --maximum` the Maximum pack into `models/maximum/`
-for the command line (+777 MB, part of Plus: see below; the app downloads
+for the command line (+1 GB, part of Plus: see below; the app downloads
 its own copy), and `pnpm models --check` only verifies. Every flag is in
 [docs/models.md](models.md#scriptsfetch-modelsmjs). Without the models, the
 app still starts: sharpness and exposure are analysed, similar shots are
@@ -78,7 +78,7 @@ Pelli's paywall, so no gallery) for the optional account,
 without a JPEG twin, what a gallery gets for them),
 `mockUploadError=storage_full` (the next upload to Pelli fails with that
 code), `mockCount=5000` (size of the shoot), `mockModels=missing`,
-`mockPack=ready` (`paused`, `failed`; absent by default), `mockDisk=low`
+`mockPack=ready` (`paused`, `failed`, `checkFailed`; absent by default), `mockDisk=low`
 (not enough space for the Maximum pack),
 `mockUpdate=available` (`offline`, `disabled`), `mockLang=en` (`fr`, `es`,
 `de`, `it`, `pt`, `nl`, `pl`, `sv`), `mockTheme=light` (`dark`, `system`),

@@ -109,7 +109,7 @@ Le tri reste gratuit et illimité. **Plus**, c'est pour vos séances les plus ex
 
 | Avec Plus | Ce que ça apporte |
 | --- | --- |
-| **La précision maximale** | 5 modèles de plus, environ 777 Mo à télécharger une fois : RetinaFace ResNet-50 trouve les petits visages des photos de groupe (un second passage à 1 280 px), DINOv2 regroupe les rafales et les quasi-doublons (il sépare les doublons des scènes différentes environ deux fois plus nettement que le CLIP B/32 de la précision Standard : +0,25 de cosinus contre +0,11), CLIP ViT-L/14 (un modèle de vision environ 3,5 fois plus grand) pour la recherche et la note esthétique, RF-DETR-Seg juge les sujets sans visage exploitable (de dos, les animaux), avec la note esthétique LAION V2. Plus lent, plus fin. |
+| **La précision maximale** | 5 modèles de plus, environ 1 Go à télécharger une fois : RetinaFace ResNet-50 trouve les petits visages des photos de groupe (un second passage à 1 280 px), DINOv2 regroupe les rafales et les quasi-doublons (il sépare les doublons des scènes différentes environ deux fois plus nettement que le CLIP B/32 de la précision Standard : +0,25 de cosinus contre +0,11), CLIP ViT-L/14 (un modèle de vision environ 3,5 fois plus grand) pour la recherche et la note esthétique, RF-DETR-Seg juge les sujets sans visage exploitable (de dos, les animaux), avec la note esthétique LAION V2. Plus lent, plus fin. |
 | **La recherche IA** | Tapez « première danse », « robe bleue » ou « blue dress » : les bonnes photos remontent en tête. |
 | **Des statistiques détaillées** | Sur toutes vos séances : le taux de sélection, global et par séance ; pourquoi des photos sont rejetées (la raison principale donnée par l'IA, ou votre propre choix) ; combien de fois vous avez inversé le choix de l'IA, dans un sens et dans l'autre ; les photos par mois de prise de vue ; les rafales regroupées ; vos boîtiers et leur taux de sélection ; et la vitesse d'analyse mesurée sur votre ordinateur, par précision. Un tableau de vos séances ouvre chacune d'elles. Calculées sur votre ordinateur, jamais envoyées. |
 | **Aucune promotion Pelli** | La version gratuite montre deux petites cartes Pelli, sur l'écran d'accueil et à la fin d'un export. Plus les retire. |
@@ -224,7 +224,7 @@ Chaque message porte aussi un identifiant d'installation aléatoire (un nombre t
 - **Les mises à jour** : l'app lit le fichier `latest.json` de la dernière version publiée sur GitHub, et ne télécharge une mise à jour que lorsque vous l'installez.
 - Les requêtes à Pelli indiquent la version de l'app, le système et la langue de l'interface. **Aucun rapport de plantage.** La télémétrie propre à ONNX Runtime est désactivée.
 - **Les modèles d'IA** sont des fichiers figés, à des versions fixées, et leur empreinte SHA-256 est vérifiée au chargement. Depuis les sources, `pnpm models` télécharge une fois les modèles Standard depuis Hugging Face et les autres sources listées dans [`models/manifest.json`](models/manifest.json).
-- **Retirer un projet** de l'écran d'accueil efface ses aperçus et son analyse, jamais vos photos. **Supprimer la précision Maximale** (*Réglages → Analyse*) libère ses 777 Mo.
+- **Retirer un projet** de l'écran d'accueil efface ses aperçus et son analyse, jamais vos photos. **Supprimer la précision Maximale** (*Réglages → Analyse*) libère environ 1 Go.
 
 ## Langues
 
@@ -244,7 +244,7 @@ Oui, et sans limite : triez autant de photos que vous voulez, en précision Stan
 <details>
 <summary><b>Précision Standard ou Maximale ?</b></summary>
 
-La précision Standard est livrée avec l'app, rapide, et convient à la plupart des séances. La Maximale, comprise dans Plus, ajoute des modèles plus grands, environ 777 Mo à télécharger une fois : un second détecteur de visages pour les photos de groupe, un modèle qui distingue plus nettement les rafales et les quasi-doublons des scènes différentes, un modèle CLIP plus grand pour la recherche et la note esthétique, et le contour des personnes et des animaux, pour qu'un sujet sans visage visible (de dos, en contre-jour) soit jugé sur sa propre netteté et sa propre exposition. L'analyse est plus lente et demande plus de mémoire.
+La précision Standard est livrée avec l'app, rapide, et convient à la plupart des séances. La Maximale, comprise dans Plus, ajoute des modèles plus grands, environ 1 Go à télécharger une fois : un second détecteur de visages pour les photos de groupe, un modèle qui distingue plus nettement les rafales et les quasi-doublons des scènes différentes, un modèle CLIP plus grand pour la recherche et la note esthétique, et le contour des personnes et des animaux, pour qu'un sujet sans visage visible (de dos, en contre-jour) soit jugé sur sa propre netteté et sa propre exposition. L'analyse est plus lente et demande plus de mémoire.
 
 Avec Plus, choisissez-la dans *Réglages → Analyse → Précision* (ou pendant la présentation) : le téléchargement démarre en arrière-plan, reprend là où il s'était arrêté si vous le mettez en pause ou quittez l'app, et chaque fichier est vérifié avant usage. En attendant, les analyses se font en Standard. Une séance déjà triée peut être réanalysée en Maximale.
 

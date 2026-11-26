@@ -104,18 +104,36 @@ Currency from the visitor's country (`cf-ipcountry`, never stored): EU/EEA, Swit
 
 ### `models` (licence or Bearer)
 
-`{ "license": "<token>" }`, or `{}` with the Bearer of an account whose plan includes Plus:
+`{ "license": "<token>", "arch": "arm64" }`, or `{ "arch": "arm64" }` with the Bearer of an account whose plan includes Plus. `arch` (optional): the processor architecture, `"arm64"` | `"x64"`, as in telemetry. Apps from 1.1.1 always send it; apps up to 1.1.0 never do:
 
 ```json
 {
   "files": [
-    { "file": "dinov2-base-int8.onnx", "url": "https://…", "size": 90948899, "sha256": "…" }
+    { "file": "dinov2-base-fp32.onnx", "url": "https://…", "size": 346608174, "sha256": "…" }
   ],
   "expiresAt": 1798761600000
 }
 ```
 
-The five files of the Maximum pack (`clip-vit-l14-vision-int8.onnx`, `clip-vit-l14-text-fp16.onnx`, `dinov2-base-int8.onnx`, `rfdetr-seg-small-384-w16.onnx`, `retinaface-r50-w16.onnx`) with download links valid 12 hours (`expiresAt`, unix ms). The app checks each file against the size and SHA-256 compiled into it (`models/manifest.json`), not against these fields. Downloads resume with range requests; when the storage answers `403` (a link expired), the app asks `models` again. Where the files are stored is Pelli's configuration, not this repository's. Error: `403 plusRequired`.
+The five files of the Maximum pack, with download links valid 12 hours (`expiresAt`, unix ms):
+
+| Request | Files |
+|---|---|
+| `arch` present (`arm64` or `x64`: the same list today) | `clip-vit-l14-vision-int8.onnx`, `clip-vit-l14-text-fp16.onnx`, **`dinov2-base-fp32.onnx`**, `rfdetr-seg-small-384-w16.onnx`, `retinaface-r50-w16.onnx` |
+| `arch` absent (apps up to 1.1.0) | the 1.1.0 list: the same with `dinov2-base-int8.onnx` instead of `dinov2-base-fp32.onnx` |
+
+| File | Size (bytes) | SHA-256 | Source |
+|---|---|---|---|
+| `clip-vit-l14-vision-int8.onnx` | 306 348 752 | `d6eac98fc74a89ef2e50ba635c6b4c7f005dd324dcc6aeb6be89872f58d7b3fd` | `https://huggingface.co/Xenova/clip-vit-large-patch14/resolve/c307790166907339eed5a9a53a249af534102536/onnx/vision_model_int8.onnx` |
+| `clip-vit-l14-text-fp16.onnx` | 247 784 246 | `643d385d6adbc4b9067f3f94384cc63a8409accb1bfd414496d17df84b161032` | same folder, `text_model_fp16.onnx` |
+| `dinov2-base-fp32.onnx` (new) | 346 608 174 | `f16115e628d65b7cc7b1e16c504e2af682169aabf3fff4edfe906118f522e204` | `https://huggingface.co/onnx-community/dinov2-base-ONNX/resolve/9a1732c724ef0847dcedf00d3d5a93f61dea0370/onnx/model.onnx` |
+| `rfdetr-seg-small-384-w16.onnx` | 76 982 395 | `244c291cdcba13c1146112916390831d95930b799184ed51716e061c7a4cf5cb` | Pelli's storage, `pelli-instant/models/` |
+| `retinaface-r50-w16.onnx` | 54 618 443 | `8712900d39e96e1167a4ee5ca4d504919f1e13874a2f3a7fd741c1f88dfd13be` | Pelli's storage, `pelli-instant/models/` |
+| `dinov2-base-int8.onnx` (1.1.0 only) | 90 948 899 | `f3006646af1ed07acceeefdd701e9be6e46e0b701ac0a1ab8e4ba7260e338302` | same folder as fp32, `model_int8.onnx` |
+
+The app checks each file against the size and SHA-256 compiled into it (`models/manifest.json`), not against these fields. Downloads resume with range requests; when the storage answers `403` (a link expired), the app asks `models` again. Where the files are stored is Pelli's configuration, not this repository's. Errors: `403 plusRequired`; `400 invalid_request` for an unknown `arch` value.
+
+Compatibility: a Pelli that predates `arch` refuses the field (`400 invalid_request`, strict body); the app then asks again without it and gets the 1.1.0 list, which lacks `dinov2-base-fp32.onnx`: the pack fails at once with the code `unsupported` (*not available for this computer yet*), before downloading anything, and stays so until the user retries. Deploy the Pelli side before releasing the app.
 
 ## Telemetry
 
@@ -142,7 +160,27 @@ The five files of the Maximum pack (`clip-vit-l14-vision-int8.onnx`, `clip-vit-l
 | `analysis_completed` | An analysis that analysed at least one photo ended | `photos`, `raw`, `jpeg` (this run), `seconds` (one decimal), `precision` (`standard` \| `maximum`), `selected`, `toReview`, `rejected`, `groups` (the project) |
 | `export_completed` | An export finished | `photos`, `xmp`, `copied`, `moved` (booleans: the outputs chosen) |
 | `plus_activated` | Plus just became active | `via`: `purchase` \| `key` \| `account` |
+| `model_pack_failed` | The Maximum pack failed (once per failure; not a pause, nor at each launch) | `stage`, `code`, `model` (below) |
 | `telemetry_disabled` | Telemetry was turned off: the last event of this install id | `{}` |
+
+`model_pack_failed` (app 1.1.1+), for example:
+
+```json
+{
+  "installId": "3f6c2a94-1b7e-4d0a-9c55-8e2f71b4a6d3",
+  "event": "model_pack_failed",
+  "appVersion": "1.1.1",
+  "platform": "windows",
+  "arch": "x64",
+  "locale": "fr",
+  "props": { "stage": "prepare", "code": "checkFailed", "model": "clip-l14-vision-int8" }
+}
+```
+
+- `stage`: `download` (asking for the links, downloading, verifying the files), `prepare` (loading and checking the models after a download or at launch), `load` (loading them for an analysis).
+- `code`: `checkFailed` (a model loads but computes wrong results on this computer, or does not load), `unsupported` (Pelli gave no URL for a file of this architecture), `checksum` (a file arrived damaged 3 times), `notFound` (the storage has no such file, or its links keep expiring), `offline`, `diskFull`, `plusRequired` (Pelli refused the links while downloading), `internal` (anything else). The app may add codes: accept any string of letters (`^[a-zA-Z]{1,32}$`).
+- `model`: the manifest id of the model concerned (`dinov2-b14-fp32`, `clip-l14-vision-int8`… : `^[a-z0-9-]{1,64}$`), or `null` when the failure concerns no single model (`offline` before any file, `diskFull`).
+- Nothing else: no message, path or file name. `platform`, `arch` and `appVersion` are the common fields above.
 
 Pelli stores no IP address for these events and makes no contact out of them; it counts them and posts some to its team's chat. The app sends each one fire-and-forget (5 s timeout, no retry, nothing queued on disk). Turned off in *Settings → Privacy*, nothing more is sent after `telemetry_disabled`. The code: `crates/cull-engine/src/telemetry.rs`.
 

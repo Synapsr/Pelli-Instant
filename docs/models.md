@@ -34,7 +34,7 @@ and whether their eyes are open. It doesn't tell who anyone is.
 The Maximum pack is part of Pelli Instant Plus. With Plus, the photographer
 picks it in *Settings → Analysis → Precision*, or in the precision step of
 the welcome tour (without Plus, that choice opens the Plus offer). Choosing
-Maximum starts the download in the background (about 777 MB); until the pack
+Maximum starts the download in the background (about 1 GB); until the pack
 is ready, and whenever Plus is not active, analyses run in Standard. A pack
 already installed stays on disk when Plus goes away, unused. Going back to Standard pauses a download in progress, and
 *Delete* removes the pack from the computer.
@@ -43,7 +43,7 @@ already installed stays on disk when Plus goes away, unused. Going back to Stand
 | --- | --- | --- | --- | --- | --- |
 | **CLIP ViT-L/14 image model**, int8 (OpenAI; ONNX and int8 by Xenova) | `clip-l14-vision-int8` | `clip-vit-l14-vision-int8.onnx` | 306 MB | MIT | A bigger fingerprint, for search and the aesthetic score. |
 | **CLIP ViT-L/14 text model**, fp16 (OpenAI; ONNX by Xenova) | `clip-l14-text` | `clip-vit-l14-text-fp16.onnx` | 248 MB | MIT | Search in a shoot analysed in Maximum. Loaded only when such a shoot is searched. |
-| **DINOv2 ViT-B/14**, int8 (Meta; ONNX and int8 by onnx-community) | `dinov2-b14-int8` | `dinov2-base-int8.onnx` | 91 MB | Apache-2.0 | The fingerprint that groups bursts and near-duplicates. On the calibration shoots it separates duplicates from different scenes by +0.25 of cosine, against +0.11 for CLIP B/32. |
+| **DINOv2 ViT-B/14**, fp32 (Meta; ONNX by onnx-community) | `dinov2-b14-fp32` | `dinov2-base-fp32.onnx` | 347 MB | Apache-2.0 | The fingerprint that groups bursts and near-duplicates. On the calibration shoots it separates duplicates from different scenes by +0.25 of cosine, against +0.11 for CLIP B/32. |
 | **RF-DETR-Seg Small** (Roboflow; exported to ONNX by Pelli) | `rfdetr-seg-s` | `rfdetr-seg-small-384-w16.onnx` | 77 MB | Apache-2.0 | Outlines people and animals. On a photo without a usable face, the largest one (at least 1 % of the frame) is the subject whose focus and exposure judge the photo: a back-lit figure seen from behind. |
 | **RetinaFace ResNet-50** (biubug6; exported to ONNX by Pelli) | `retinaface-r50` | `retinaface-r50-w16.onnx` | 55 MB | MIT | A second face detector, run at 1280 px on group photos only (YuNet found 3 faces or more, or a small one). It finds faces YuNet misses in crowds and profiles; they get the mesh and the blendshapes too. |
 | **LAION-Aesthetics Predictor V2** (head for ViT-L/14; Christoph Schuhmann) | `aesthetic-l14` | compiled into the app | 3 KB | Apache-2.0 | The aesthetic score from the ViT-L/14 fingerprint, brought to V1's scale. |
@@ -56,6 +56,37 @@ needs more memory, so the engine runs at most 8 analysis workers with it, 4
 below 12 GB of memory or 8 cores. Details and measures:
 [`crates/cull-ml/README.md`](../crates/cull-ml/README.md#maximum-precision-optional-pack).
 
+**DINOv2 in fp32, not int8.** Up to 1.1.0 the pack had DINOv2's int8
+export (91 MB). Its results depend on the processor's integer kernels
+(ONNX Runtime picks them from the CPU's features: AVX2 or AVX-VNNI on x86,
+dot product or i8mm on arm64). It was right on the Mac that computed the
+check's references (correlation 0.997 to fp32) but computes garbage on
+every x86 processor measured and on emulated arm64 cores: fingerprints with
+a cosine of 0.12–0.14 on average to the fp32 model's on photos, a check
+correlation of 0.46–0.49. That is why the pack never installed on Windows,
+and most likely why it failed on some Macs. Measured on an i7-14700KF:
+
+| DINOv2 | Cosine to fp32 (39 photos) | Time a photo, 4 sessions × 1 thread | Memory, 4 sessions | Download |
+| --- | --- | --- | --- | --- |
+| fp32 (chosen) | 1.0000 | 106–137 ms | 1.58 GB | 347 MB |
+| fp16 | 1.0000 (min) | 130–172 ms (+20–30 %) | 1.74 GB | 176 MB |
+| int8 (1.1.0) | 0.13 mean, −0.03 min | 39 ms | 0.54 GB | 91 MB |
+
+fp16 saves 171 MB of download once, but ONNX Runtime casts it at run time
+on an x86 CPU (slower and heavier at every analysis), and on arm64 it
+computes in half precision: cosine to fp32 0.991 on average, 0.988 at worst
+on photos (emulated arm64 cores), enough to blur near-duplicates. fp32 is
+the same file for every processor, exact everywhere. The
+engine keeps 2 DINOv2 sessions of 2 threads (as fast as 4 of one, half the
+memory). CLIP ViT-L/14 stays int8: its fp32 export is 1.2 GB and as many
+sessions would need several GB of memory, while its int8 results, though
+they vary with the processor, stay close to fp32 everywhere measured
+(cosine ≥ 0.96 on photos, below).
+
+The manifest can mark a model made for one processor architecture with
+`arch` (`arm64`, `x64`); the app sends its architecture to Pelli, which
+hands out the files of that architecture. Today both get the same files.
+
 The models used are part of every analysis (`models_id`): switching
 precision analyses the photos again. A project analysed in Maximum is
 searched with the ViT-L/14 text model.
@@ -67,8 +98,10 @@ does it, with the sizes and checksums of the manifest compiled into the app.
 The manifest has no URL for these files: the app asks Pelli
 (`POST /api/cull/models`, [docs/pelli-api.md](pelli-api.md#models-licence-or-bearer))
 with the Plus licence token, or the Bearer of a Pelli account whose plan
-includes Plus, and gets links valid 12 hours. Without Plus the answer is
-`plusRequired` and nothing is downloaded.
+includes Plus, and its processor architecture (`arch`), and gets links valid
+12 hours. Without Plus the answer is `plusRequired` and nothing is
+downloaded. When the answer lacks a file of this architecture (a Pelli older
+than the app), the pack fails at once with `unsupported`.
 
 1. **Before starting**, it checks that the disk holds what is left to
    download plus 256 MB, and asks Pelli for the links, so that a missing
@@ -82,14 +115,29 @@ includes Plus, and gets links valid 12 hours. Without Plus the answer is
    and resumes from the part (3 times at most per file).
 3. **Preparing**: each model is loaded once (its SHA-256 checked again) and
    run on synthetic inputs, and its outputs are compared with reference
-   values computed when the pack was built
-   ([`crates/cull-ml/assets/maximum-check.json`](../crates/cull-ml/assets/maximum-check.json),
-   correlation of at least 0.99). A runtime or a file that loads but
-   computes wrong fails here, before any photo.
+   values computed from each model's full-precision (fp32) export
+   ([`crates/cull-ml/assets/maximum-check.json`](../crates/cull-ml/assets/maximum-check.json)),
+   the same for every processor, within a tolerance per model: a
+   correlation of at least 0.99 for the models computed in floating point
+   (DINOv2, RF-DETR, RetinaFace, the text model: 1.0000 measured), 0.85
+   for CLIP ViT-L/14 int8, whose integer kernels differ from one processor
+   to the next (0.919–0.966 measured; a model computing garbage gives
+   0.46–0.49). A runtime or a file that loads but computes wrong fails
+   here, before any photo, with `checkFailed`; the int8 DINOv2 of 1.1.0
+   would fail on x86 (0.49). The references are recomputed with
+   `cargo run --release -p cull-ml --example maximum_check -- --references <folder>`
+   (the fp32 exports, listed in that file), and
+   `--file dinov2 <file.onnx>` tries another variant of a model.
 4. **Ready.** The sizes and dates of the prepared files are remembered in
    the library. At the next launch the pack is ready at once if they still
    match, prepared again in the background if the files are complete but
-   changed, and shown as paused if only parts are on disk.
+   changed, and shown as paused if only parts are on disk. A failed check
+   is remembered too: the next launches show it without preparing the same
+   files again, until *Try again* (which downloads the failing model's file
+   again before preparing) or an update of the app. Files the pack no
+   longer uses (1.1.0's int8 DINOv2) are deleted at launch; if the pack was
+   in use, the new file downloads at once when Maximum is chosen and Plus
+   active.
 
 The pack lives in the app's data folder, `models/maximum/` next to the
 library ([where](architecture.md#where-data-lives)), never in the cache:
@@ -106,9 +154,19 @@ the `failed` state with a code, and the downloaded bytes stay on disk:
 | `offline` | No network, or the connection was lost. |
 | `diskFull` | Not enough free space for what is left (plus 256 MB). |
 | `checksum` | A file never matched its SHA-256, or failed the check when loaded. |
+| `checkFailed` | A model loads but computes wrong results on this computer (its sanity check), or does not load. Remembered: not prepared again at each launch. |
+| `unsupported` | Pelli handed out no link for a file of this processor's architecture (a Pelli older than the app). |
 | `plusRequired` | Pelli refused the links: Plus is no longer active (licence released or refunded, plan changed). |
 | `notFound` | The storage answered 401, 404 or 410, or still 403 after new links, or a file is missing when the pack is prepared. |
-| `internal` | Any other error: another HTTP status, a file that can't be written, a model failing its reference check. |
+| `internal` | Any other error: another HTTP status, a file that can't be written. |
+
+Every failure but a pause is also reported as the `model_pack_failed`
+telemetry event (code and model id only, unless telemetry is off), and
+written to the app's log file (macOS `~/Library/Logs/io.pelli.instant/`,
+Windows `%LOCALAPPDATA%\io.pelli.instant\logs\`, `pelli-instant.log`).
+A CI job (`.github/workflows/maximum-pack.yml`) downloads the pack on a
+Windows x64 runner and a macOS arm64 one (Apple M1) and runs the check
+there.
 
 **Debug builds only:** `PELLI_MODELS_BASE_URL=http://localhost:8000 pnpm tauri dev`
 downloads every file of the pack from `<base>/<file name>` instead of asking
@@ -169,7 +227,7 @@ members.
 | --- | --- |
 | `pnpm models` | The Standard set (`bundle: "default"`) into `models/`. |
 | `pnpm models --gpu` | Adds the fp16 CLIP image model (the Windows installer). |
-| `pnpm models --maximum` | Adds the Maximum pack into `models/maximum/`, for development: `pelli-cull analyze --precision maximum` reads it there (`--maximum-dir` elsewhere). Part of Plus: needs `PELLI_INSTANT_LICENSE=<licence token>` (links from Pelli) or `PELLI_MODELS_BASE_URL=<your copy>`. The app downloads its own copy. |
+| `pnpm models --maximum` | Adds the Maximum pack of this processor (`--arch arm64` or `x64` for another's, should their files differ) into `models/maximum/`, for development: `pelli-cull analyze --precision maximum` reads it there (`--maximum-dir` elsewhere). Part of Plus: needs `PELLI_INSTANT_LICENSE=<licence token>` (links from Pelli) or `PELLI_MODELS_BASE_URL=<your copy>`. The app downloads its own copy. |
 | `pnpm models --all` | Everything in the manifest. |
 | `pnpm models --only yunet,face-mesh` | Only these ids. |
 | `pnpm models --check` | Verifies only; exits with 1 when a file is missing or corrupt. |
@@ -190,7 +248,12 @@ prebuilt library for Intel Macs
 ([packaging notes](../crates/cull-ml/README.md#packaging-onnx-runtime-tauri)).
 
 The Maximum pack runs on the CPU everywhere: in fp16 on the Neural Engine,
-DINOv2, RF-DETR and CLIP ViT-L/14 silently return wrong values.
+DINOv2, RF-DETR and CLIP ViT-L/14 silently return wrong values. Int8
+models depend on the processor's integer kernels: DINOv2 int8 is wrong on
+many processors (hence its fp32 file), CLIP ViT-L/14 int8 stays close to full
+precision everywhere measured (cosine to fp32 on the calibration photos:
+0.977 on average, 0.965 at worst on an AVX-VNNI x86; 0.978 and 0.963 on
+emulated arm64).
 
 The int8 and fp16 variants give close but not identical fingerprints, and
 Standard and Maximum fingerprints can't be compared at all: the models used
