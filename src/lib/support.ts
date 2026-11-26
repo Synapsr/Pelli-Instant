@@ -9,16 +9,16 @@
 export interface SupportCardInput {
   /** the sort that just ended offers the card, and it was not closed */
   offered: boolean
-  /** whether the engine already said if Plus is active */
-  plusLoaded: boolean
+  /** a Plus status really arrived (not a failed request): until then, no promotion */
+  plusKnown: boolean
   plusActive: boolean
 }
 
 /**
  * Whether the card shows right now. Plus is checked live: a Plus activated
- * while the card is visible hides it, and nothing shows before the engine
- * said whether Plus is active.
+ * while the card is visible hides it, and nothing shows before a Plus status
+ * really arrived: a failed status request shows nothing.
  */
-export function isSupportCardVisible({ offered, plusLoaded, plusActive }: SupportCardInput): boolean {
-  return offered && plusLoaded && !plusActive
+export function isSupportCardVisible({ offered, plusKnown, plusActive }: SupportCardInput): boolean {
+  return offered && plusKnown && !plusActive
 }

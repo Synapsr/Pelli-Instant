@@ -135,6 +135,15 @@ export function leftToControl(key: string, target: KeyTarget | null): boolean {
   return false
 }
 
+/**
+ * The result screen of a sort: Enter opens the review only from the screen
+ * itself. A focused control (the support card's links and ×, a button) keeps
+ * its own Enter, and so does a text field.
+ */
+export function resultEnterReviews(key: string, target: KeyTarget | null): boolean {
+  return key === 'Enter' && !leftToControl(key, target) && !isTypingTarget(target as EventTarget | null)
+}
+
 /** True when the event comes from a text field (shortcuts must not fire). */
 export function isTypingTarget(target: EventTarget | null): boolean {
   if (!target || typeof (target as HTMLElement).tagName !== 'string') return false

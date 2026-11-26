@@ -33,7 +33,7 @@ beforeEach(() => {
   api = createMockApi({ thumbnails: false, storage: null, latency: 0, params: new URLSearchParams('mockNoPopups=1') })
   setApi(api)
   useAppStore.setState({ settings: { ...MOCK_SETTINGS }, auth: { status: 'signedOut' } })
-  usePlusStore.setState({ status: NO_PLUS, loaded: true, dialogOpen: false, view: 'offer', reason: null })
+  usePlusStore.setState({ status: NO_PLUS, loaded: true, answered: true, dialogOpen: false, view: 'offer', reason: null })
   useAnalysisStore.setState({ projectId: null, running: false, lastSummary: null, error: null, supportCard: false })
   vi.spyOn(api, 'startAnalysis').mockResolvedValue()
   vi.spyOn(api, 'cancelAnalysis').mockResolvedValue()
@@ -81,8 +81,40 @@ describe('support card after a sort', () => {
     // Plus from a Pelli account hides it the same way.
     usePlusStore.setState({ status: { ...NO_PLUS, active: true, source: 'account' } })
     expect(supportCardVisible()).toBe(false)
-    usePlusStore.setState({ status: NO_PLUS, loaded: false })
+    usePlusStore.setState({ status: NO_PLUS, loaded: false, answered: false })
     expect(supportCardVisible()).toBe(false)
+  })
+
+  it('waits for a real Plus status: a failed status request shows nothing, without blocking the app', async () => {
+    usePlusStore.setState({ status: NO_PLUS, loaded: false, answered: false })
+    vi.spyOn(api, 'plusStatus').mockRejectedValue({ code: 'internal', message: 'Engine busy' })
+    await usePlusStore.getState().load()
+    // The app goes on (loaded), but nothing says the rights are free.
+    expect(usePlusStore.getState()).toMatchObject({ loaded: true, answered: false })
+    await sort()
+    expect(supportCardVisible()).toBe(false)
+    // The engine's `plus` event brings the status: the card shows.
+    usePlusStore.getState().onStatus(NO_PLUS)
+    expect(supportCardVisible()).toBe(true)
+  })
+
+  it('takes a successful status answer as known', async () => {
+    usePlusStore.setState({ status: NO_PLUS, loaded: false, answered: false })
+    vi.spyOn(api, 'plusStatus').mockResolvedValue(NO_PLUS)
+    await usePlusStore.getState().load()
+    await sort()
+    expect(supportCardVisible()).toBe(true)
+  })
+
+  it('is not offered when every photo failed, though the result and the review stay', async () => {
+    await useAnalysisStore.getState().start(PROJECT, MOCK_SETTINGS.cull)
+    useAnalysisStore.getState().onDone({ ...SUMMARY, analyzed: 0, failed: 10, counts: { selected: 0, toReview: 10, rejected: 0 } })
+    expect(useAnalysisStore.getState()).toMatchObject({ running: false, lastSummary: { analyzed: 0, failed: 10 } })
+    expect(supportCardVisible()).toBe(false)
+    // Some photos failed, others were sorted: offered.
+    await useAnalysisStore.getState().start(PROJECT, MOCK_SETTINGS.cull)
+    useAnalysisStore.getState().onDone({ ...SUMMARY, analyzed: 7, failed: 3 })
+    expect(supportCardVisible()).toBe(true)
   })
 
   it('disappears as soon as Plus activates while it is visible', async () => {
