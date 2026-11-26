@@ -1,0 +1,138 @@
+name: Maximum pack
+
+# The Maximum pack's sanity check (`MaximumModels::check`) with the files the
+# app downloads, on the processors it ships for: a Windows x64 runner and a
+# macOS arm64 one (Apple M1). The Linux job skips these tests (the pack is
+# not in the repository); 1.1.0 failed this check on every Windows computer
+# and on some Macs (an int8 model whose results depend on the processor).
+# Also weekly: the files must stay downloadable from where Pelli hands them
+# out.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - crates/cull-ml/**
+      - models/manifest.json
+      - scripts/fetch-models.mjs
+      - Cargo.lock
+      - rust-toolchain.toml
+      - .github/workflows/maximum-pack.yml
+  push:
+    branches: [main]
+    paths:
+      - crates/cull-ml/**
+      - models/manifest.json
+      - scripts/fetch-models.mjs
+      - Cargo.lock
+      - rust-toolchain.toml
+      - .github/workflows/maximum-pack.yml
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: maximum-pack-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  ORT_CACHE_DIR: ${{ github.workspace }}/.ort-cache
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
+
+jobs:
+  check:
+    name: Maximum pack check (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+            arch: x64
+          - name: macOS arm64
+            os: macos-latest
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
+    env:
+      # Missing files fail the tests instead of skipping them.
+      PELLI_CULL_REQUIRE_MAXIMUM: '1'
+      PELLI_CULL_MAXIMUM: ${{ github.workspace }}/models/maximum
+      # 1.1.0's int8 DINOv2: the check must keep rejecting it on x64.
+      PELLI_CULL_DINO_INT8: ${{ github.workspace }}/models/retired/dinov2-base-int8.onnx
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Processor
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then
+            powershell -Command "Get-CimInstance Win32_Processor | Format-List Name, NumberOfLogicalProcessors"
+          else
+            sysctl -n machdep.cpu.brand_string hw.optional.arm.FEAT_I8MM hw.optional.arm.FEAT_DotProd || true
+          fi
+
+      - name: Install Rust
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: v1-rust
+          shared-key: maximum-pack
+          cache-directories: .ort-cache
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Standard models and the pack (~1.3 GB), downloaded once per manifest.
+      - name: Models cache
+        uses: actions/cache@v4
+        with:
+          path: models
+          key: models-maximum-${{ matrix.arch }}-${{ hashFiles('models/manifest.json') }}
+
+      - run: node scripts/fetch-models.mjs
+
+      # The public addresses of the pack's files: the upstream exports at
+      # the revisions of the manifest, Pelli's own conversions on its
+      # storage. The app gets the same files through Pelli (POST
+      # /api/cull/models); sizes and SHA-256 are checked just after.
+      - name: Maximum pack from its public URLs
+        shell: bash
+        run: |
+          set -euo pipefail
+          hf_clip=https://huggingface.co/Xenova/clip-vit-large-patch14/resolve/c307790166907339eed5a9a53a249af534102536/onnx
+          hf_dino=https://huggingface.co/onnx-community/dinov2-base-ONNX/resolve/9a1732c724ef0847dcedf00d3d5a93f61dea0370/onnx
+          s3=https://pelli.s3.fr-par.scw.cloud/pelli-instant/models
+          get() {
+            if [ ! -s "$1" ]; then
+              mkdir -p "$(dirname "$1")"
+              curl -fsSL --retry 3 --retry-all-errors -o "$1.part" "$2"
+              mv "$1.part" "$1"
+            fi
+          }
+          get models/maximum/clip-vit-l14-vision-int8.onnx "$hf_clip/vision_model_int8.onnx"
+          get models/maximum/clip-vit-l14-text-fp16.onnx "$hf_clip/text_model_fp16.onnx"
+          get models/maximum/dinov2-base-fp32.onnx "$hf_dino/model.onnx"
+          get models/maximum/rfdetr-seg-small-384-w16.onnx "$s3/rfdetr-seg-small-384-w16.onnx"
+          get models/maximum/retinaface-r50-w16.onnx "$s3/retinaface-r50-w16.onnx"
+          get models/retired/dinov2-base-int8.onnx "$hf_dino/model_int8.onnx"
+          sum() { if command -v sha256sum >/dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
+          echo "f3006646af1ed07acceeefdd701e9be6e46e0b701ac0a1ab8e4ba7260e338302  models/retired/dinov2-base-int8.onnx" | sum -c -
+
+      - name: Sizes and SHA-256 of the pack
+        run: node scripts/fetch-models.mjs --maximum --arch ${{ matrix.arch }} --check
+
+      - name: Sanity check of the pack, and analyses with it
+        run: cargo test -p cull-ml --test models maximum -- --nocapture
+
+      # The same check by hand, with each model's correlation in the log.
+      - name: Correlations
+        run: cargo run -p cull-ml --example maximum_check -- models/maximum
