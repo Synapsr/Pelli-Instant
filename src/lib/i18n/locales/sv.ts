@@ -732,6 +732,7 @@ export const sv: Catalogue<typeof fr> = {
     body: 'Följ Pelli på Instagram: tips om bildurval, nyheter och en titt bakom kulisserna.',
     instagram: 'Följ @pelli.io på Instagram',
     github: 'Eller ge oss en stjärna på GitHub: det är gratis och det bästa sättet att hjälpa oss.',
+    plus: 'Skaffa Pelli Instant Plus för att slippa se det här',
   },
   onboarding: {
     skip: 'Hoppa över',

@@ -732,6 +732,7 @@ export const nl: Catalogue<typeof fr> = {
     body: 'Volg Pelli op Instagram: tips voor het selecteren van foto’s, nieuws en een kijkje achter de schermen.',
     instagram: 'Volg @pelli.io op Instagram',
     github: 'Of geef ons een ster op GitHub: het is gratis en de beste manier om ons te helpen.',
+    plus: 'Neem Pelli Instant Plus om dit niet meer te zien',
   },
   onboarding: {
     skip: 'Overslaan',

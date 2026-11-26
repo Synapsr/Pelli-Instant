@@ -2,6 +2,7 @@ import { Button } from '@heroui/react'
 import { AnimatePresence, motion, useReducedMotion, useSpring, useTransform, type Variants } from 'framer-motion'
 import { ArrowRight, Check, Share } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { SupportCard } from '@/components/promo/SupportCard'
 import { AnimatedNumber } from '@/components/ui/AnimatedNumber'
 import { Backdrop } from '@/components/ui/Backdrop'
 import { DECISION_BG } from '@/components/ui/Decision'
@@ -17,6 +18,7 @@ import { formatDuration, formatNumber, formatPercent } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { type RecentPhoto, useAnalysisStore } from '@/store/analysis-store'
 import { useAppStore } from '@/store/app-store'
+import { usePlusStore } from '@/store/plus-store'
 import { useReviewStore } from '@/store/review-store'
 
 const EASE = [0.22, 1, 0.36, 1] as const
@@ -469,7 +471,8 @@ function Session({ phase }: { phase: 'running' | 'result' }) {
   useEffect(() => {
     if (!done) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && !useAppStore.getState().dialog) {
+      // Not under the Plus dialog the support card opens: its own Enter is for its key field.
+      if (e.key === 'Enter' && !useAppStore.getState().dialog && !usePlusStore.getState().dialogOpen) {
         e.preventDefault()
         reviewResults()
       }
@@ -559,6 +562,10 @@ function Session({ phase }: { phase: 'running' | 'result' }) {
               <motion.button variants={RISE} type="button" onClick={goHome} className="focus-ring mt-3 rounded-full px-3 py-1.5 text-[13px] text-white/40 transition-colors hover:text-white/75">
                 {t('analysisScreen.back')}
               </motion.button>
+              {/* Free version only: under the actions, never in the way of the review. */}
+              <motion.div variants={RISE} className="mt-6 w-full max-w-md short:mt-4">
+                <SupportCard />
+              </motion.div>
             </motion.div>
           ) : (
             <motion.button

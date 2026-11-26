@@ -732,6 +732,7 @@ export const it: Catalogue<typeof fr> = {
     body: 'Segui Pelli su Instagram: consigli per scegliere le foto, novità e contenuti dietro le quinte.',
     instagram: 'Segui @pelli.io su Instagram',
     github: 'Oppure lascia una stella su GitHub: è gratis ed è il modo migliore per aiutarci.',
+    plus: 'Passa a Pelli Instant Plus per non vederla più',
   },
   onboarding: {
     skip: 'Salta',

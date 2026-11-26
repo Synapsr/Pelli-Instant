@@ -27,6 +27,12 @@ export interface AnalysisState {
   startedAt: number | null
   lastSummary: AnalysisSummary | null
   error: { code: string; message: string } | null
+  /**
+   * The sort that just ended offers the support card (free version only, see
+   * `useSupportCardVisible`): set by a real end, cleared by the next start, a
+   * cancel, an error, or by closing the card.
+   */
+  supportCard: boolean
   prepare: (project: ProjectSummary) => void
   start: (projectId: string, settings: CullSettings) => Promise<void>
   onPhotos: (projectId: string, photos: PhotoView[]) => void
@@ -35,6 +41,8 @@ export interface AnalysisState {
   onDone: (summary: AnalysisSummary) => void
   onError: (event: { projectId: string; code: string; message: string }) => void
   dismissError: () => void
+  /** closes the support card for this sort only: the next one offers it again */
+  closeSupportCard: () => void
 }
 
 const ZERO: DecisionCounts = { selected: 0, toReview: 0, rejected: 0 }
@@ -52,10 +60,11 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
   startedAt: null,
   lastSummary: null,
   error: null,
+  supportCard: false,
 
   prepare: (project) => {
     decided = new Map()
-    set({ project, projectId: project.id, recent: [], counts: ZERO, lastSummary: null, error: null })
+    set({ project, projectId: project.id, recent: [], counts: ZERO, lastSummary: null, error: null, supportCard: false })
   },
 
   onPhotos: (projectId, photos) => {
@@ -89,6 +98,7 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
       settings,
       startedAt: Date.now(),
       error: null,
+      supportCard: false,
       progress: { stage: 'scanning', done: 0, total: 0, current: null, photosPerSecond: 0, etaMs: null },
     })
     try {
@@ -102,7 +112,7 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
   cancel: async () => {
     const { projectId, running } = get()
     if (!projectId || !running) return
-    set({ running: false, progress: null, lastSummary: null })
+    set({ running: false, progress: null, lastSummary: null, supportCard: false })
     try {
       await api().cancelAnalysis(projectId)
     } finally {
@@ -123,16 +133,18 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
     if (summary.projectId !== s.projectId) return
     // A cancelled run also ends with a summary: only a real end celebrates.
     if (!s.running) return
-    set({ running: false, lastSummary: summary, progress: null })
+    set({ running: false, lastSummary: summary, progress: null, supportCard: true })
     playSound('analysisDone')
   },
 
   onError: (event) => {
     const s = get()
     if (event.projectId !== s.projectId || event.code === 'cancelled') return
-    set({ running: false, progress: null, error: { code: event.code, message: event.message } })
+    set({ running: false, progress: null, supportCard: false, error: { code: event.code, message: event.message } })
     notify({ title: t('analysis.errorTitle'), description: event.message, tone: 'danger' })
   },
 
   dismissError: () => set({ error: null }),
+
+  closeSupportCard: () => set({ supportCard: false }),
 }))

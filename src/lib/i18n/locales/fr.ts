@@ -730,6 +730,7 @@ export const fr = {
     body: 'Suivez Pelli sur Instagram : astuces de tri, nouveautés et coulisses.',
     instagram: 'Suivre @pelli.io sur Instagram',
     github: 'Ou laissez une étoile sur GitHub : c’est gratuit, et c’est la meilleure façon de nous aider.',
+    plus: 'Prenez Pelli Instant Plus pour ne plus l’afficher',
   },
   onboarding: {
     skip: 'Passer',
