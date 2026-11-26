@@ -160,6 +160,9 @@ the `failed` state with a code, and the downloaded bytes stay on disk:
 | `notFound` | The storage answered 401, 404 or 410, or still 403 after new links, or a file is missing when the pack is prepared. |
 | `internal` | Any other error: another HTTP status, a file that can't be written. |
 
+Under the message, *Details* shows the code and the technical message
+(with the app version and the processor), with a *Copy* button for
+support; the home folder in a path is written `~`, never the user name.
 Every failure but a pause is also reported as the `model_pack_failed`
 telemetry event (code and model id only, unless telemetry is off), and
 written to the app's log file (macOS `~/Library/Logs/io.pelli.instant/`,

@@ -244,6 +244,21 @@ impl PackManager {
     }
 }
 
+/// `text` with the user's home folder written `~` (paths in error messages
+/// the photographer copies for support).
+fn redact_home(text: &str) -> String {
+    let homes = ["HOME", "USERPROFILE"].into_iter().filter_map(std::env::var_os).map(PathBuf::from);
+    let mut out = text.to_string();
+    for home in homes {
+        let home = home.to_string_lossy().trim_end_matches(['/', '\\']).to_string();
+        // Not `/` nor a bare drive: those hold no user name.
+        if home.len() > 3 {
+            out = out.replace(&home, "~").replace(&home.replace('\\', "/"), "~");
+        }
+    }
+    out
+}
+
 /// Free space (bytes) on the disk holding `path` (or its nearest existing
 /// parent).
 pub fn free_space(path: &Path) -> Option<u64> {
@@ -417,6 +432,8 @@ impl Engine {
     /// `failed`, and the `model_pack_failed` telemetry event (stage, code and
     /// model only: the message may hold a path) unless it is a pause.
     fn pack_failed_on(&self, stage: &str, code: &str, model: Option<&str>, message: String) {
+        // Shown under "Details" for the photographer to copy: no user name.
+        let message = redact_home(&message);
         let (received, total) = (self.pack.received(), self.pack.total());
         log::warn!("Maximum pack: {stage}: {code} ({}): {message}", model.unwrap_or("-"));
         if code != "cancelled" {
@@ -1001,6 +1018,17 @@ mod tests {
             v,
             serde_json::json!({ "id": "maximum", "sizeBytes": 3, "diskBytes": 3, "freeBytes": null, "state": { "status": "ready" } })
         );
+    }
+
+    #[test]
+    fn home_folders_are_redacted() {
+        let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) else { return };
+        let home = PathBuf::from(home);
+        let path = home.join("Library").join("x.onnx");
+        let text = redact_home(&format!("{}: permission denied", path.display()));
+        assert!(!text.contains(&*home.to_string_lossy()), "{text}");
+        assert!(text.starts_with('~'), "{text}");
+        assert_eq!(redact_home("dinov2-b14-fp32: wrong results"), "dinov2-b14-fp32: wrong results");
     }
 
     #[test]

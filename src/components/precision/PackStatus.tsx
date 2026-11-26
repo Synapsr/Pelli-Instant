@@ -1,11 +1,14 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { AlertCircle, Check, Download, Pause, Play, RotateCcw } from 'lucide-react'
+import { AlertCircle, Check, ChevronDown, Copy, Download, Pause, Play, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { cn } from '@/lib/cn'
 import type { ModelPack, ModelPackState } from '@/lib/contract'
 import { formatBytes, formatDuration, formatPercent } from '@/lib/format'
 import { useT } from '@/lib/i18n'
+import { notify } from '@/lib/notify'
+import { packFailureDetails } from '@/lib/pack-details'
+import { useAppStore } from '@/store/app-store'
 import { packSpaceNeeded, usePackStore } from '@/store/pack-store'
 
 /** Share of the pack already on disk, null when nothing is downloading. */
@@ -45,7 +48,19 @@ export function PackStatus({ pack, wanted, removable = false, className }: { pac
   const t = useT()
   const { download, pause, remove } = usePackStore()
   const [confirm, setConfirm] = useState(false)
+  const [details, setDetails] = useState(false)
+  const appInfo = useAppStore((s) => s.appInfo)
   const { state } = pack
+  const failure = state.status === 'failed' && state.code !== 'cancelled' ? packFailureDetails(state, appInfo) : null
+  const copyDetails = async () => {
+    if (!failure) return
+    try {
+      await navigator.clipboard.writeText(failure)
+      notify({ title: t('settings.analysis.precision.detailsCopied'), tone: 'success', timeout: 2000 })
+    } catch {
+      /* no clipboard: the details stay on screen */
+    }
+  }
   const line = describe(t, pack)
   const show = state.status !== 'absent' && (state.status !== 'ready' || removable)
   // Chosen but not usable yet: the next analyses run in Standard meanwhile.
@@ -93,6 +108,17 @@ export function PackStatus({ pack, wanted, removable = false, className }: { pac
               <div className="min-w-0 flex-1">
                 <p className="tabular truncate text-[13px] text-foreground/90">{line}</p>
                 {waiting && <p className="text-[11px] text-default-500">{t('settings.analysis.precision.meanwhile')}</p>}
+                {failure && (
+                  <button
+                    type="button"
+                    onClick={() => setDetails((d) => !d)}
+                    aria-expanded={details}
+                    className="focus-ring mt-0.5 inline-flex items-center gap-1 rounded text-[11px] text-default-500 transition-colors duration-150 hover:text-foreground"
+                  >
+                    {t('settings.analysis.precision.details')}
+                    <ChevronDown className={cn('size-3 transition-transform duration-150', details && 'rotate-180')} />
+                  </button>
+                )}
               </div>
               {action && (
                 <button
@@ -108,6 +134,19 @@ export function PackStatus({ pack, wanted, removable = false, className }: { pac
                 </button>
               )}
             </div>
+            {failure && details && (
+              <div className="mt-2 flex items-start gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2">
+                <pre className="min-w-0 flex-1 whitespace-pre-wrap break-words font-mono text-[11px] leading-snug text-default-400 select-text">{failure}</pre>
+                <button
+                  type="button"
+                  onClick={() => void copyDetails()}
+                  className="focus-ring inline-flex h-7 shrink-0 items-center gap-1 rounded-full bg-white/[0.06] px-2.5 text-[11px] font-medium text-foreground transition-[background-color,scale] duration-150 hover:bg-white/[0.1] active:scale-[0.96]"
+                >
+                  <Copy className="size-3" />
+                  {t('settings.analysis.precision.copyDetails')}
+                </button>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
