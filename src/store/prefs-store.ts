@@ -37,8 +37,8 @@ export interface PrefsState {
   dismissedUpdate: string | null
   /** successful exports on this computer, for the one-time support card */
   exportsDone: number
-  /** the support card was closed, or one of its links opened: it doesn't show again */
-  supportCardClosed: boolean
+  /** an export report showed the support card: it never shows again */
+  supportCardShown: boolean
   setThumbSize: (size: number) => void
   toggleSidebar: () => void
   toggleInspector: () => void
@@ -50,7 +50,7 @@ export interface PrefsState {
   setLabelLanguage: (language: Language | null) => void
   setDismissedUpdate: (version: string) => void
   countExport: () => void
-  closeSupportCard: () => void
+  markSupportCardShown: () => void
 }
 
 export const THUMB_MIN = 120
@@ -117,7 +117,7 @@ export const usePrefsStore = create<PrefsState>()(
       xmpMapping: DEFAULT_XMP_MAPPING,
       dismissedUpdate: null,
       exportsDone: 0,
-      supportCardClosed: false,
+      supportCardShown: false,
       setThumbSize: (size) => set({ thumbSize: Math.round(Math.min(THUMB_MAX, Math.max(THUMB_MIN, size))) }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       toggleInspector: () => set((s) => ({ inspectorOpen: !s.inspectorOpen })),
@@ -136,7 +136,7 @@ export const usePrefsStore = create<PrefsState>()(
       setLabelLanguage: (labelLanguage) => set(({ xmpMapping }) => ({ xmpMapping: { ...xmpMapping, labelLanguage } })),
       setDismissedUpdate: (dismissedUpdate) => set({ dismissedUpdate }),
       countExport: () => set((s) => ({ exportsDone: (Number.isFinite(s.exportsDone) ? s.exportsDone : 0) + 1 })),
-      closeSupportCard: () => set({ supportCardClosed: true }),
+      markSupportCardShown: () => set({ supportCardShown: true }),
     }),
     {
       name: 'pelli-cull:prefs',
@@ -156,7 +156,7 @@ export const usePrefsStore = create<PrefsState>()(
         xmpMapping: s.xmpMapping,
         dismissedUpdate: s.dismissedUpdate,
         exportsDone: s.exportsDone,
-        supportCardClosed: s.supportCardClosed,
+        supportCardShown: s.supportCardShown,
       }),
     },
   ),

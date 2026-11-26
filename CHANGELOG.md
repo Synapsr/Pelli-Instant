@@ -5,6 +5,16 @@ becomes the text of its GitHub release and the `notes` of `latest.json`: the
 in-app announcement of a new version shows its first points, in English, or
 in French from the `Français` block.
 
+## Unreleased
+
+- The free version asks once, after your third successful export, to follow Pelli on Instagram or leave a star on GitHub: a small card at the end of the export, never a pop-up, and never with Plus.
+
+<details><summary>Français</summary>
+
+- La version gratuite propose une seule fois, après votre troisième export réussi, de suivre Pelli sur Instagram ou de laisser une étoile sur GitHub : une petite carte à la fin de l'export, jamais une fenêtre surgissante, et jamais avec Plus.
+
+</details>
+
 ## 1.1.0 — 2026-11-17
 
 - **Send your selection to a Pelli gallery**, straight from the export: a new gallery named after the shoot, one folder per moment, the camera JPEGs (never the RAW files). Sign in with Pelli, or try Pelli free for 15 days.

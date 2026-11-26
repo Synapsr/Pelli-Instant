@@ -729,7 +729,7 @@ export const de: Catalogue<typeof fr> = {
   },
   support: {
     title: 'Spart Ihnen Pelli Instant Zeit?',
-    body: 'Folgen Sie Pelli auf Instagram: Tipps zur Bildauswahl, Neuigkeiten und Blicke hinter die Kulissen.',
+    body: 'Folgen Sie Pelli auf Instagram: Tipps zur Bildauswahl, Neuigkeiten und Einblicke hinter die Kulissen.',
     instagram: '@pelli.io auf Instagram folgen',
     github: 'Oder geben Sie uns einen Stern auf GitHub: Das ist kostenlos und hilft uns am meisten.',
   },

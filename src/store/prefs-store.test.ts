@@ -52,7 +52,7 @@ describe('preferences', () => {
     expect(xmpExportMapping(mapping, 'fr')).toMatchObject({ labelLanguage: 'en', label: { toReview: 'blue' } })
   })
 
-  it('counts successful exports and remembers a closed support card', async () => {
+  it('counts successful exports and remembers a support card already shown', async () => {
     const saved = new Map<string, string>()
     vi.stubGlobal('localStorage', {
       getItem: (key: string) => saved.get(key) ?? null,
@@ -61,14 +61,14 @@ describe('preferences', () => {
     })
     vi.resetModules()
     const { usePrefsStore: fresh } = await import('./prefs-store')
-    // Preferences saved before the card existed start from zero, card not closed.
+    // Preferences saved before the card existed start from zero, card never shown.
     expect(fresh.getState().exportsDone).toBe(0)
-    expect(fresh.getState().supportCardClosed).toBe(false)
+    expect(fresh.getState().supportCardShown).toBe(false)
     fresh.getState().countExport()
     fresh.getState().countExport()
-    fresh.getState().closeSupportCard()
+    fresh.getState().markSupportCardShown()
     const stored = JSON.parse(saved.get('pelli-cull:prefs') ?? '{}')
     expect(stored.state.exportsDone).toBe(2)
-    expect(stored.state.supportCardClosed).toBe(true)
+    expect(stored.state.supportCardShown).toBe(true)
   })
 })

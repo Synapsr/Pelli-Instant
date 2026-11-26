@@ -729,7 +729,7 @@ export const nl: Catalogue<typeof fr> = {
   },
   support: {
     title: 'Bespaart Pelli Instant je tijd?',
-    body: 'Volg Pelli op Instagram: tips voor het selecteren, nieuws en een kijkje achter de schermen.',
+    body: 'Volg Pelli op Instagram: tips voor het selecteren van foto’s, nieuws en een kijkje achter de schermen.',
     instagram: 'Volg @pelli.io op Instagram',
     github: 'Of geef ons een ster op GitHub: het is gratis en de beste manier om ons te helpen.',
   },

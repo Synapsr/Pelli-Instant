@@ -729,7 +729,7 @@ export const it: Catalogue<typeof fr> = {
   },
   support: {
     title: 'Pelli Instant ti fa risparmiare tempo?',
-    body: 'Segui Pelli su Instagram: consigli per la selezione, novità e dietro le quinte.',
+    body: 'Segui Pelli su Instagram: consigli per scegliere le foto, novità e contenuti dietro le quinte.',
     instagram: 'Segui @pelli.io su Instagram',
     github: 'Oppure lascia una stella su GitHub: è gratis ed è il modo migliore per aiutarci.',
   },

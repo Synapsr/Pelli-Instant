@@ -10,6 +10,7 @@ import { needsPlan } from '@/lib/gallery'
 import { useT } from '@/lib/i18n'
 import { PELLI_GALLERY_PLANS_URL } from '@/lib/links'
 import { isMac } from '@/lib/platform'
+import { isSuccessfulRun } from '@/lib/support'
 import { useAppStore } from '@/store/app-store'
 import { uploadErrorText, useExportStore } from '@/store/export-store'
 
@@ -71,7 +72,8 @@ export function ExportReportView() {
   const error = useExportStore((s) => s.error)
   const errorCode = useExportStore((s) => s.errorCode)
   const signOut = useAppStore((s) => s.signOut)
-  const askSupport = useSupportCard()
+  const succeeded = useExportStore(isSuccessfulRun)
+  const askSupport = useSupportCard(succeeded)
   const folder = context?.rejectsFolder ?? '_Rejets Pelli'
 
   return (
@@ -117,8 +119,8 @@ export function ExportReportView() {
           {t('export.lightroomHint')}
         </p>
       )}
-      {/* One card at a time: the one-time support card replaces the Pelli line when it shows. */}
-      {!error && askSupport && <SupportCard className="mx-auto mt-5 max-w-md" />}
+      {/* One card at a time: the one-time support card, only after a successful run, replaces the Pelli line when it shows. */}
+      {askSupport && <SupportCard className="mx-auto mt-5 max-w-md" />}
       {!error && !askSupport && !uploadReport && <PelliExportPromo className="mx-auto mt-5 max-w-md" />}
       <div className="mt-6 flex flex-wrap justify-center gap-2">
         {context && (

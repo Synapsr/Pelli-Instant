@@ -1,36 +1,48 @@
 import { Heart, Star, X } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { useT } from '@/lib/i18n'
 import { GITHUB_URL, INSTAGRAM_URL } from '@/lib/links'
-import { shouldAskSupport } from '@/lib/support'
+import { isSupportCardDue, shouldShowSupportCard } from '@/lib/support'
 import { usePlusStore } from '@/store/plus-store'
 import { usePrefsStore } from '@/store/prefs-store'
 
-/** Whether the export report shows the support card: decided once, so opening a link doesn't make it vanish. */
-export function useSupportCard(): boolean {
-  const exportsDone = usePrefsStore((s) => s.exportsDone)
-  const closed = usePrefsStore((s) => s.supportCardClosed)
+/**
+ * Whether the export report shows the support card, for a report whose run
+ * `succeeded`. Its turn is decided once, when the report opens, so the card
+ * stays while the report is open; Plus is checked live. As soon as a report
+ * shows it, it is recorded: it never comes back, even if the report closes
+ * with Done.
+ */
+export function useSupportCard(succeeded: boolean): boolean {
   const plusLoaded = usePlusStore((s) => s.loaded)
   const plusActive = usePlusStore((s) => s.status.active)
-  const [shown] = useState(() => shouldAskSupport({ exportsDone, closed, plusLoaded, plusActive }))
-  return shown
+  const markShown = usePrefsStore((s) => s.markSupportCardShown)
+  const [due] = useState(() => {
+    const { exportsDone, supportCardShown } = usePrefsStore.getState()
+    return isSupportCardDue({ exportsDone, shown: supportCardShown })
+  })
+  const show = shouldShowSupportCard({ due, succeeded, plusLoaded, plusActive })
+  useEffect(() => {
+    if (show) markShown()
+  }, [show, markShown])
+  return show
 }
 
 /**
  * The one-time card at the end of an export: follow Pelli on Instagram first
- * (photographers rarely have a GitHub account), a GitHub star second. Opening
- * either link or closing the card means it never shows again.
+ * (photographers rarely have a GitHub account), a GitHub star second. Shown
+ * once; opening either link or closing the card also records it.
  */
 export function SupportCard({ className }: { className?: string }) {
   const t = useT()
-  const closeSupportCard = usePrefsStore((s) => s.closeSupportCard)
+  const markShown = usePrefsStore((s) => s.markSupportCardShown)
   const [open, setOpen] = useState(true)
   if (!open) return null
 
   const visit = (url: string) => {
-    closeSupportCard()
+    markShown()
     void api().openExternal(url)
   }
 
@@ -45,7 +57,7 @@ export function SupportCard({ className }: { className?: string }) {
         type="button"
         aria-label={t('common.close')}
         onClick={() => {
-          closeSupportCard()
+          markShown()
           setOpen(false)
         }}
         className="focus-ring absolute right-2 top-2 rounded-full p-1 text-default-400 transition-colors duration-150 hover:text-default-600"
