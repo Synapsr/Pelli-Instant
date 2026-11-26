@@ -96,7 +96,7 @@ export function mockPlusOffer(lang: Language, currency: 'eur' | 'usd' = 'eur'): 
 export const TELEMETRY_EVENTS = ['onboarding_completed', 'app_opened', 'analysis_completed', 'export_completed', 'plus_activated', 'telemetry_disabled']
 
 export const MOCK_APP_INFO: AppInfo = {
-  version: '1.1.1-rc.3',
+  version: '1.1.1-rc.4',
   platform: 'macos',
   arch: 'aarch64',
   accelerator: 'CPU',

@@ -22,9 +22,9 @@ describe('telemetry details', () => {
 
   it('shows the engine’s example, or builds one with this computer’s values', () => {
     expect(telemetryExample({ installId: null, events: [], example: '{"event":"app_opened"}' }, null, 'fr')).toBe('{"event":"app_opened"}')
-    const info: AppInfo = { ...MOCK_APP_INFO, platform: 'windows', arch: 'x86_64', version: '1.1.1-rc.3' }
+    const info: AppInfo = { ...MOCK_APP_INFO, platform: 'windows', arch: 'x86_64', version: '1.1.1-rc.4' }
     const example = JSON.parse(telemetryExample({ installId: 'abc', events: [] }, info, 'de'))
-    expect(example).toMatchObject({ installId: 'abc', event: 'analysis_completed', appVersion: '1.1.1-rc.3', platform: 'windows', arch: 'x64', locale: 'de' })
+    expect(example).toMatchObject({ installId: 'abc', event: 'analysis_completed', appVersion: '1.1.1-rc.4', platform: 'windows', arch: 'x64', locale: 'de' })
     expect(Object.keys(example.props)).toEqual(['photos', 'raw', 'jpeg', 'seconds', 'precision', 'selected', 'toReview', 'rejected', 'groups'])
     // Never a file name or a path in what is shown.
     expect(JSON.stringify(example)).not.toMatch(/\/|\\\\|\.(jpg|cr3|nef)/i)
