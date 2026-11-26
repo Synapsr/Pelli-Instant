@@ -53,8 +53,12 @@ fn redact_user_folders(text: &str) -> String {
             out.push_str(rest);
             return out;
         };
-        // `C:\Users\…`: the drive goes with the folder.
-        let start = if i >= 2 && rest.as_bytes()[i - 1] == b':' { i - 2 } else { i };
+        // `C:\Users\…`: the drive goes with the folder, when it is one (an
+        // ASCII letter and `:`, so `start` stays on a character boundary
+        // whatever precedes: `é:/Users/…` keeps its `é:`).
+        let b = rest.as_bytes();
+        let drive = i >= 2 && b[i - 1] == b':' && b[i - 2].is_ascii_alphabetic();
+        let start = if drive { i - 2 } else { i };
         out.push_str(&rest[..start]);
         let after = &rest[i + len..];
         let end = after.find(['/', '\\', '\n', '"', '\'']).unwrap_or(after.len());
@@ -182,5 +186,70 @@ mod tests {
         );
         assert_eq!(redact(r#"{"key": 5, "model": "x"}"#), r#"{"key": 5, "model": "x"}"#, "only string values");
         assert_eq!(redact("an unterminated \"quote"), "an unterminated \"quote");
+    }
+
+    #[test]
+    fn non_ascii_text_around_paths() {
+        // An accent just before the colon of a path: no drive, no panic.
+        assert_eq!(redact("échec à l'accès é:/Users/camille/x.onnx"), "échec à l'accès é:~/x.onnx");
+        assert_eq!(redact(r"accès refusé é:\Users\Camille\x.onnx"), r"accès refusé é:~\x.onnx");
+        assert_eq!(redact(r"accès refusé: C:\Users\Camille\x.onnx"), r"accès refusé: ~\x.onnx");
+        assert_eq!(redact(r"ü:C:\Users\Zoë Ünal\AppData\x"), r"ü:~\AppData\x");
+        // Emoji and other scripts, in and around the paths.
+        assert_eq!(redact("📷:/Users/写真家/Library/x 🎉"), "📷:~/Library/x 🎉");
+        assert_eq!(redact("/home/zoë/.cache/x"), "~/.cache/x");
+        assert_eq!(redact("Bearer 🔑é \"token\":\"秘密\\"), "Bearer <redacted> \"token\":\"<redacted>");
+        assert_eq!(redact("https://exemple.fr/é?ç=😀 fin"), "https://exemple.fr/é?<redacted> fin");
+        // No path: unchanged.
+        assert_eq!(redact("Prêt · précision maximale ✓"), "Prêt · précision maximale ✓");
+        assert_eq!(redact(""), "");
+    }
+
+    /// Fragments glued in many orders: whatever the text, no panic.
+    #[test]
+    fn never_panics() {
+        let fragments = [
+            "é",
+            "😀",
+            "写",
+            ":",
+            "/",
+            "\\",
+            "/Users/",
+            "\\Users\\",
+            "/home/",
+            "C:",
+            "é:",
+            "\"",
+            "\"license\"",
+            "\"token\": ",
+            "Bearer ",
+            "https://",
+            "?",
+            "\n",
+            " ",
+            "a",
+            "\u{0}",
+            "\u{10FFFF}",
+            "ß",
+        ];
+        let mut seed: u64 = 0x2545_f491_4f6c_dd1d;
+        let mut next = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        for _ in 0..20_000 {
+            let len = (next() % 12) as usize;
+            let text: String = (0..len).map(|_| fragments[(next() % fragments.len() as u64) as usize]).collect();
+            let out = redact(&text);
+            assert!(!out.contains("camille"), "{text:?}");
+        }
+        // Arbitrary bytes, as lossy UTF-8.
+        for _ in 0..5_000 {
+            let bytes: Vec<u8> = (0..(next() % 40)).map(|_| next() as u8).collect();
+            redact(&String::from_utf8_lossy(&bytes));
+        }
     }
 }
