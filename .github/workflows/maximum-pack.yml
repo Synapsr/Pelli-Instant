@@ -15,6 +15,7 @@ on:
       - crates/cull-ml/**
       - models/manifest.json
       - scripts/fetch-models.mjs
+      - scripts/probe-model-origins.mjs
       - Cargo.lock
       - rust-toolchain.toml
       - .github/workflows/maximum-pack.yml
@@ -24,6 +25,7 @@ on:
       - crates/cull-ml/**
       - models/manifest.json
       - scripts/fetch-models.mjs
+      - scripts/probe-model-origins.mjs
       - Cargo.lock
       - rust-toolchain.toml
       - .github/workflows/maximum-pack.yml
@@ -46,6 +48,21 @@ env:
   CARGO_PROFILE_TEST_DEBUG: 0
 
 jobs:
+  # Every model file still downloadable from its origin (HTTP 200, the
+  # manifest's size), whatever the caches hold: weekly and by hand. The
+  # release workflow runs the same probe before building.
+  origins:
+    name: Model origins
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/probe-model-origins.mjs
+
   check:
     name: Maximum pack check (${{ matrix.name }})
     strategy:
@@ -100,30 +117,24 @@ jobs:
 
       - run: node scripts/fetch-models.mjs
 
-      # The public addresses of the pack's files: the upstream exports at
-      # the revisions of the manifest, Pelli's own conversions on its
-      # storage. The app gets the same files through Pelli (POST
-      # /api/cull/models); sizes and SHA-256 are checked just after.
-      - name: Maximum pack from its public URLs
+      # The pack's public origins (scripts/probe-model-origins.mjs: the
+      # upstream exports at the manifest's revisions, Pelli's conversions on
+      # its storage). The app gets the same files through Pelli (POST
+      # /api/cull/models); sizes and SHA-256 are checked just after. A cache
+      # hit skips the download: the origins job below probes them anyway.
+      - name: Maximum pack from its public origins
         shell: bash
         run: |
           set -euo pipefail
-          hf_clip=https://huggingface.co/Xenova/clip-vit-large-patch14/resolve/c307790166907339eed5a9a53a249af534102536/onnx
-          hf_dino=https://huggingface.co/onnx-community/dinov2-base-ONNX/resolve/9a1732c724ef0847dcedf00d3d5a93f61dea0370/onnx
-          s3=https://pelli.s3.fr-par.scw.cloud/pelli-instant/models
-          get() {
-            if [ ! -s "$1" ]; then
-              mkdir -p "$(dirname "$1")"
-              curl -fsSL --retry 3 --retry-all-errors -o "$1.part" "$2"
-              mv "$1.part" "$1"
+          node scripts/probe-model-origins.mjs --urls | while read -r file url; do
+            dir=models/maximum
+            [ "$file" = dinov2-base-int8.onnx ] && dir=models/retired
+            if [ ! -s "$dir/$file" ]; then
+              mkdir -p "$dir"
+              curl -fsSL --retry 3 --retry-all-errors -o "$dir/$file.part" "$url"
+              mv "$dir/$file.part" "$dir/$file"
             fi
-          }
-          get models/maximum/clip-vit-l14-vision-int8.onnx "$hf_clip/vision_model_int8.onnx"
-          get models/maximum/clip-vit-l14-text-fp16.onnx "$hf_clip/text_model_fp16.onnx"
-          get models/maximum/dinov2-base-fp32.onnx "$hf_dino/model.onnx"
-          get models/maximum/rfdetr-seg-small-384-w16.onnx "$s3/rfdetr-seg-small-384-w16.onnx"
-          get models/maximum/retinaface-r50-w16.onnx "$s3/retinaface-r50-w16.onnx"
-          get models/retired/dinov2-base-int8.onnx "$hf_dino/model_int8.onnx"
+          done
           sum() { if command -v sha256sum >/dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
           echo "f3006646af1ed07acceeefdd701e9be6e46e0b701ac0a1ab8e4ba7260e338302  models/retired/dinov2-base-int8.onnx" | sum -c -
 
