@@ -485,6 +485,8 @@ export const fr = {
         failedUnavailable: 'Les modèles ne sont pas disponibles pour le moment. Réessayez plus tard.',
         failedCheck: 'Les modèles sont téléchargés mais ne fonctionnent pas correctement sur cet ordinateur. Réessayez ; si cela se reproduit, contactez-nous.',
         failedUnsupported: 'La précision maximale n’est pas encore disponible pour cet ordinateur. Réessayez plus tard ou mettez Pelli Instant à jour.',
+        updateRequired: 'Mise à jour du pack Maximum nécessaire ({size})',
+        update: 'Mettre à jour',
         details: 'Détails',
         copyDetails: 'Copier',
         detailsCopied: 'Détails copiés',

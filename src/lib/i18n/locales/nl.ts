@@ -487,6 +487,8 @@ export const nl: Catalogue<typeof fr> = {
         failedUnavailable: 'De modellen zijn op dit moment niet beschikbaar. Probeer het later opnieuw.',
         failedCheck: 'De modellen zijn gedownload, maar werken niet goed op deze computer. Probeer het opnieuw; gebeurt het weer, neem dan contact met ons op.',
         failedUnsupported: 'Maximale precisie is nog niet beschikbaar voor deze computer. Probeer het later opnieuw of werk Pelli Instant bij.',
+        updateRequired: 'Update van het Maximum-pakket nodig ({size})',
+        update: 'Bijwerken',
         details: 'Details',
         copyDetails: 'Kopiëren',
         detailsCopied: 'Details gekopieerd',

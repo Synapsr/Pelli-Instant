@@ -487,6 +487,8 @@ export const pt: Catalogue<typeof fr> = {
         failedUnavailable: 'Os modelos não estão disponíveis no momento. Tente de novo mais tarde.',
         failedCheck: 'Os modelos foram baixados, mas não funcionam corretamente neste computador. Tente de novo; se acontecer outra vez, fale conosco.',
         failedUnsupported: 'A precisão máxima ainda não está disponível para este computador. Tente de novo mais tarde ou atualize o Pelli Instant.',
+        updateRequired: 'Atualização do pacote Máximo necessária ({size})',
+        update: 'Atualizar',
         details: 'Detalhes',
         copyDetails: 'Copiar',
         detailsCopied: 'Detalhes copiados',

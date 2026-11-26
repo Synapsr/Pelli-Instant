@@ -51,7 +51,8 @@ export function PackStatus({ pack, wanted, removable = false, className }: { pac
   const [details, setDetails] = useState(false)
   const appInfo = useAppStore((s) => s.appInfo)
   const { state } = pack
-  const failure = state.status === 'failed' && state.code !== 'cancelled' ? packFailureDetails(state, appInfo) : null
+  // A pause or a pending update is not a failure: no details.
+  const failure = state.status === 'failed' && state.code !== 'cancelled' && state.code !== 'updateRequired' ? packFailureDetails(state, appInfo) : null
   const copyDetails = async () => {
     if (!failure) return
     try {
@@ -71,6 +72,7 @@ export function PackStatus({ pack, wanted, removable = false, className }: { pac
       case 'downloading':
         return { label: t('settings.analysis.precision.pause'), icon: Pause, run: pause }
       case 'failed':
+        if (state.code === 'updateRequired') return { label: t('settings.analysis.precision.update'), icon: Download, run: download }
         return state.code === 'cancelled'
           ? { label: t('settings.analysis.precision.resume'), icon: Play, run: download }
           : { label: t('settings.analysis.precision.retry'), icon: RotateCcw, run: download }
@@ -81,9 +83,10 @@ export function PackStatus({ pack, wanted, removable = false, className }: { pac
     }
   })()
 
-  const iconName = state.status === 'ready' ? 'check' : state.status === 'failed' && state.code !== 'cancelled' ? 'alert' : 'download'
+  const problem = state.status === 'failed' && state.code !== 'cancelled' && state.code !== 'updateRequired'
+  const iconName = state.status === 'ready' ? 'check' : problem ? 'alert' : 'download'
   const Icon = { check: Check, alert: AlertCircle, download: Download }[iconName]
-  const tone = state.status === 'failed' && state.code !== 'cancelled' ? 'text-warning' : state.status === 'ready' ? 'text-success' : 'text-[#a599f5]'
+  const tone = problem ? 'text-warning' : state.status === 'ready' ? 'text-success' : 'text-[#a599f5]'
 
   return (
     <>
@@ -178,6 +181,7 @@ function describe(t: ReturnType<typeof useT>, pack: ModelPack): string {
     case 'ready':
       return t('settings.analysis.precision.installed', { size: formatBytes(pack.diskBytes) })
     case 'failed': {
+      if (state.code === 'updateRequired') return t('settings.analysis.precision.updateRequired', { size: formatBytes(Math.max(0, state.totalBytes - state.receivedBytes)) })
       if (state.code === 'cancelled') return t('settings.analysis.precision.paused', { percent: formatPercent(state.totalBytes ? state.receivedBytes / state.totalBytes : 0) })
       if (state.code === 'offline') return t('settings.analysis.precision.failedOffline')
       if (state.code === 'diskFull') return t('settings.analysis.precision.failedDisk', { size: formatBytes(packSpaceNeeded(pack)) })

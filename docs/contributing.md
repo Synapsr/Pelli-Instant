@@ -78,7 +78,7 @@ Pelli's paywall, so no gallery) for the optional account,
 without a JPEG twin, what a gallery gets for them),
 `mockUploadError=storage_full` (the next upload to Pelli fails with that
 code), `mockCount=5000` (size of the shoot), `mockModels=missing`,
-`mockPack=ready` (`paused`, `failed`, `checkFailed`; absent by default), `mockDisk=low`
+`mockPack=ready` (`paused`, `failed`, `checkFailed`, `update`; absent by default), `mockDisk=low`
 (not enough space for the Maximum pack),
 `mockUpdate=available` (`offline`, `disabled`), `mockLang=en` (`fr`, `es`,
 `de`, `it`, `pt`, `nl`, `pl`, `sv`), `mockTheme=light` (`dark`, `system`),
