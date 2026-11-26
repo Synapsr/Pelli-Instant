@@ -11,8 +11,10 @@ export type PlusReason = 'precision' | 'search' | 'stats' | 'settings' | 'pill' 
 
 export interface PlusState {
   status: PlusStatus
-  /** the engine answered once */
+  /** the engine answered once, or the request failed: the app goes on */
   loaded: boolean
+  /** a Plus status really arrived (an answer or a `plus` event): what the support card waits for */
+  answered: boolean
   /** Pelli's price for this visitor; null offline (the dialog falls back to the locale's) */
   offer: PlusOffer | null
   dialogOpen: boolean
@@ -52,6 +54,7 @@ function language() {
 export const usePlusStore = create<PlusState>((set, get) => ({
   status: NO_PLUS,
   loaded: false,
+  answered: false,
   offer: null,
   dialogOpen: false,
   view: 'offer',
@@ -63,7 +66,7 @@ export const usePlusStore = create<PlusState>((set, get) => ({
   load: async () => {
     try {
       const status = await api().plusStatus()
-      set({ status, loaded: true })
+      set({ status, loaded: true, answered: true })
     } catch {
       set({ loaded: true })
     }
@@ -71,7 +74,7 @@ export const usePlusStore = create<PlusState>((set, get) => ({
 
   onStatus: (status) => {
     const before = get().status
-    set({ status, loaded: true })
+    set({ status, loaded: true, answered: true })
     if (get().dialogOpen) {
       const next = viewAfterStatus(get().view, before, status)
       if (next.view !== get().view) set({ view: next.view, error: next.error ?? null, busy: false })

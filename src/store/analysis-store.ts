@@ -29,7 +29,7 @@ export interface AnalysisState {
   error: { code: string; message: string } | null
   /**
    * The sort that just ended offers the support card (free version only, see
-   * `useSupportCardVisible`): set by a real end, cleared by the next start, a
+   * `useSupportCardVisible`): set by a real end with photos sorted, cleared by the next start, a
    * cancel, an error, or by closing the card.
    */
   supportCard: boolean
@@ -133,7 +133,8 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
     if (summary.projectId !== s.projectId) return
     // A cancelled run also ends with a summary: only a real end celebrates.
     if (!s.running) return
-    set({ running: false, lastSummary: summary, progress: null, supportCard: true })
+    // The result and the review stay; the card only when photos were really sorted (not every file failed).
+    set({ running: false, lastSummary: summary, progress: null, supportCard: summary.analyzed > 0 })
     playSound('analysisDone')
   },
 

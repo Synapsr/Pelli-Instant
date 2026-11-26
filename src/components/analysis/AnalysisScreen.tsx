@@ -16,6 +16,7 @@ import { cn } from '@/lib/cn'
 import type { DecisionCounts, FinalDecision, Progress, Reason } from '@/lib/contract'
 import { formatDuration, formatNumber, formatPercent } from '@/lib/format'
 import { useT } from '@/lib/i18n'
+import { resultEnterReviews } from '@/lib/review/keyboard'
 import { type RecentPhoto, useAnalysisStore } from '@/store/analysis-store'
 import { useAppStore } from '@/store/app-store'
 import { usePlusStore } from '@/store/plus-store'
@@ -471,8 +472,9 @@ function Session({ phase }: { phase: 'running' | 'result' }) {
   useEffect(() => {
     if (!done) return
     const onKey = (e: KeyboardEvent) => {
-      // Not under the Plus dialog the support card opens: its own Enter is for its key field.
-      if (e.key === 'Enter' && !useAppStore.getState().dialog && !usePlusStore.getState().dialogOpen) {
+      // From the result itself only: a focused control keeps its Enter, and so does the Plus dialog the support card opens.
+      if (e.defaultPrevented || useAppStore.getState().dialog || usePlusStore.getState().dialogOpen) return
+      if (resultEnterReviews(e.key, e.target instanceof Element ? e.target : null)) {
         e.preventDefault()
         reviewResults()
       }

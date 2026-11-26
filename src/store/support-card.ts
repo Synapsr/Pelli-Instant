@@ -5,16 +5,16 @@ import { usePlusStore } from './plus-store'
 
 /** Whether the support card shows now (outside React). */
 export function supportCardVisible(): boolean {
-  const { status, loaded } = usePlusStore.getState()
-  return isSupportCardVisible({ offered: useAnalysisStore.getState().supportCard, plusLoaded: loaded, plusActive: status.active })
+  const { status, answered } = usePlusStore.getState()
+  return isSupportCardVisible({ offered: useAnalysisStore.getState().supportCard, plusKnown: answered, plusActive: status.active })
 }
 
 /** Whether the result screen shows the support card: offered by the sort that just ended, free version only, Plus checked live. */
 export function useSupportCardVisible(): boolean {
   const offered = useAnalysisStore((s) => s.supportCard)
-  const plusLoaded = usePlusStore((s) => s.loaded)
+  const plusKnown = usePlusStore((s) => s.answered)
   const plusActive = usePlusStore((s) => s.status.active)
-  return isSupportCardVisible({ offered, plusLoaded, plusActive })
+  return isSupportCardVisible({ offered, plusKnown, plusActive })
 }
 
 /** The ×: hidden for this sort; the next one offers it again. */
