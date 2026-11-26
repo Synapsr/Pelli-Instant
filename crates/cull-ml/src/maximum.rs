@@ -492,7 +492,7 @@ pub(crate) fn correlation(a: &[f32], b: &[f32]) -> f32 {
 /// one processor to the next (x86 AVX2, AVX-VNNI; arm64 dot product, i8mm),
 /// and the synthetic input, far from a photo, magnifies their rounding: it
 /// correlates 0.919 to 0.966 with fp32 on the processors measured (AVX-VNNI
-/// 0.920-0.936, AVX2 0.939, arm64 0.925 emulated and 0.966 on the Mac of
+/// 0.920-0.936, AVX2 0.928-0.939, arm64 0.925 emulated and 0.966 on the Mac of
 /// 1.1.0's references), while on photos its cosine to fp32 stays at 0.96 or
 /// more; a model computing garbage gives 0.46-0.49 (the int8 DINOv2 on x86).
 pub fn min_correlation(id: &str) -> f32 {
