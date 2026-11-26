@@ -734,6 +734,15 @@ export const nl: Catalogue<typeof fr> = {
     homeCta: 'Gratis proberen',
     export: 'Stuur deze selectie naar je klanten met een Pelli-galerij',
   },
+  support: {
+    title: 'Heeft Pelli Instant je tijd bespaard?',
+    body: 'Het is gratis en gemaakt door een klein team. Ons volgen op Instagram is de beste manier om ons te helpen, en je vindt er tips voor het selecteren en het laatste nieuws.',
+    instagram: 'Volg @pelli.io op Instagram',
+    github: 'Geef een ster op GitHub',
+    later: 'Later, selectie bekijken',
+    plusQuestion: 'Wil je dit niet meer zien?',
+    plusCta: 'Neem Pelli Instant Plus',
+  },
   onboarding: {
     skip: 'Overslaan',
     back: 'Terug',

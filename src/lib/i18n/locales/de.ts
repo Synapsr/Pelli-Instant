@@ -734,6 +734,15 @@ export const de: Catalogue<typeof fr> = {
     homeCta: 'Kostenlos testen',
     export: 'Senden Sie diese Auswahl mit einer Pelli-Galerie an Ihre Kunden',
   },
+  support: {
+    title: 'Hat Ihnen Pelli Instant Zeit gespart?',
+    body: 'Es ist kostenlos und wird von einem kleinen Team gemacht. Folgen Sie uns auf Instagram: Das hilft uns am meisten, und Sie finden dort Tipps zur Bildauswahl und Neuigkeiten.',
+    instagram: '@pelli.io auf Instagram folgen',
+    github: 'Einen Stern auf GitHub geben',
+    later: 'Später, Auswahl ansehen',
+    plusQuestion: 'Sie möchten das nicht mehr sehen?',
+    plusCta: 'Holen Sie sich Pelli Instant Plus',
+  },
   onboarding: {
     skip: 'Überspringen',
     back: 'Zurück',

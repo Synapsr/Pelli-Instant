@@ -27,6 +27,15 @@ export interface AnalysisState {
   startedAt: number | null
   lastSummary: AnalysisSummary | null
   error: { code: string; message: string } | null
+  /**
+   * The sort that just ended offers the support dialog on the way to its
+   * review (free version only, see `src/store/support.ts`): set by a real end
+   * with photos sorted, spent on the first way to the review, cleared by the
+   * next start, a cancel or an error.
+   */
+  supportOffered: boolean
+  /** the support dialog is open over the result, before the review */
+  supportOpen: boolean
   prepare: (project: ProjectSummary) => void
   start: (projectId: string, settings: CullSettings) => Promise<void>
   onPhotos: (projectId: string, photos: PhotoView[]) => void
@@ -35,6 +44,8 @@ export interface AnalysisState {
   onDone: (summary: AnalysisSummary) => void
   onError: (event: { projectId: string; code: string; message: string }) => void
   dismissError: () => void
+  /** the way to the review: spends the offer, the dialog open or not */
+  setSupportOpen: (open: boolean) => void
 }
 
 const ZERO: DecisionCounts = { selected: 0, toReview: 0, rejected: 0 }
@@ -52,10 +63,12 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
   startedAt: null,
   lastSummary: null,
   error: null,
+  supportOffered: false,
+  supportOpen: false,
 
   prepare: (project) => {
     decided = new Map()
-    set({ project, projectId: project.id, recent: [], counts: ZERO, lastSummary: null, error: null })
+    set({ project, projectId: project.id, recent: [], counts: ZERO, lastSummary: null, error: null, supportOffered: false, supportOpen: false })
   },
 
   onPhotos: (projectId, photos) => {
@@ -89,6 +102,8 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
       settings,
       startedAt: Date.now(),
       error: null,
+      supportOffered: false,
+      supportOpen: false,
       progress: { stage: 'scanning', done: 0, total: 0, current: null, photosPerSecond: 0, etaMs: null },
     })
     try {
@@ -102,7 +117,7 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
   cancel: async () => {
     const { projectId, running } = get()
     if (!projectId || !running) return
-    set({ running: false, progress: null, lastSummary: null })
+    set({ running: false, progress: null, lastSummary: null, supportOffered: false, supportOpen: false })
     try {
       await api().cancelAnalysis(projectId)
     } finally {
@@ -123,16 +138,19 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
     if (summary.projectId !== s.projectId) return
     // A cancelled run also ends with a summary: only a real end celebrates.
     if (!s.running) return
-    set({ running: false, lastSummary: summary, progress: null })
+    // The result and the review stay; the support dialog only when photos were really sorted (not every file failed).
+    set({ running: false, lastSummary: summary, progress: null, supportOffered: summary.analyzed > 0 })
     playSound('analysisDone')
   },
 
   onError: (event) => {
     const s = get()
     if (event.projectId !== s.projectId || event.code === 'cancelled') return
-    set({ running: false, progress: null, error: { code: event.code, message: event.message } })
+    set({ running: false, progress: null, supportOffered: false, supportOpen: false, error: { code: event.code, message: event.message } })
     notify({ title: t('analysis.errorTitle'), description: event.message, tone: 'danger' })
   },
 
   dismissError: () => set({ error: null }),
+
+  setSupportOpen: (supportOpen) => set({ supportOpen, supportOffered: false }),
 }))

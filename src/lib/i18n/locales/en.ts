@@ -734,6 +734,15 @@ export const en: Catalogue<typeof fr> = {
     homeCta: 'Free trial',
     export: 'Send this selection to your clients with a Pelli gallery',
   },
+  support: {
+    title: 'Did Pelli Instant save you time?',
+    body: 'It’s free and made by a small team. Following us on Instagram is the best way to help, and you’ll find culling tips and news there.',
+    instagram: 'Follow @pelli.io on Instagram',
+    github: 'Leave a star on GitHub',
+    later: 'Not now, see the selection',
+    plusQuestion: 'Don’t want to see this again?',
+    plusCta: 'Get Pelli Instant Plus',
+  },
   onboarding: {
     skip: 'Skip',
     back: 'Back',

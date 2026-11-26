@@ -2,6 +2,7 @@ import { Button } from '@heroui/react'
 import { AnimatePresence, motion, useReducedMotion, useSpring, useTransform, type Variants } from 'framer-motion'
 import { ArrowRight, Check, Share } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { SupportDialog } from '@/components/promo/SupportDialog'
 import { AnimatedNumber } from '@/components/ui/AnimatedNumber'
 import { Backdrop } from '@/components/ui/Backdrop'
 import { DECISION_BG } from '@/components/ui/Decision'
@@ -18,6 +19,7 @@ import { useT } from '@/lib/i18n'
 import { type RecentPhoto, useAnalysisStore } from '@/store/analysis-store'
 import { useAppStore } from '@/store/app-store'
 import { useReviewStore } from '@/store/review-store'
+import { goToReview, resultKeyDown } from '@/store/support'
 
 const EASE = [0.22, 1, 0.36, 1] as const
 const DECISIONS: FinalDecision[] = ['selected', 'toReview', 'rejected']
@@ -469,14 +471,11 @@ function Session({ phase }: { phase: 'running' | 'result' }) {
   useEffect(() => {
     if (!done) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && !useAppStore.getState().dialog) {
-        e.preventDefault()
-        reviewResults()
-      }
+      if (resultKeyDown({ key: e.key, target: e.target instanceof Element ? e.target : null, defaultPrevented: e.defaultPrevented })) e.preventDefault()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [done, reviewResults])
+  }, [done])
 
   const orb = short ? 156 : 196
   const ring = orb + 64
@@ -541,7 +540,7 @@ function Session({ phase }: { phase: 'running' | 'result' }) {
                 </motion.ul>
               )}
               <motion.div variants={RISE} className="flex items-center gap-3">
-                <Button radius="full" className="btn-brand h-12 px-7 text-[15px] font-semibold" endContent={<ArrowRight className="size-4" />} onPress={reviewResults}>
+                <Button radius="full" className="btn-brand h-12 px-7 text-[15px] font-semibold" endContent={<ArrowRight className="size-4" />} onPress={goToReview}>
                   {t('analysisScreen.review')}
                 </Button>
                 <Button
@@ -630,6 +629,7 @@ export function AnalysisScreen() {
           <AnimatePresence mode="wait">{phase === 'failed' ? <Failed key="failed" /> : <Session key="session" phase={phase} />}</AnimatePresence>
         </div>
       </main>
+      <SupportDialog />
     </div>
   )
 }

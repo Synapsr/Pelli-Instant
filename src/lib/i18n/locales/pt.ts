@@ -734,6 +734,15 @@ export const pt: Catalogue<typeof fr> = {
     homeCta: 'Teste grátis',
     export: 'Envie esta seleção aos seus clientes com uma galeria Pelli',
   },
+  support: {
+    title: 'O Pelli Instant economizou seu tempo?',
+    body: 'Ele é gratuito e feito por uma equipe pequena. Seguir a gente no Instagram é a melhor forma de ajudar, e lá você encontra dicas de seleção e novidades.',
+    instagram: 'Seguir @pelli.io no Instagram',
+    github: 'Deixar uma estrela no GitHub',
+    later: 'Agora não, ver a seleção',
+    plusQuestion: 'Não quer mais ver isto?',
+    plusCta: 'Adquira o Pelli Instant Plus',
+  },
   onboarding: {
     skip: 'Pular',
     back: 'Voltar',

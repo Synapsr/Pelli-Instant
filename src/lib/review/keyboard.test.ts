@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { leftToControl, resolveShortcut, type KeyInput, type KeyTarget } from './keyboard'
+import { leftToControl, resolveShortcut, resultEnterReviews, type KeyInput, type KeyTarget } from './keyboard'
 
 function key(k: string, extra: Partial<KeyInput> = {}): KeyInput {
   const code = /^\d$/.test(k) ? `Digit${k}` : k.length === 1 ? `Key${k.toUpperCase()}` : k
@@ -117,5 +117,26 @@ describe('keys left to a focused control', () => {
     expect(leftToControl('ArrowRight', inside())).toBe(false)
     expect(leftToControl(' ', null)).toBe(false)
     expect(leftToControl('p', inside('button'))).toBe(false)
+  })
+})
+
+describe('Enter on the result screen of a sort', () => {
+  const surface: KeyTarget = { closest: () => null }
+
+  it('opens the review from the screen itself', () => {
+    expect(resultEnterReviews('Enter', surface)).toBe(true)
+    expect(resultEnterReviews('Enter', null)).toBe(true)
+    expect(resultEnterReviews(' ', surface)).toBe(false)
+  })
+
+  it('leaves Enter to a focused control: the support dialog’s buttons, links', () => {
+    expect(resultEnterReviews('Enter', inside('button'))).toBe(false)
+    expect(resultEnterReviews('Enter', inside('a[href]'))).toBe(false)
+    expect(resultEnterReviews('Enter', inside('[role="dialog"]'))).toBe(false)
+  })
+
+  it('leaves Enter to a text field', () => {
+    const field = { tagName: 'INPUT', isContentEditable: false, closest: () => null } as unknown as KeyTarget
+    expect(resultEnterReviews('Enter', field)).toBe(false)
   })
 })

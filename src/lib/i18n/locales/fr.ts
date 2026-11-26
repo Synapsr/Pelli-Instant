@@ -732,6 +732,15 @@ export const fr = {
     homeCta: 'Essai gratuit',
     export: 'Envoyez cette sélection à vos clients avec une galerie Pelli',
   },
+  support: {
+    title: 'Pelli Instant vous a fait gagner du temps ?',
+    body: 'Il est gratuit et fait par une petite équipe. Nous suivre sur Instagram, c’est la meilleure façon de nous aider, et vous y trouverez des astuces de tri et nos nouveautés.',
+    instagram: 'Suivre @pelli.io sur Instagram',
+    github: 'Laisser une étoile sur GitHub',
+    later: 'Plus tard, voir le tri',
+    plusQuestion: 'Vous ne voulez plus voir ça ?',
+    plusCta: 'Prenez Pelli Instant Plus',
+  },
   onboarding: {
     skip: 'Passer',
     back: 'Retour',

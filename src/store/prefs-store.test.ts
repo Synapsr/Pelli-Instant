@@ -41,6 +41,24 @@ describe('preferences', () => {
     expect(stored.state.xmpMapping).toEqual({ ...v1Mapping, labelLanguage: 'nl' })
   })
 
+  it('ignores the support card keys a test build saved', async () => {
+    const legacy = { thumbSize: 240, xmpMapping: DEFAULT_XMP_MAPPING, exportsDone: 7, supportCardShown: true }
+    const saved = new Map([['pelli-cull:prefs', JSON.stringify({ state: legacy, version: 2 })]])
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => saved.get(key) ?? null,
+      setItem: (key: string, value: string) => saved.set(key, value),
+      removeItem: (key: string) => saved.delete(key),
+    })
+    vi.resetModules()
+    const { usePrefsStore: fresh } = await import('./prefs-store')
+    expect(fresh.getState().thumbSize).toBe(240)
+    fresh.getState().setSounds(false)
+    const stored = JSON.parse(saved.get('pelli-cull:prefs') ?? '{}')
+    expect(stored.state.sounds).toBe(false)
+    expect(stored.state).not.toHaveProperty('exportsDone')
+    expect(stored.state).not.toHaveProperty('supportCardShown')
+  })
+
   it('sends the label language picked in the export, else the app one', () => {
     const prefs = usePrefsStore.getState()
     expect(xmpExportMapping(usePrefsStore.getState().xmpMapping, 'fr')).toEqual({ ...DEFAULT_XMP_MAPPING, labelLanguage: 'fr' })
