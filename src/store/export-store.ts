@@ -5,7 +5,9 @@ import { isKnownUploadError } from '@/lib/gallery'
 import { t } from '@/lib/i18n'
 import { notify } from '@/lib/notify'
 import { playSound } from '@/lib/sound'
+import { isSuccessfulRun } from '@/lib/support'
 import { useAppStore } from './app-store'
+import { usePrefsStore } from './prefs-store'
 
 export type ExportPhase = 'configure' | 'exporting' | 'uploading' | 'done'
 
@@ -24,6 +26,8 @@ interface ExportState {
   phase: ExportPhase
   context: ExportContext | null
   report: ExportReport | null
+  /** the run also sends the photos to a Pelli gallery */
+  withUpload: boolean
   upload: UploadProgress | null
   uploadReport: UploadReport | null
   error: string | null
@@ -55,6 +59,7 @@ const IDLE = {
   phase: 'configure' as const,
   context: null,
   report: null,
+  withUpload: false,
   upload: null,
   uploadReport: null,
   error: null,
@@ -71,6 +76,15 @@ export function uploadErrorText(code: string | null, message: string | null): st
   return t('export.uploadError', { message: message || code || '' })
 }
 
+/**
+ * The run ends with its report: a successful one counts toward the support
+ * card first, so the report that opens already knows the new count.
+ */
+function finishRun(patch: Partial<ExportState>) {
+  if (isSuccessfulRun({ ...useExportStore.getState(), ...patch })) usePrefsStore.getState().countExport()
+  useExportStore.setState(patch)
+}
+
 /** Back to the dialog, to see how the upload went. */
 function showReport() {
   useExportStore.getState().show()
@@ -82,7 +96,7 @@ export const useExportStore = create<ExportState>((set, get) => ({
   signInError: null,
 
   run: async (projectId, options, upload, context) => {
-    set({ ...IDLE, projectId, context, phase: 'exporting' })
+    set({ ...IDLE, projectId, context, withUpload: upload !== null, phase: 'exporting' })
     try {
       const report = anyLocalOutput(options)
         ? await api().exportProject(projectId, options)
@@ -93,7 +107,7 @@ export const useExportStore = create<ExportState>((set, get) => ({
         set({ phase: 'uploading', upload: null })
         await api().uploadToPelli(projectId, upload)
       } else {
-        set({ phase: 'done' })
+        finishRun({ phase: 'done' })
         playSound('exportDone')
       }
     } catch (error) {
@@ -160,7 +174,7 @@ export const useExportStore = create<ExportState>((set, get) => ({
 
   onUploadDone: (report) => {
     if (report.projectId !== get().projectId || get().phase !== 'uploading') return
-    set({ phase: 'done', uploadReport: report })
+    finishRun({ phase: 'done', uploadReport: report })
     playSound('exportDone')
     if (!get().background) return
     const skippedOnly = report.uploaded === 0 && (report.skipped ?? 0) > 0

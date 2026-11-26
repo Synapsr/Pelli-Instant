@@ -734,6 +734,12 @@ export const sv: Catalogue<typeof fr> = {
     homeCta: 'Prova gratis',
     export: 'Skicka det här urvalet till dina kunder med ett Pelli-galleri',
   },
+  support: {
+    title: 'Sparar Pelli Instant tid åt dig?',
+    body: 'Följ Pelli på Instagram: tips om bildurval, nyheter och en titt bakom kulisserna.',
+    instagram: 'Följ @pelli.io på Instagram',
+    github: 'Eller ge oss en stjärna på GitHub: det är gratis och det bästa sättet att hjälpa oss.',
+  },
   onboarding: {
     skip: 'Hoppa över',
     back: 'Tillbaka',
