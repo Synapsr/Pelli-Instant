@@ -37,7 +37,7 @@ export function telemetryExample(preview: TelemetryPreview | null, info: AppInfo
     {
       installId: preview?.installId ?? '00000000-0000-4000-8000-000000000000',
       event: 'analysis_completed',
-      appVersion: info?.version ?? '1.1.1-rc.2',
+      appVersion: info?.version ?? '1.1.1-rc.3',
       platform: info ? PLATFORMS[info.platform] : 'mac',
       arch,
       locale: language,
