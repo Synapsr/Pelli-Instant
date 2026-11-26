@@ -409,6 +409,7 @@ impl Engine {
         let spawned = std::thread::Builder::new().name("services".into()).spawn(move || {
             engine.app_opened();
             engine.verify_license_if_due();
+            engine.resume_model_pack_update();
         });
         if let Err(e) = spawned {
             log::warn!("cannot start the background services: {e}");

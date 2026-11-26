@@ -10,6 +10,7 @@
 //! | `analysis_completed` | an analysis of the app analysed ≥ 1 photo | `photos`, `raw`, `jpeg` (this run), `seconds`, `precision`, `selected`, `toReview`, `rejected`, `groups` (the project) |
 //! | `export_completed` | an export finished | `photos`, `xmp`, `copied`, `moved` (what was asked) |
 //! | `plus_activated` | Plus just became active | `via`: `purchase`, `key`, `account` |
+//! | `model_pack_failed` | the Maximum pack failed (not a pause), once per failure | `stage` (`download`, `prepare`, `load`), `code` (`checkFailed`, `unsupported`, `checksum`, `notFound`, `offline`, `diskFull`, `internal`…), `model` (its manifest id, or `null`) |
 //! | `telemetry_disabled` | telemetry was turned off: the last one | — |
 //!
 //! Each payload holds a random install id (a UUID kept in the library only
@@ -44,6 +45,7 @@ pub const EVENTS: &[&str] = &[
     "analysis_completed",
     "export_completed",
     "plus_activated",
+    "model_pack_failed",
     "telemetry_disabled",
 ];
 
@@ -103,11 +105,7 @@ pub(crate) struct Telemetry {
 
 /// `arm64` or `x64` (the architecture's Rust name otherwise).
 pub fn arch() -> &'static str {
-    match std::env::consts::ARCH {
-        "aarch64" => "arm64",
-        "x86_64" => "x64",
-        other => other,
-    }
+    cull_ml::arch()
 }
 
 /// What "What is sent?" shows (`telemetry_preview`).
