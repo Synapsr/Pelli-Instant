@@ -7,6 +7,11 @@
 //! (scope = cache dir + opened project folders), the Pelli token lives in
 //! the OS keychain, and the engine's services (telemetry, the daily licence
 //! check) start with the app.
+//!
+//! Logs go to the terminal and to `pelli-instant.log` in the app's log
+//! folder (macOS `~/Library/Logs/io.pelli.instant`, Windows
+//! `%LOCALAPPDATA%\io.pelli.instant\logs`), 5 MB a file, the 3 latest kept:
+//! a release build on Windows has no console to read them from.
 
 mod updates;
 
@@ -195,8 +200,33 @@ struct AppState {
     host: Arc<TauriHost>,
 }
 
+/// The log file and the terminal; `RUST_LOG=debug` (a single level) for
+/// more.
+fn log_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
+    use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
+    let level = std::env::var("RUST_LOG").ok().and_then(|l| l.parse().ok()).unwrap_or(log::LevelFilter::Info);
+    tauri_plugin_log::Builder::new()
+        .clear_targets()
+        .targets([
+            Target::new(TargetKind::Stdout),
+            Target::new(TargetKind::LogDir { file_name: Some("pelli-instant".into()) }),
+        ])
+        .level(level)
+        .max_file_size(LOG_FILE_BYTES)
+        .rotation_strategy(RotationStrategy::KeepSome(3))
+        .build()
+}
+
+const LOG_FILE_BYTES: u128 = 5 * 1024 * 1024;
+
 fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle().clone();
+    log::info!(
+        "Pelli Instant {} on {} {}",
+        env!("CARGO_PKG_VERSION"),
+        cull_engine::pelli::os(),
+        cull_engine::telemetry::arch()
+    );
     let data_dir = handle.path().app_data_dir()?;
     let cache_dir = handle.path().app_cache_dir()?.join("previews");
     std::fs::create_dir_all(&cache_dir)?;
@@ -224,7 +254,6 @@ fn update_command(invoke: tauri::ipc::Invoke) -> bool {
 }
 
 pub fn run() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             if let Some(w) = app.get_webview_window("main") {
@@ -232,6 +261,7 @@ pub fn run() {
                 let _ = w.set_focus();
             }
         }))
+        .plugin(log_plugin())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
