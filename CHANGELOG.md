@@ -11,7 +11,7 @@ in French from the `Français` block.
 - When Maximum precision cannot work on a computer, the app now says so clearly instead of "The download failed", and no longer tries again at every launch. *Try again* downloads the faulty file again.
 - The app keeps a log file (`pelli-instant.log`, in `~/Library/Logs/io.pelli.instant` on Mac and `%LOCALAPPDATA%\io.pelli.instant\logs` on Windows) about Maximum precision, its models and updates, to help us when something goes wrong: no photo or folder name, no user name, no licence.
 - With usage statistics on, a failed installation of Maximum precision is reported anonymously (the step, the error code and the model only).
-- The free version asks once, after your third successful export, to follow Pelli on Instagram or leave a star on GitHub: a small card at the end of the export, never a pop-up, and never with Plus.
+- After each completed sort, the free version shows a small card on the result screen to follow Pelli on Instagram or leave a star on GitHub. Never a pop-up and never in the way of the review: it closes with its × until the next sort, and Pelli Instant Plus removes it.
 
 <details><summary>Français</summary>
 
@@ -19,7 +19,7 @@ in French from the `Français` block.
 - Quand la précision maximale ne peut pas fonctionner sur un ordinateur, l'app le dit clairement au lieu de « Le téléchargement a échoué », et ne réessaie plus à chaque lancement. *Réessayer* télécharge à nouveau le fichier en cause.
 - L'app tient un fichier journal (`pelli-instant.log`, dans `~/Library/Logs/io.pelli.instant` sur Mac et `%LOCALAPPDATA%\io.pelli.instant\logs` sur Windows) sur la précision maximale, ses modèles et les mises à jour, pour nous aider quand quelque chose ne va pas : aucun nom de photo ni de dossier, ni nom d'utilisateur, ni licence.
 - Avec les statistiques d'utilisation activées, l'échec de l'installation de la précision maximale est signalé anonymement (l'étape, le code d'erreur et le modèle seulement).
-- La version gratuite propose une seule fois, après votre troisième export réussi, de suivre Pelli sur Instagram ou de laisser une étoile sur GitHub : une petite carte à la fin de l'export, jamais une fenêtre surgissante, et jamais avec Plus.
+- Après chaque tri terminé, la version gratuite affiche sur l'écran de résultat une petite carte pour suivre Pelli sur Instagram ou laisser une étoile sur GitHub. Jamais une fenêtre surgissante ni un frein à la revue : elle se ferme avec sa croix jusqu'au tri suivant, et Pelli Instant Plus la retire.
 
 </details>
 

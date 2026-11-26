@@ -739,6 +739,7 @@ export const pt: Catalogue<typeof fr> = {
     body: 'Siga o Pelli no Instagram: dicas de seleção, novidades e bastidores.',
     instagram: 'Seguir @pelli.io no Instagram',
     github: 'Ou deixe uma estrela no GitHub: é grátis e é a melhor forma de nos ajudar.',
+    plus: 'Adquira o Pelli Instant Plus para não ver mais este cartão',
   },
   onboarding: {
     skip: 'Pular',

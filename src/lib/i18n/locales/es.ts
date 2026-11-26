@@ -739,6 +739,7 @@ export const es: Catalogue<typeof fr> = {
     body: 'Sigue a Pelli en Instagram: consejos para seleccionar fotos, novedades y un vistazo entre bastidores.',
     instagram: 'Seguir a @pelli.io en Instagram',
     github: 'O deja una estrella en GitHub: es gratis y es la mejor manera de ayudarnos.',
+    plus: 'Consigue Pelli Instant Plus para no volver a verla',
   },
   onboarding: {
     skip: 'Omitir',

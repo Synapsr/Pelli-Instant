@@ -814,6 +814,7 @@ export const pl: Catalogue<typeof fr> = {
     body: 'Obserwuj Pelli na Instagramie: porady dotyczące selekcji, nowości i kulisy.',
     instagram: 'Obserwuj @pelli.io na Instagramie',
     github: 'Albo zostaw gwiazdkę na GitHubie: to nic nie kosztuje, a najbardziej nam pomaga.',
+    plus: 'Z Pelli Instant Plus ta karta przestanie się wyświetlać',
   },
   onboarding: {
     skip: 'Pomiń',
