@@ -7,7 +7,7 @@ downloaded (and verified) by:
 ```sh
 node scripts/fetch-models.mjs            # desktop bundle set (~223 MB)
 node scripts/fetch-models.mjs --gpu      # + fp16 CLIP for DirectML/CUDA (+176 MB; Windows installer)
-node scripts/fetch-models.mjs --maximum  # + the Maximum pack into models/maximum/ (~777 MB, development, Plus: see below)
+node scripts/fetch-models.mjs --maximum  # + the Maximum pack into models/maximum/ (~1 GB, development, Plus: see below)
 node scripts/fetch-models.mjs --check    # verify sizes + SHA-256, exit 1 on problems
 node scripts/fetch-models.mjs --strict   # an optional model that cannot be fetched is an error (installers)
 ```
@@ -48,13 +48,13 @@ file never changes: a new conversion gets a new file name.
 | clip-vision-fp16 (gpu) | clip-vit-b32-vision-fp16.onnx | 176 MB | MIT |
 | clip-text | clip-vit-b32-text-fp16.onnx | 127 MB | MIT |
 
-Maximum pack (`bundle: "maximum"`, every file needed, ~777 MB):
+Maximum pack (`bundle: "maximum"`, every file needed, ~1 GB):
 
 | id | file | size | license |
 |---|---|---|---|
 | clip-l14-vision-int8 | clip-vit-l14-vision-int8.onnx | 306 MB | MIT (OpenAI CLIP; ONNX + int8 by Xenova) |
 | clip-l14-text | clip-vit-l14-text-fp16.onnx | 248 MB | MIT |
-| dinov2-b14-int8 | dinov2-base-int8.onnx | 91 MB | Apache-2.0 (Meta DINOv2; ONNX by onnx-community) |
+| dinov2-b14-fp32 | dinov2-base-fp32.onnx | 347 MB | Apache-2.0 (Meta DINOv2; ONNX by onnx-community) |
 | rfdetr-seg-s | rfdetr-seg-small-384-w16.onnx | 77 MB | Apache-2.0 (Roboflow RF-DETR; ONNX by Pelli) |
 | retinaface-r50 | retinaface-r50-w16.onnx | 55 MB | MIT (biubug6 RetinaFace; ONNX by Pelli) |
 

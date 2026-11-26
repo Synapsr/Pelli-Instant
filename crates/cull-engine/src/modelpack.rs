@@ -2,12 +2,14 @@
 //! Instant Plus: download, verification and installation of its models, and
 //! their loading for the analyses that use them.
 //!
-//! The files (`bundle: "maximum"` in `models/manifest.json`, ~777 MB) go to
+//! The files (`bundle: "maximum"` in `models/manifest.json`, ~1 GB) go to
 //! `<data dir>/models/maximum/`, never the cache dir: clearing the preview
 //! cache keeps them. The manifest has no URL for them: Pelli hands out
 //! short-lived ones to Plus (`POST /api/cull/models`, with the licence token
-//! or the Bearer of a Pelli account whose plan includes Plus; `plusRequired`
-//! otherwise), and the app asks again when the storage refuses an expired
+//! or the Bearer of a Pelli account whose plan includes Plus, and the
+//! processor architecture; `plusRequired` otherwise; `unsupported` when its
+//! answer lacks a file of this architecture), and the app asks again when the
+//! storage refuses an expired
 //! one (HTTP 403), then resumes. Each file is downloaded into `<file>.part`
 //! with HTTP range requests, so a cancelled or interrupted download (app
 //! quit, network lost) resumes where it stopped; once complete its SHA-256
@@ -21,9 +23,20 @@
 //! `cull_ml::MaximumModels::check`) → `ready`. `failed` keeps the bytes on
 //! disk: code `cancelled` after [`Engine::cancel_model_pack`] and at startup
 //! when parts are on disk (the UI offers to resume), `offline`, `diskFull`,
-//! `checksum`, or another code with its message. [`Engine::download_model_pack`]
-//! resumes from any of them. Every change is sent as a `model-pack` event,
-//! at most ~4 per second while downloading.
+//! `checksum`, `checkFailed` (a model loads but computes wrong results on
+//! this computer, or does not load), `unsupported`, or another code with its
+//! message. [`Engine::download_model_pack`] resumes from any of them. Every
+//! change is sent as a `model-pack` event, at most ~4 per second while
+//! downloading, and every failure but a pause as a `model_pack_failed`
+//! telemetry event (stage, code and model id only).
+//!
+//! A `checkFailed` is remembered with the files and the app version it
+//! happened with: the next launches show it without preparing the pack again
+//! (the same files would fail the same way), until the user retries, which
+//! downloads the failing model's file again, or an update of the app. Files
+//! the pack no longer uses (1.1.0's int8 DINOv2) are deleted when the engine
+//! opens; when the pack was in use, the new file downloads as soon as the
+//! services start (Maximum chosen, Plus active).
 //!
 //! The models are loaded only when an analysis in Maximum precision runs
 //! (and released after it), the CLIP L/14 text tower only when a project
@@ -33,6 +46,7 @@
 //! `<base>/<file name>` (a local server with range support serving your own
 //! copy) instead of asking Pelli, and then needs no Plus.
 
+use crate::redact::redact;
 use crate::{Engine, EngineError, Result};
 use cull_ml::{MaximumModels, MaximumText, PackFile};
 use parking_lot::Mutex;
@@ -48,6 +62,8 @@ use std::time::{Duration, Instant};
 /// successful preparation. The pack is `ready` at startup when they still
 /// match.
 const READY_KEY: &str = "model_pack.maximum";
+/// kv key: the preparation that failed its check ([`CheckFailure`]).
+const FAILED_KEY: &str = "model_pack.maximum.failed";
 /// Free space kept beyond what the download still needs.
 const DISK_MARGIN: u64 = 256 * 1024 * 1024;
 /// Minimum time between two `model-pack` events while downloading.
@@ -58,6 +74,11 @@ const ATTEMPTS_PER_FILE: usize = 3;
 /// New URLs asked from Pelli per file when the storage says they expired.
 const MAX_REFRESHES: usize = 3;
 const READ_CHUNK: usize = 256 * 1024;
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Every `code` of a `model_pack_failed` event (Pelli accepts these only).
+pub const PACK_FAILURE_CODES: &[&str] =
+    &["checkFailed", "checksum", "diskFull", "internal", "notFound", "offline", "plusRequired", "unsupported"];
 
 /// State of the pack (contract `ModelPackState`).
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -120,6 +141,18 @@ struct Stamp {
     mtime_ns: u128,
 }
 
+/// A failed preparation, remembered so that the next launches do not run it
+/// again on the same files.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CheckFailure {
+    stamps: std::collections::BTreeMap<String, Stamp>,
+    app_version: String,
+    /// Manifest id of the failing model, when known.
+    model: Option<String>,
+    message: String,
+}
+
 fn stamp(path: &Path) -> Option<Stamp> {
     let m = std::fs::metadata(path).ok().filter(|m| m.is_file())?;
     let mtime_ns = m.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.as_nanos();
@@ -134,11 +167,26 @@ fn part_path(dir: &Path, f: &PackFile) -> PathBuf {
 #[derive(Debug)]
 enum Stop {
     Cancelled,
-    Failed { code: &'static str, message: String },
+    /// `model`: manifest id of the file that failed, when one did.
+    Failed {
+        code: &'static str,
+        message: String,
+        model: Option<String>,
+    },
 }
 
 fn failed(code: &'static str, message: impl Into<String>) -> Stop {
-    Stop::Failed { code, message: message.into() }
+    Stop::Failed { code, message: message.into(), model: None }
+}
+
+impl Stop {
+    /// The failure of file `f`.
+    fn of(self, f: &PackFile) -> Stop {
+        match self {
+            Stop::Failed { code, message, model: None } => Stop::Failed { code, message, model: Some(f.id.clone()) },
+            other => other,
+        }
+    }
 }
 
 fn io_stop(path: &Path, e: std::io::Error) -> Stop {
@@ -359,26 +407,93 @@ impl Engine {
         }
     }
 
+    /// The download failed (or was paused).
     fn pack_failed(&self, code: &str, message: String) {
+        self.pack_failed_on("download", code, None, message)
+    }
+
+    /// The pack failed at `stage` (`download`, `prepare`: loading and
+    /// checking it after a download or at launch, `load`: loading it for an
+    /// analysis), on the model `model` (manifest id) when known: state
+    /// `failed`, and the `model_pack_failed` telemetry event (stage, code and
+    /// model only: the message may hold a path) unless it is a pause.
+    fn pack_failed_on(&self, stage: &str, code: &str, model: Option<&str>, message: String) {
+        // Shown under "Details" for the photographer to copy, and logged: no
+        // user name, no credential.
+        let message = redact(&message);
         let (received, total) = (self.pack.received(), self.pack.total());
-        log::warn!("Maximum pack: {code}: {message}");
+        log::warn!("Maximum pack: {stage}: {code} ({}): {message}", model.unwrap_or("-"));
+        if code != "cancelled" {
+            // Closed lists for Pelli: an unexpected code is `internal`, an
+            // unknown model `null`.
+            let code = if PACK_FAILURE_CODES.contains(&code) { code } else { "internal" };
+            let model = model.filter(|m| self.pack.files.iter().any(|f| f.id == *m));
+            self.track("model_pack_failed", serde_json::json!({ "stage": stage, "code": code, "model": model }));
+        }
         self.set_pack_state(
             ModelPackState::Failed { code: code.into(), message, received_bytes: received, total_bytes: total },
             false,
         );
     }
 
+    /// The remembered failed check, its message redacted again (one stored
+    /// by an earlier build may hold a path).
+    fn check_failure(&self) -> Option<CheckFailure> {
+        let mut f: CheckFailure = self.kv_get(FAILED_KEY).ok().flatten().and_then(|j| serde_json::from_str(&j).ok())?;
+        f.message = redact(&f.message);
+        Some(f)
+    }
+
+    /// Files of an older pack this version no longer uses (1.1.0's int8
+    /// DINOv2) still on disk.
+    fn stale_pack_files_on_disk(&self) -> Vec<String> {
+        cull_ml::stale_pack_files().into_iter().filter(|f| self.pack.dir.join(f).is_file()).collect()
+    }
+
+    /// Deletes them, and their parts: only once the pack that replaces them
+    /// is ready (downloaded, verified and checked), so that until then the
+    /// version that used them still finds them.
+    fn remove_stale_pack_files(&self) {
+        for file in cull_ml::stale_pack_files() {
+            for name in [file.clone(), format!("{file}.part")] {
+                let path = self.pack.dir.join(&name);
+                if path.exists() {
+                    match std::fs::remove_file(&path) {
+                        Ok(()) => log::info!("Maximum pack: removed {name} (no longer used)"),
+                        Err(e) => log::warn!("Maximum pack: cannot remove {name}: {}", redact(&e.to_string())),
+                    }
+                }
+            }
+        }
+    }
+
     /// State of the pack found on disk when the engine opens: `ready` when
-    /// its files are those prepared last time, `preparing` (in the
-    /// background) when they are complete but were never prepared, a
-    /// resumable `failed`/`cancelled` when parts are on disk.
+    /// its files are those prepared last time, `failed` (`checkFailed`) when
+    /// this version of the app already failed to prepare them, `preparing`
+    /// (in the background) when they are complete but were never prepared,
+    /// `failed` (`updateRequired`) when an older pack is on disk and its new
+    /// files are not (nothing downloads until the photographer asks), a
+    /// resumable `failed`/`cancelled` when parts are on disk. Never deletes
+    /// nor downloads anything.
     pub(crate) fn init_model_pack(self: &Arc<Self>) {
         let p = &self.pack;
+        let older_pack = !self.stale_pack_files_on_disk().is_empty();
         let stored: Option<std::collections::BTreeMap<String, Stamp>> =
             self.kv_get(READY_KEY).ok().flatten().and_then(|j| serde_json::from_str(&j).ok());
         let state = if p.complete() {
-            if stored.is_some() && stored == p.stamps() {
+            let stamps = p.stamps();
+            let failure =
+                self.check_failure().filter(|f| Some(&f.stamps) == stamps.as_ref() && f.app_version == APP_VERSION);
+            if stored.is_some() && stored == stamps {
+                self.remove_stale_pack_files();
                 ModelPackState::Ready
+            } else if let Some(f) = failure {
+                ModelPackState::Failed {
+                    code: "checkFailed".into(),
+                    message: f.message,
+                    received_bytes: p.total(),
+                    total_bytes: p.total(),
+                }
             } else {
                 *p.state.lock() = ModelPackState::Preparing { progress: 0.0 };
                 let engine = self.clone();
@@ -387,7 +502,14 @@ impl Engine {
             }
         } else {
             let received = p.received();
-            if received > 0 {
+            if older_pack {
+                ModelPackState::Failed {
+                    code: "updateRequired".into(),
+                    message: "the Maximum pack of an older version needs new files".into(),
+                    received_bytes: received,
+                    total_bytes: p.total(),
+                }
+            } else if received > 0 {
                 ModelPackState::Failed {
                     code: "cancelled".into(),
                     message: "download paused".into(),
@@ -416,13 +538,14 @@ impl Engine {
         }
     }
 
-    /// Download URLs of the pack from Pelli (`POST /models`): for the
-    /// licence, else for the Pelli account whose plan includes Plus.
+    /// Download URLs of the pack from Pelli (`POST /models`, with this
+    /// processor's architecture): for the licence, else for the Pelli
+    /// account whose plan includes Plus.
     pub(crate) fn model_urls(&self) -> Result<Urls> {
         let files = if let Some(license) = self.valid_license() {
-            self.pelli(None).models(Some(&license.token))?
+            self.pelli(None).models(Some(&license.token), cull_ml::arch())?
         } else if let Some(token) = self.token().filter(|_| self.account_plus()) {
-            self.pelli(Some(token)).models(None)?
+            self.pelli(Some(token)).models(None, cull_ml::arch())?
         } else {
             return Err(EngineError::PlusRequired);
         };
@@ -472,6 +595,16 @@ impl Engine {
         // stops this download.
         p.cancel.store(false, Ordering::SeqCst);
         std::fs::create_dir_all(&p.dir).map_err(|e| EngineError::io(&p.dir, e))?;
+        // Retrying after a failed check: a fresh copy of the failing model
+        // (its checksum is cached by size and date: a file damaged on disk
+        // since would not be hashed again), then a new preparation.
+        if let Some(failure) = self.check_failure() {
+            if let Some(f) = failure.model.as_deref().and_then(|id| p.files.iter().find(|f| f.id == id)) {
+                log::info!("Maximum pack: downloading {} again after its failed check", f.file);
+                let _ = std::fs::remove_file(p.dir.join(&f.file));
+            }
+            let _ = self.kv_delete(FAILED_KEY);
+        }
         let (received, total) = (p.received(), p.total());
         let needed = total.saturating_sub(received) + DISK_MARGIN;
         if let Some(free) = free_space(&p.dir) {
@@ -500,6 +633,16 @@ impl Engine {
         } else {
             PackSource::none()
         };
+        // A Pelli that predates the x64 files answers the arm64 list: say so
+        // now rather than after downloading the other files.
+        let unoffered = p.files.iter().find(|f| {
+            stamp(&p.dir.join(&f.file)).is_none_or(|s| s.size != f.size) && !source.urls.contains_key(&f.file)
+        });
+        if let Some(f) = unoffered {
+            let message = format!("Pelli offers no {} for this processor ({})", f.file, cull_ml::arch());
+            self.pack_failed_on("download", "unsupported", Some(&f.id), message.clone());
+            return Err(EngineError::Remote { code: "unsupported".into(), message });
+        }
         self.set_pack_state(
             ModelPackState::Downloading { received_bytes: received, total_bytes: total, bytes_per_second: None },
             false,
@@ -508,7 +651,9 @@ impl Engine {
         self.spawn_pack_worker(move || match engine.download_files(&mut source) {
             Ok(()) => engine.prepare_model_pack(),
             Err(Stop::Cancelled) => engine.pack_failed("cancelled", "download paused".into()),
-            Err(Stop::Failed { code, message }) => engine.pack_failed(code, message),
+            Err(Stop::Failed { code, message, model }) => {
+                engine.pack_failed_on("download", code, model.as_deref(), message)
+            }
         });
         Ok(())
     }
@@ -539,6 +684,7 @@ impl Engine {
             std::fs::remove_dir_all(&p.dir).map_err(|e| EngineError::io(&p.dir, e))?;
         }
         self.kv_delete(READY_KEY)?;
+        self.kv_delete(FAILED_KEY)?;
         self.set_pack_state(ModelPackState::Absent, false);
         Ok(self.model_pack())
     }
@@ -564,26 +710,26 @@ impl Engine {
                     return Err(Stop::Cancelled);
                 }
                 let Some(url) = source.urls.get(&f.file).cloned() else {
-                    return Err(failed("internal", format!("{}: no URL from Pelli", f.file)));
+                    return Err(failed("unsupported", format!("{}: no URL from Pelli", f.file)).of(f));
                 };
                 match self.fetch(&agent, f, &url, &progress) {
                     Ok(()) => break,
                     Err(Stop::Cancelled) => return Err(Stop::Cancelled),
                     // The URL expired: new ones, then resume from the part.
-                    Err(Stop::Failed { code: "expired", message }) => {
+                    Err(Stop::Failed { code: "expired", message, .. }) => {
                         if refreshes == MAX_REFRESHES {
-                            return Err(failed("notFound", message));
+                            return Err(failed("notFound", message).of(f));
                         }
                         refreshes += 1;
                         log::info!("Maximum pack: {message}: asking Pelli for new URLs");
-                        source.refresh().map_err(source_stop)?;
+                        source.refresh().map_err(|e| source_stop(e).of(f))?;
                     }
-                    Err(e @ Stop::Failed { code: "diskFull" | "notFound", .. }) => return Err(e),
+                    Err(e @ Stop::Failed { code: "diskFull" | "notFound", .. }) => return Err(e.of(f)),
                     Err(e) => {
-                        log::warn!("Maximum pack: {}: {e:?}", f.file);
+                        log::warn!("Maximum pack: {}: {}", f.file, redact(&format!("{e:?}")));
                         attempts += 1;
                         if attempts == ATTEMPTS_PER_FILE {
-                            return Err(e);
+                            return Err(e.of(f));
                         }
                         std::thread::sleep(p.retry_delay * attempts as u32);
                     }
@@ -701,39 +847,69 @@ impl Engine {
         let opts = self.ml_options();
         let models = match MaximumModels::load(&p.dir, &opts) {
             Ok(m) => m,
-            Err(e) => return self.pack_load_failed(e),
+            Err(e) => return self.pack_load_failed(e, "prepare"),
         };
         self.set_pack_state(ModelPackState::Preparing { progress: 0.5 }, false);
         let check = models.check(&|f| self.set_pack_state(ModelPackState::Preparing { progress: 0.5 + 0.5 * f }, true));
         drop(models);
         if let Err(e) = check {
-            return self.pack_failed("internal", e.to_string());
+            return self.pack_check_failed(e, "prepare");
         }
+        let _ = self.kv_delete(FAILED_KEY);
         if let Some(stamps) = p.stamps() {
             if let Ok(j) = serde_json::to_string(&stamps) {
                 let _ = self.kv_set(READY_KEY, &j);
             }
         }
+        // The new pack works: the older one's files can go.
+        self.remove_stale_pack_files();
         self.set_pack_state(ModelPackState::Ready, false);
     }
 
-    fn pack_load_failed(&self, e: cull_ml::MlError) {
+    fn pack_load_failed(&self, e: cull_ml::MlError, stage: &str) {
         let p = &self.pack;
         match &e {
             cull_ml::MlError::Checksum(file) => {
                 let name = file.split(" (").next().unwrap_or(file);
-                if let Some(f) = p.files.iter().find(|f| f.file == name) {
+                let model = p.files.iter().find(|f| f.file == name).map(|f| {
                     let _ = std::fs::remove_file(p.dir.join(&f.file));
-                }
+                    f.id.as_str()
+                });
                 let _ = self.kv_delete(READY_KEY);
-                self.pack_failed("checksum", e.to_string())
+                self.pack_failed_on(stage, "checksum", model, e.to_string())
             }
             cull_ml::MlError::MissingModel(_) => {
                 let _ = self.kv_delete(READY_KEY);
-                self.pack_failed("notFound", e.to_string())
+                self.pack_failed_on(stage, "notFound", None, e.to_string())
             }
-            _ => self.pack_failed("internal", e.to_string()),
+            cull_ml::MlError::Pack { .. } => self.pack_check_failed(e, stage),
+            _ => self.pack_failed_on(stage, "internal", None, e.to_string()),
         }
+    }
+
+    /// A model of the pack does not load or computes wrong results here:
+    /// `checkFailed`, remembered for these files and this version of the app
+    /// (see the module docs).
+    fn pack_check_failed(&self, e: cull_ml::MlError, stage: &str) {
+        let model = match &e {
+            cull_ml::MlError::Pack { model, .. } => Some(model.clone()),
+            _ => None,
+        };
+        // Stored, then shown again at the next launches: redacted first.
+        let message = redact(&e.to_string());
+        let _ = self.kv_delete(READY_KEY);
+        if let Some(stamps) = self.pack.stamps() {
+            let failure = CheckFailure {
+                stamps,
+                app_version: APP_VERSION.into(),
+                model: model.clone(),
+                message: message.clone(),
+            };
+            if let Ok(j) = serde_json::to_string(&failure) {
+                let _ = self.kv_set(FAILED_KEY, &j);
+            }
+        }
+        self.pack_failed_on(stage, "checkFailed", model.as_deref(), message)
     }
 
     /// The pack's models for an analysis in Maximum precision, loaded on
@@ -755,7 +931,7 @@ impl Engine {
             }
             Err(e) => {
                 drop(slot);
-                self.pack_load_failed(e);
+                self.pack_load_failed(e, "load");
                 None
             }
         }
@@ -783,7 +959,7 @@ impl Engine {
                 Some(t)
             }
             Err(e) => {
-                log::warn!("Maximum pack text tower: {e}");
+                log::warn!("Maximum pack text tower: {}", redact(&e.to_string()));
                 None
             }
         }
@@ -1070,7 +1246,11 @@ mod tests {
         let urls = engine.model_urls().unwrap();
         assert_eq!(urls["a.onnx"], "https://s3.example/a?sig=1");
         let req = pelli.requests().last().cloned().unwrap();
-        assert_eq!((req.authorization.as_deref(), &req.body), (Some("Bearer pro"), &serde_json::json!({})));
+        let arch = cull_ml::arch();
+        assert_eq!(
+            (req.authorization.as_deref(), &req.body),
+            (Some("Bearer pro"), &serde_json::json!({ "arch": arch }))
+        );
         // A licence wins: the token in the body, no Bearer.
         *engine.plus.public_key.write() =
             ring::signature::Ed25519KeyPair::from_seed_unchecked(&TEST_SEED).unwrap().public_key().as_ref().to_vec();
@@ -1079,7 +1259,7 @@ mod tests {
         engine.auth_logout().unwrap();
         engine.model_urls().unwrap();
         let req = pelli.requests().last().cloned().unwrap();
-        assert_eq!((req.authorization, req.body), (None, serde_json::json!({ "license": token })));
+        assert_eq!((req.authorization, req.body), (None, serde_json::json!({ "license": token, "arch": arch })));
         // Pelli says no (the plan lapsed meanwhile): plusRequired, and the
         // pack state stays as it was.
         engine.kv_set("pelli.token", "lapsed").unwrap();
@@ -1088,6 +1268,269 @@ mod tests {
         assert_eq!(engine.model_urls().unwrap_err().code(), "plusRequired");
         assert_eq!(engine.download_model_pack().unwrap_err().code(), "plusRequired");
         assert_eq!(engine.model_pack().state, ModelPackState::Absent);
+    }
+
+    /// A Pelli account whose plan includes Plus, against `pelli`.
+    fn with_plus_account(engine: &Engine, pelli: &crate::testing::FakePelli) {
+        *engine.api_url.write() = pelli.url.clone();
+        let account = crate::pelli::Account { plus: true, ..Default::default() };
+        engine.kv_set("pelli.token", "pro").unwrap();
+        engine.kv_set("pelli.account", &serde_json::to_string(&account).unwrap()).unwrap();
+    }
+
+    #[test]
+    fn a_pelli_without_arch_is_asked_again_and_a_missing_file_is_unsupported() {
+        use crate::testing::{fake_pelli, TestSender};
+        let (_tmp, engine) = engine_with(vec![pack_file("a.onnx", b"a"), pack_file("x64-only.onnx", b"b")]);
+        let sender = Arc::new(TestSender::default());
+        engine.set_telemetry_sender(sender.clone());
+        // Pelli before `arch`: the field is refused, the arm64 list without it.
+        let pelli = fake_pelli(|req| {
+            if req.body.get("arch").is_some() {
+                (400, serde_json::json!({ "code": "invalid_request", "message": "body: Unrecognized key: \"arch\"" }))
+            } else {
+                (200, serde_json::json!({ "files": [{ "file": "a.onnx", "url": "https://s3.example/a" }] }))
+            }
+        });
+        with_plus_account(&engine, &pelli);
+        assert_eq!(engine.model_urls().unwrap().len(), 1);
+        let bodies: Vec<serde_json::Value> = pelli.requests().into_iter().map(|r| r.body).collect();
+        assert_eq!(bodies, [serde_json::json!({ "arch": cull_ml::arch() }), serde_json::json!({})]);
+
+        // The file of this processor is not in the list: a specific error at
+        // once, before downloading anything, and nothing runs in a loop.
+        let e = engine.download_model_pack().unwrap_err();
+        assert_eq!(e.code(), "unsupported");
+        match engine.model_pack().state {
+            ModelPackState::Failed { code, message, .. } => {
+                assert_eq!(code, "unsupported");
+                assert!(message.contains("x64-only.onnx"), "{message}");
+            }
+            other => panic!("{other:?}"),
+        }
+        assert!(engine.pack.worker.lock().is_none(), "no download started");
+        assert_eq!(sender.events(), ["model_pack_failed"]);
+        assert_eq!(
+            sender.payloads()[0]["props"],
+            serde_json::json!({ "stage": "download", "code": "unsupported", "model": "x64-only.onnx" })
+        );
+    }
+
+    fn check_failure_for(engine: &Engine, version: &str) -> CheckFailure {
+        CheckFailure {
+            stamps: engine.pack.stamps().unwrap(),
+            app_version: version.into(),
+            model: Some("b.onnx".into()),
+            message: "b.onnx: wrong results (correlation 0.473 with the x64 reference, at least 0.99 expected)".into(),
+        }
+    }
+
+    #[test]
+    fn a_failed_check_is_not_run_again_at_each_launch() {
+        let (a, b) = (data(1000, 1), data(2000, 2));
+        let (_tmp, engine) = engine_with(vec![pack_file("a.onnx", &a), pack_file("b.onnx", &b)]);
+        let dir = engine.pack.dir.clone();
+        std::fs::write(dir.join("a.onnx"), &a).unwrap();
+        std::fs::write(dir.join("b.onnx"), &b).unwrap();
+        let failure = check_failure_for(&engine, APP_VERSION);
+        engine.kv_set(FAILED_KEY, &serde_json::to_string(&failure).unwrap()).unwrap();
+        engine.init_model_pack();
+        match engine.model_pack().state {
+            ModelPackState::Failed { code, message, received_bytes, total_bytes } => {
+                assert_eq!(code, "checkFailed");
+                assert_eq!(message, failure.message);
+                assert_eq!(received_bytes, total_bytes);
+            }
+            other => panic!("{other:?}"),
+        }
+        assert!(engine.pack.worker.lock().is_none(), "no preparation at launch");
+
+        // Another version of the app (new references, new models): prepared
+        // again, once.
+        let older = check_failure_for(&engine, "0.0.1");
+        engine.kv_set(FAILED_KEY, &serde_json::to_string(&older).unwrap()).unwrap();
+        engine.init_model_pack();
+        assert!(engine.pack.worker.lock().is_some(), "prepared again");
+        if let Some(h) = engine.pack.worker.lock().take() {
+            let _ = h.join();
+        }
+        // Not a real pack: it fails to load, not on a model's check.
+        assert!(matches!(engine.model_pack().state, ModelPackState::Failed { .. }));
+    }
+
+    #[test]
+    fn retrying_after_a_failed_check_downloads_the_failing_model_again() {
+        let (a, b) = (data(30_000, 1), data(20_000, 2));
+        let server = serve(vec![("a.onnx", a.clone()), ("b.onnx", b.clone())], None, None, Duration::ZERO);
+        let (_tmp, engine) = engine_with(vec![pack_file("a.onnx", &a), pack_file("b.onnx", &b)]);
+        let dir = engine.pack.dir.clone();
+        std::fs::write(dir.join("a.onnx"), &a).unwrap();
+        std::fs::write(dir.join("b.onnx"), &b).unwrap();
+        engine.kv_set(FAILED_KEY, &serde_json::to_string(&check_failure_for(&engine, APP_VERSION)).unwrap()).unwrap();
+        let pelli = crate::testing::fake_pelli(move |_| {
+            let port = server.port;
+            (
+                200,
+                serde_json::json!({ "files": [
+                    { "file": "a.onnx", "url": format!("http://127.0.0.1:{port}/a.onnx") },
+                    { "file": "b.onnx", "url": format!("http://127.0.0.1:{port}/b.onnx") },
+                ] }),
+            )
+        });
+        with_plus_account(&engine, &pelli);
+        engine.download_model_pack().unwrap();
+        if let Some(h) = engine.pack.worker.lock().take() {
+            let _ = h.join();
+        }
+        assert_eq!(std::fs::read(dir.join("b.onnx")).unwrap(), b, "downloaded again");
+        assert_eq!(pelli.requests().len(), 1, "only b.onnx was missing");
+        assert_eq!(engine.kv_get(FAILED_KEY).unwrap(), None, "forgotten until the next check");
+    }
+
+    const OLD_DINO: &str = "dinov2-base-int8.onnx";
+
+    /// A 1.1.0 pack on disk: its int8 DINOv2 and `a.onnx`; this version
+    /// also needs `b.onnx`.
+    fn older_pack(b_size: u64) -> (tempfile::TempDir, Arc<Engine>, Vec<u8>) {
+        let a = data(30_000, 1);
+        let mut b = pack_file("b.onnx", &data(20_000, 2));
+        b.size = b_size;
+        let (tmp, engine) = engine_with(vec![pack_file("a.onnx", &a), b]);
+        std::fs::write(engine.pack.dir.join("a.onnx"), &a).unwrap();
+        std::fs::write(engine.pack.dir.join(OLD_DINO), b"1.1.0").unwrap();
+        (tmp, engine, a)
+    }
+
+    #[test]
+    fn an_older_pack_waits_for_the_photographer_and_stays_on_disk() {
+        let (_tmp, engine, _) = older_pack(20_000);
+        let pelli = crate::testing::fake_pelli(|_| (500, serde_json::json!({})));
+        with_plus_account(&engine, &pelli);
+        engine.settings.write().precision = cull_types::Precision::Maximum;
+        engine.init_model_pack();
+        match engine.model_pack().state {
+            ModelPackState::Failed { code, received_bytes, total_bytes, .. } => {
+                assert_eq!(code, "updateRequired");
+                assert_eq!(total_bytes - received_bytes, 20_000, "what the update downloads");
+            }
+            other => panic!("{other:?}"),
+        }
+        engine.start_services();
+        std::thread::sleep(Duration::from_millis(200));
+        assert!(engine.pack.worker.lock().is_none(), "nothing downloads on its own");
+        assert!(pelli.requests().iter().all(|r| r.path != "/api/cull/models"), "Pelli not even asked");
+        assert!(engine.pack.dir.join(OLD_DINO).is_file(), "the older pack is kept");
+    }
+
+    #[test]
+    fn a_failed_update_keeps_the_older_pack() {
+        // Pelli without the new file.
+        let (_tmp, engine, _) = older_pack(20_000);
+        let pelli = crate::testing::fake_pelli(|_| {
+            (200, serde_json::json!({ "files": [{ "file": "a.onnx", "url": "http://127.0.0.1:9/a" }] }))
+        });
+        with_plus_account(&engine, &pelli);
+        engine.init_model_pack();
+        assert_eq!(engine.download_model_pack().unwrap_err().code(), "unsupported");
+        assert!(engine.pack.dir.join(OLD_DINO).is_file());
+        // Offline.
+        *engine.api_url.write() = "http://127.0.0.1:9".into();
+        assert_eq!(engine.download_model_pack().unwrap_err().code(), "offline");
+        assert!(engine.pack.dir.join(OLD_DINO).is_file());
+        assert!(engine.pack.worker.lock().is_none());
+        // Disk full.
+        let (_tmp, engine, _) = older_pack(u64::MAX / 4);
+        with_plus_account(&engine, &pelli);
+        engine.init_model_pack();
+        assert_eq!(engine.download_model_pack().unwrap_err().code(), "diskFull");
+        assert!(engine.pack.dir.join(OLD_DINO).is_file());
+        assert!(engine.pack.worker.lock().is_none());
+        // Downloaded, but its preparation fails (not a real pack): still kept.
+        let b = data(20_000, 2);
+        let server = serve(vec![("b.onnx", b.clone())], None, None, Duration::ZERO);
+        let (_tmp, engine, _) = older_pack(20_000);
+        let port = server.port;
+        let pelli = crate::testing::fake_pelli(move |_| {
+            (
+                200,
+                serde_json::json!({ "files": [{ "file": "b.onnx", "url": format!("http://127.0.0.1:{port}/b.onnx") }] }),
+            )
+        });
+        with_plus_account(&engine, &pelli);
+        engine.init_model_pack();
+        engine.download_model_pack().unwrap();
+        if let Some(h) = engine.pack.worker.lock().take() {
+            let _ = h.join();
+        }
+        assert_eq!(std::fs::read(engine.pack.dir.join("b.onnx")).unwrap(), b);
+        assert!(matches!(engine.model_pack().state, ModelPackState::Failed { .. }));
+        assert!(engine.pack.dir.join(OLD_DINO).is_file(), "kept until the new pack is ready");
+    }
+
+    #[test]
+    fn the_older_pack_goes_once_the_new_one_is_ready() {
+        let (_tmp, engine, _) = older_pack(20_000);
+        let dir = engine.pack.dir.clone();
+        std::fs::write(dir.join("b.onnx"), data(20_000, 2)).unwrap();
+        std::fs::write(dir.join(format!("{OLD_DINO}.part")), b"x").unwrap();
+        // Prepared and checked (what prepare_model_pack records).
+        engine.kv_set(READY_KEY, &serde_json::to_string(&engine.pack.stamps().unwrap()).unwrap()).unwrap();
+        engine.init_model_pack();
+        assert_eq!(engine.model_pack().state, ModelPackState::Ready);
+        assert!(!dir.join(OLD_DINO).exists() && !dir.join(format!("{OLD_DINO}.part")).exists());
+        assert!(dir.join("a.onnx").exists() && dir.join("b.onnx").exists());
+    }
+
+    #[test]
+    fn failure_details_hold_no_user_name_nor_credential() {
+        use crate::testing::TestSender;
+        let (_tmp, engine) = engine_with(vec![pack_file("a.onnx", b"a")]);
+        let sender = Arc::new(TestSender::default());
+        engine.set_telemetry_sender(sender.clone());
+        // Live: shown, logged, and the telemetry event anonymous.
+        engine.pack_failed_on(
+            "download",
+            "internal",
+            Some("a.onnx"),
+            "/Users/camille/Library/x.onnx.part: denied (Bearer s3cr3t, https://s3.example/a?X-Amz-Signature=z)".into(),
+        );
+        match engine.model_pack().state {
+            ModelPackState::Failed { message, .. } => {
+                assert_eq!(
+                    message,
+                    "~/Library/x.onnx.part: denied (Bearer <redacted>, https://s3.example/a?<redacted>)"
+                )
+            }
+            other => panic!("{other:?}"),
+        }
+        engine.kv_set("pelli.token", "pro").unwrap();
+        let account = crate::pelli::Account { plus: true, ..Default::default() };
+        engine.kv_set("pelli.account", &serde_json::to_string(&account).unwrap()).unwrap();
+        engine.pack_failed_on("prepare", "nonsense", Some("not-a-model"), "x".into());
+        let payloads = sender.payloads();
+        assert_eq!(
+            payloads[0]["props"],
+            serde_json::json!({ "stage": "download", "code": "internal", "model": "a.onnx" })
+        );
+        assert_eq!(payloads[1]["props"], serde_json::json!({ "stage": "prepare", "code": "internal", "model": null }));
+        assert!(payloads.iter().all(|p| p.get("license").is_none()));
+        assert_eq!(sender.bearers(), [None, None], "anonymous even with Plus");
+
+        // Restored at launch: a failure an earlier build stored raw.
+        let (a, b) = (data(1000, 1), data(2000, 2));
+        let (_tmp, engine) = engine_with(vec![pack_file("a.onnx", &a), pack_file("b.onnx", &b)]);
+        std::fs::write(engine.pack.dir.join("a.onnx"), &a).unwrap();
+        std::fs::write(engine.pack.dir.join("b.onnx"), &b).unwrap();
+        let mut failure = check_failure_for(&engine, APP_VERSION);
+        failure.message = r"C:\Users\Camille Dupont\AppData\b.onnx: wrong results".into();
+        engine.kv_set(FAILED_KEY, &serde_json::to_string(&failure).unwrap()).unwrap();
+        engine.init_model_pack();
+        match engine.model_pack().state {
+            ModelPackState::Failed { code, message, .. } => {
+                assert_eq!((code.as_str(), message.as_str()), ("checkFailed", r"~\AppData\b.onnx: wrong results"))
+            }
+            other => panic!("{other:?}"),
+        }
     }
 
     #[test]

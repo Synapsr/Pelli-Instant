@@ -1,11 +1,14 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { AlertCircle, Check, Download, Pause, Play, RotateCcw } from 'lucide-react'
+import { AlertCircle, Check, ChevronDown, Copy, Download, Pause, Play, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { cn } from '@/lib/cn'
 import type { ModelPack, ModelPackState } from '@/lib/contract'
 import { formatBytes, formatDuration, formatPercent } from '@/lib/format'
 import { useT } from '@/lib/i18n'
+import { notify } from '@/lib/notify'
+import { packFailureDetails } from '@/lib/pack-details'
+import { useAppStore } from '@/store/app-store'
 import { packSpaceNeeded, usePackStore } from '@/store/pack-store'
 
 /** Share of the pack already on disk, null when nothing is downloading. */
@@ -45,7 +48,20 @@ export function PackStatus({ pack, wanted, removable = false, className }: { pac
   const t = useT()
   const { download, pause, remove } = usePackStore()
   const [confirm, setConfirm] = useState(false)
+  const [details, setDetails] = useState(false)
+  const appInfo = useAppStore((s) => s.appInfo)
   const { state } = pack
+  // A pause or a pending update is not a failure: no details.
+  const failure = state.status === 'failed' && state.code !== 'cancelled' && state.code !== 'updateRequired' ? packFailureDetails(state, appInfo) : null
+  const copyDetails = async () => {
+    if (!failure) return
+    try {
+      await navigator.clipboard.writeText(failure)
+      notify({ title: t('settings.analysis.precision.detailsCopied'), tone: 'success', timeout: 2000 })
+    } catch {
+      /* no clipboard: the details stay on screen */
+    }
+  }
   const line = describe(t, pack)
   const show = state.status !== 'absent' && (state.status !== 'ready' || removable)
   // Chosen but not usable yet: the next analyses run in Standard meanwhile.
@@ -56,6 +72,7 @@ export function PackStatus({ pack, wanted, removable = false, className }: { pac
       case 'downloading':
         return { label: t('settings.analysis.precision.pause'), icon: Pause, run: pause }
       case 'failed':
+        if (state.code === 'updateRequired') return { label: t('settings.analysis.precision.update'), icon: Download, run: download }
         return state.code === 'cancelled'
           ? { label: t('settings.analysis.precision.resume'), icon: Play, run: download }
           : { label: t('settings.analysis.precision.retry'), icon: RotateCcw, run: download }
@@ -66,9 +83,10 @@ export function PackStatus({ pack, wanted, removable = false, className }: { pac
     }
   })()
 
-  const iconName = state.status === 'ready' ? 'check' : state.status === 'failed' && state.code !== 'cancelled' ? 'alert' : 'download'
+  const problem = state.status === 'failed' && state.code !== 'cancelled' && state.code !== 'updateRequired'
+  const iconName = state.status === 'ready' ? 'check' : problem ? 'alert' : 'download'
   const Icon = { check: Check, alert: AlertCircle, download: Download }[iconName]
-  const tone = state.status === 'failed' && state.code !== 'cancelled' ? 'text-warning' : state.status === 'ready' ? 'text-success' : 'text-[#a599f5]'
+  const tone = problem ? 'text-warning' : state.status === 'ready' ? 'text-success' : 'text-[#a599f5]'
 
   return (
     <>
@@ -93,6 +111,17 @@ export function PackStatus({ pack, wanted, removable = false, className }: { pac
               <div className="min-w-0 flex-1">
                 <p className="tabular truncate text-[13px] text-foreground/90">{line}</p>
                 {waiting && <p className="text-[11px] text-default-500">{t('settings.analysis.precision.meanwhile')}</p>}
+                {failure && (
+                  <button
+                    type="button"
+                    onClick={() => setDetails((d) => !d)}
+                    aria-expanded={details}
+                    className="focus-ring mt-0.5 inline-flex items-center gap-1 rounded text-[11px] text-default-500 transition-colors duration-150 hover:text-foreground"
+                  >
+                    {t('settings.analysis.precision.details')}
+                    <ChevronDown className={cn('size-3 transition-transform duration-150', details && 'rotate-180')} />
+                  </button>
+                )}
               </div>
               {action && (
                 <button
@@ -108,6 +137,19 @@ export function PackStatus({ pack, wanted, removable = false, className }: { pac
                 </button>
               )}
             </div>
+            {failure && details && (
+              <div className="mt-2 flex items-start gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2">
+                <pre className="min-w-0 flex-1 whitespace-pre-wrap break-words font-mono text-[11px] leading-snug text-default-400 select-text">{failure}</pre>
+                <button
+                  type="button"
+                  onClick={() => void copyDetails()}
+                  className="focus-ring inline-flex h-7 shrink-0 items-center gap-1 rounded-full bg-white/[0.06] px-2.5 text-[11px] font-medium text-foreground transition-[background-color,scale] duration-150 hover:bg-white/[0.1] active:scale-[0.96]"
+                >
+                  <Copy className="size-3" />
+                  {t('settings.analysis.precision.copyDetails')}
+                </button>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -139,11 +181,14 @@ function describe(t: ReturnType<typeof useT>, pack: ModelPack): string {
     case 'ready':
       return t('settings.analysis.precision.installed', { size: formatBytes(pack.diskBytes) })
     case 'failed': {
+      if (state.code === 'updateRequired') return t('settings.analysis.precision.updateRequired', { size: formatBytes(Math.max(0, state.totalBytes - state.receivedBytes)) })
       if (state.code === 'cancelled') return t('settings.analysis.precision.paused', { percent: formatPercent(state.totalBytes ? state.receivedBytes / state.totalBytes : 0) })
       if (state.code === 'offline') return t('settings.analysis.precision.failedOffline')
       if (state.code === 'diskFull') return t('settings.analysis.precision.failedDisk', { size: formatBytes(packSpaceNeeded(pack)) })
       if (state.code === 'checksum') return t('settings.analysis.precision.failedChecksum')
       if (state.code === 'notFound') return t('settings.analysis.precision.failedUnavailable')
+      if (state.code === 'checkFailed') return t('settings.analysis.precision.failedCheck')
+      if (state.code === 'unsupported') return t('settings.analysis.precision.failedUnsupported')
       return t('settings.analysis.precision.failed')
     }
   }

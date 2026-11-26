@@ -29,8 +29,11 @@ mod onnx_patch;
 mod runtime;
 
 pub use cull_types::Precision;
-pub use manifest::sha256_file;
-pub use maximum::{maximum_pack_files, MaximumModels, MaximumText, PackFile};
+pub use manifest::{arch, sha256_file};
+pub use maximum::{
+    check_file_outputs, check_model_file, check_references, maximum_pack_files, min_correlation, stale_pack_files,
+    MaximumModels, MaximumText, PackFile, References,
+};
 
 pub use cull_types::HeadPose;
 use cull_types::{FaceObservation, MlObservations, NormPoint, NormRect};
@@ -76,6 +79,20 @@ pub enum MlError {
     Checksum(String),
     #[error("onnx runtime error: {0}")]
     Runtime(String),
+    /// A model of the Maximum pack that does not load or computes wrong
+    /// results (its sanity check): `model` is its manifest id.
+    #[error("{model}: {message}")]
+    Pack { model: String, message: String },
+}
+
+impl MlError {
+    /// A runtime error of the pack's model `model`.
+    pub(crate) fn in_pack(self, model: &str) -> MlError {
+        match self {
+            MlError::Runtime(message) => MlError::Pack { model: model.to_string(), message },
+            other => other,
+        }
+    }
 }
 
 pub type Result<T> = std::result::Result<T, MlError>;

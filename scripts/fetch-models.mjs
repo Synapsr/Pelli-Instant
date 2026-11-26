@@ -10,6 +10,8 @@
 //   node scripts/fetch-models.mjs --gpu      # + fp16 CLIP for DirectML/CUDA
 //   node scripts/fetch-models.mjs --maximum  # + the Maximum pack, into <dir>/maximum (development:
 //                                            #   the app downloads it into its data folder itself)
+//   node scripts/fetch-models.mjs --maximum --arch x64  # the pack of another processor (arm64, x64;
+//                                            #   default: this one's): some of its models differ
 //   node scripts/fetch-models.mjs --all      # everything in the manifest
 //   node scripts/fetch-models.mjs --only yunet,face-mesh
 //   node scripts/fetch-models.mjs --check    # verify only (exit 1 when missing/corrupt)
@@ -61,6 +63,8 @@ function parseArgs(argv) {
     only: null,
     check: false,
     strict: false,
+    // The manifest's names (`arch` of the Maximum pack's models).
+    arch: process.arch === 'arm64' ? 'arm64' : 'x64',
   }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
@@ -70,9 +74,10 @@ function parseArgs(argv) {
     else if (a === '--all') opts.all = true
     else if (a === '--check') opts.check = true
     else if (a === '--dir') opts.dir = path.resolve(argv[++i] ?? '.')
+    else if (a === '--arch') opts.arch = argv[++i] ?? opts.arch
     else if (a === '--only') opts.only = (argv[++i] ?? '').split(',').filter(Boolean)
     else if (a === '-h' || a === '--help') {
-      console.log('usage: fetch-models.mjs [--gpu] [--maximum] [--all] [--only id,id] [--check] [--strict] [--dir DIR]')
+      console.log('usage: fetch-models.mjs [--gpu] [--maximum] [--arch arm64|x64] [--all] [--only id,id] [--check] [--strict] [--dir DIR]')
       process.exit(0)
     } else {
       console.error(`unknown argument ${a}`)
@@ -166,7 +171,7 @@ async function get(urlString, redirects = 0) {
 // The Maximum pack's URLs (see the top of this file), asked once.
 let maximumUrls = null
 
-async function urlsOf(m) {
+async function urlsOf(m, arch) {
   if (m.url) return [m.url, ...(m.mirrors ?? [])]
   const base = process.env.PELLI_MODELS_BASE_URL?.trim()
   if (base) return [`${base.replace(/\/+$/, '')}/${m.file}`]
@@ -177,15 +182,20 @@ async function urlsOf(m) {
   if (license.startsWith('{')) license = JSON.parse(license).token
   maximumUrls ??= (async () => {
     const api = (process.env.PELLI_API_URL?.trim() || 'https://app.pelli.io').replace(/\/+$/, '')
-    const res = await send(new URL(`${api}/api/cull/models`), { method: 'POST', body: JSON.stringify({ license }) })
-    const chunks = []
-    for await (const chunk of res) chunks.push(chunk)
-    const text = Buffer.concat(chunks).toString('utf8')
-    if (res.statusCode !== 200) throw new Error(`POST ${api}/api/cull/models: HTTP ${res.statusCode} ${text.slice(0, 200)}`)
+    const ask = async (body) => {
+      const res = await send(new URL(`${api}/api/cull/models`), { method: 'POST', body: JSON.stringify(body) })
+      const chunks = []
+      for await (const chunk of res) chunks.push(chunk)
+      return { status: res.statusCode, text: Buffer.concat(chunks).toString('utf8') }
+    }
+    // A Pelli older than `arch` refuses the field (400): asked again without it (the 1.1.0 files).
+    let { status, text } = await ask({ license, arch })
+    if (status === 400) ({ status, text } = await ask({ license }))
+    if (status !== 200) throw new Error(`POST ${api}/api/cull/models: HTTP ${status} ${text.slice(0, 200)}`)
     return new Map(JSON.parse(text).files.map((f) => [f.file, f.url]))
   })()
   const url = (await maximumUrls).get(m.file)
-  if (!url) throw new Error(`Pelli gave no URL for ${m.file}`)
+  if (!url) throw new Error(`Pelli gave no URL for ${m.file} (${arch})`)
   return [url]
 }
 
@@ -286,7 +296,7 @@ function extractTarMember(archive, member, dest) {
   throw new Error(`${member} not found in ${path.basename(archive)}`)
 }
 
-async function fetchModel(m, dir) {
+async function fetchModel(m, dir, arch) {
   const dest = path.join(dir, m.file)
   const state = await verify(dest, m.size, m.sha256)
   if (state === 'ok') {
@@ -294,7 +304,7 @@ async function fetchModel(m, dir) {
     return
   }
   if (state !== 'missing') console.log(`  ${state}: re-downloading ${m.file}`)
-  const urls = await urlsOf(m)
+  const urls = await urlsOf(m, arch)
   console.log(`  download  ${m.file} (${fmtMB(m.archive?.size ?? m.size)}, ${m.license})`)
   if (m.archive) {
     const archive = path.join(dir, `.${m.id}.${m.archive.format.replace(/\W/g, '')}`)
@@ -323,6 +333,7 @@ async function main() {
   const selected = manifest.models.filter((m) => {
     if (opts.only) return opts.only.includes(m.id)
     if (opts.all) return true
+    if (m.arch && m.arch !== opts.arch && !opts.all) return false
     return m.bundle === 'default' || (opts.gpu && m.bundle === 'gpu') || (opts.maximum && m.bundle === 'maximum')
   })
   if (opts.only) {
@@ -345,7 +356,7 @@ async function main() {
         console.log(`  ${state.padEnd(14)} ${m.file}`)
         if (state !== 'ok' && (m.required || !opts.only)) failed++
       } else {
-        await fetchModel(m, dir)
+        await fetchModel(m, dir, opts.arch)
       }
     } catch (e) {
       if (m.required || opts.strict || opts.only) {

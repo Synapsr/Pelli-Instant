@@ -52,7 +52,7 @@ the fp16 CLIP, `--check` verifies only).
 Desktop bundle (default set): ~223 MB of models; Windows adds the fp16 CLIP
 (`--gpu`, run by DirectML): ~399 MB. The Mac installer does not ship it (the
 int8 CPU path is faster on Apple Silicon). The optional Maximum pack
-(~777 MB) is downloaded by the app (see below).
+(~1 GB) is downloaded by the app (see below).
 
 **Provenance caveat for legal review** (licenses of the *weights* are
 permissive; the training data have their own terms, as for virtually every
@@ -154,38 +154,48 @@ revisions: a change re-analyses the photos).
 ## Maximum precision (optional pack)
 
 `MaximumModels` (module `maximum`) loads the five files of the `maximum`
-bundle (~777 MB, downloaded by the app into its data folder, see
+bundle for this processor (~1 GB; an entry with an `arch` in the manifest
+is for that architecture only, none today), downloaded by the app into its
+data folder, see
 `cull-engine/src/modelpack.rs`); `analyze_maximum` then replaces, for the
 same faces, mesh and blendshapes:
 
 | Step | Standard | Maximum |
 |---|---|---|
 | faces | YuNet | YuNet, plus **RetinaFace R50** at 1280 px on group photos (YuNet found 3+ faces or a face under 1/16 of the long side; score ≥ 0.9, a new face only where YuNet has none): its faces get the mesh and blendshapes too |
-| grouping embedding (`embedding`) | CLIP B/32, letterboxed | **DINOv2 B/14** int8, CLS of the photo squashed to 224x224, ImageNet normalisation (duplicates vs different scenes: +0.25 of cosine against +0.11 for CLIP B/32) |
+| grouping embedding (`embedding`) | CLIP B/32, letterboxed | **DINOv2 B/14** fp32 (the int8 export of 1.1.0 is right or garbage depending on the processor's integer kernels), CLS of the photo squashed to 224x224, ImageNet normalisation (duplicates vs different scenes: +0.25 of cosine against +0.11 for CLIP B/32) |
 | search embedding | `embedding` | `search_embedding`: **CLIP L/14** int8, letterboxed; queries with its fp16 text tower (`MaximumText`, loaded on first search) |
 | aesthetic | LAION V1 head on B/32 | **LAION V2** head on L/14 (an MLP without activations, collapsed exactly into one linear map), mapped onto V1's scale (`1.552 × v2 − 2.878`, median and MAD matched on the 570 photos of the calibration shoots) |
 | subject without a usable face | — | **RF-DETR-Seg Small** (384x384 squashed, ImageNet normalisation): largest person (COCO 1) or animal (16-25) mask scoring ≥ 0.5 and covering ≥ 1% of the frame → `subject` |
 
-`models_id` = the face tags + `retinaface-r50`, `dinov2-b14-int8-sq`,
+`models_id` = the face tags + `retinaface-r50`, `dinov2-b14-fp32-sq` (1.1.0: `dinov2-b14-int8-sq`),
 `clip-l14-int8-lb`, `laion-v2-l14`, `rfdetr-seg-s-384`
 (`is_maximum_models_id`): switching precision re-analyses the photos.
 
-Everything runs on the CPU (int8, or fp16-stored weights computed in fp32):
+Everything runs on the CPU (fp32, CLIP L/14 in int8, or fp16-stored weights
+computed in fp32):
 the accelerator variants were rejected (10 min of CoreML compilation for
 CLIP L/14, silent errors on the Neural Engine). CLIP L/14 keeps 2 sessions
 (3 with ≥ 8 cores and ≥ 12 GB of memory) of a few intra-op threads each,
-RF-DETR and RetinaFace 2, DINOv2 up to 4, whatever the number of workers;
+RF-DETR, RetinaFace and DINOv2 2 (DINOv2 with 2 threads each, an fp32
+session taking ~400 MB), whatever the number of workers;
 the engine runs at most `MaximumModels::max_workers()` analysis workers
 with the pack (8, or 4 below 12 GB or 8 cores): more only wait, holding
 decoded photos in memory. Peak memory of the CLI on a 211-photo shoot
 (10-core M4, 32 GB, pack preparation included): Standard 2.8-3.5 GB,
-Maximum 4.4 GB with 8 workers, 3.7 GB with 4. `MaximumModels::check` runs each model on a synthetic input
-and compares its outputs with reference values computed when the pack was
-built (`assets/maximum-check.json`, Pearson correlation ≥ 0.99): the app
-does it once after the download ("preparing").
+Maximum 4.4 GB with 8 workers, 3.7 GB with 4 (measured with 1.1.0's int8
+DINOv2: its fp32 sessions add ~0.3 GB). `MaximumModels::check` runs each model on a synthetic input
+and compares its outputs with references computed from each model's fp32
+export (`assets/maximum-check.json`, the same for every processor), within
+a tolerance per model (`min_correlation`: Pearson ≥ 0.99, ≥ 0.85 for CLIP
+L/14 int8, whose integer kernels differ between processors): the app does
+it once after the download ("preparing"); a failure is `MlError::Pack`
+naming the model. `examples/maximum_check.rs` runs it by hand, recomputes
+the references (`--references`), and tries another variant of a model
+(`--file dinov2 dinov2-base-int8.onnx`: rejected on x86, correlation 0.49).
 
 Cost per photo on one worker (M4, machine loaded, load average ~20):
-DINOv2 ~240 ms, CLIP L/14 ~360 ms (3 threads), RF-DETR ~500 ms (photos
+DINOv2 ~240 ms (int8, 1.1.0; fp32 not measured on a Mac yet), CLIP L/14 ~360 ms (3 threads), RF-DETR ~500 ms (photos
 without a usable face only), RetinaFace ~620 ms (group photos only).
 
 ## Accuracy observed

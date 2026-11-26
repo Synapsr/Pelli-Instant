@@ -1,0 +1,149 @@
+name: Maximum pack
+
+# The Maximum pack's sanity check (`MaximumModels::check`) with the files the
+# app downloads, on the processors it ships for: a Windows x64 runner and a
+# macOS arm64 one (Apple M1). The Linux job skips these tests (the pack is
+# not in the repository); 1.1.0 failed this check on every Windows computer
+# and on some Macs (an int8 model whose results depend on the processor).
+# Also weekly: the files must stay downloadable from where Pelli hands them
+# out.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - crates/cull-ml/**
+      - models/manifest.json
+      - scripts/fetch-models.mjs
+      - scripts/probe-model-origins.mjs
+      - Cargo.lock
+      - rust-toolchain.toml
+      - .github/workflows/maximum-pack.yml
+  push:
+    branches: [main]
+    paths:
+      - crates/cull-ml/**
+      - models/manifest.json
+      - scripts/fetch-models.mjs
+      - scripts/probe-model-origins.mjs
+      - Cargo.lock
+      - rust-toolchain.toml
+      - .github/workflows/maximum-pack.yml
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: maximum-pack-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  ORT_CACHE_DIR: ${{ github.workspace }}/.ort-cache
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
+
+jobs:
+  # Every model file still downloadable from its origin (HTTP 200, the
+  # manifest's size), whatever the caches hold: weekly and by hand. The
+  # release workflow runs the same probe before building.
+  origins:
+    name: Model origins
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/probe-model-origins.mjs
+
+  check:
+    name: Maximum pack check (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+            arch: x64
+          - name: macOS arm64
+            os: macos-latest
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
+    env:
+      # Missing files fail the tests instead of skipping them.
+      PELLI_CULL_REQUIRE_MAXIMUM: '1'
+      PELLI_CULL_MAXIMUM: ${{ github.workspace }}/models/maximum
+      # 1.1.0's int8 DINOv2: the check must keep rejecting it on x64.
+      PELLI_CULL_DINO_INT8: ${{ github.workspace }}/models/retired/dinov2-base-int8.onnx
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Processor
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then
+            powershell -Command "Get-CimInstance Win32_Processor | Format-List Name, NumberOfLogicalProcessors"
+          else
+            sysctl -n machdep.cpu.brand_string hw.optional.arm.FEAT_I8MM hw.optional.arm.FEAT_DotProd || true
+          fi
+
+      - name: Install Rust
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: v1-rust
+          shared-key: maximum-pack
+          cache-directories: .ort-cache
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Standard models and the pack (~1.3 GB), downloaded once per manifest.
+      - name: Models cache
+        uses: actions/cache@v4
+        with:
+          path: models
+          key: models-maximum-${{ matrix.arch }}-${{ hashFiles('models/manifest.json') }}
+
+      - run: node scripts/fetch-models.mjs
+
+      # The pack's public origins (scripts/probe-model-origins.mjs: the
+      # upstream exports at the manifest's revisions, Pelli's conversions on
+      # its storage). The app gets the same files through Pelli (POST
+      # /api/cull/models); sizes and SHA-256 are checked just after. A cache
+      # hit skips the download: the origins job below probes them anyway.
+      - name: Maximum pack from its public origins
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/probe-model-origins.mjs --urls | while read -r file url; do
+            dir=models/maximum
+            [ "$file" = dinov2-base-int8.onnx ] && dir=models/retired
+            if [ ! -s "$dir/$file" ]; then
+              mkdir -p "$dir"
+              curl -fsSL --retry 3 --retry-all-errors -o "$dir/$file.part" "$url"
+              mv "$dir/$file.part" "$dir/$file"
+            fi
+          done
+          sum() { if command -v sha256sum >/dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
+          echo "f3006646af1ed07acceeefdd701e9be6e46e0b701ac0a1ab8e4ba7260e338302  models/retired/dinov2-base-int8.onnx" | sum -c -
+
+      - name: Sizes and SHA-256 of the pack
+        run: node scripts/fetch-models.mjs --maximum --arch ${{ matrix.arch }} --check
+
+      - name: Sanity check of the pack, and analyses with it
+        run: cargo test -p cull-ml --test models maximum -- --nocapture
+
+      # The same check by hand, with each model's correlation in the log.
+      - name: Correlations
+        run: cargo run -p cull-ml --example maximum_check -- models/maximum

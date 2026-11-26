@@ -438,19 +438,32 @@ impl PelliClient {
         Ok(self.post::<_, R>("plus/verify", &serde_json::json!({ "license": license }))?.status)
     }
 
-    /// Download URLs of the Maximum pack, for a licence token, or for the
-    /// Bearer of a Pelli account whose plan includes Plus (`license: None`).
-    /// 403 `plusRequired` otherwise.
-    pub fn models(&self, license: Option<&str>) -> Result<Vec<ModelUrl>> {
+    /// Download URLs of the Maximum pack for the processor architecture
+    /// `arch` (`arm64`, `x64`: the files differ), for a licence token, or
+    /// for the Bearer of a Pelli account whose plan includes Plus (`license:
+    /// None`). 403 `plusRequired` otherwise. A Pelli that predates `arch`
+    /// refuses the field (400 `invalid_request`): asked again without it, it
+    /// answers the arm64 list, which the caller checks.
+    pub fn models(&self, license: Option<&str>, arch: &str) -> Result<Vec<ModelUrl>> {
         #[derive(Deserialize)]
         struct R {
             files: Vec<ModelUrl>,
         }
-        let body = match license {
+        let mut body = match license {
             Some(l) => serde_json::json!({ "license": l }),
             None => serde_json::json!({}),
         };
-        Ok(self.post::<_, R>("models", &body)?.files)
+        body["arch"] = arch.into();
+        match self.post::<_, R>("models", &body) {
+            Err(EngineError::Remote { code, message }) if code == "invalid_request" || code == "http_400" => {
+                log::info!("Pelli refused the Maximum pack request with arch ({code}: {message}): asking without it");
+                if let Some(o) = body.as_object_mut() {
+                    o.remove("arch");
+                }
+                Ok(self.post::<_, R>("models", &body)?.files)
+            }
+            r => Ok(r?.files),
+        }
     }
 
     pub fn list_galleries(&self) -> Result<Vec<GallerySummary>> {

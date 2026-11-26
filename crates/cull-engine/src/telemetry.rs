@@ -10,6 +10,7 @@
 //! | `analysis_completed` | an analysis of the app analysed ≥ 1 photo | `photos`, `raw`, `jpeg` (this run), `seconds`, `precision`, `selected`, `toReview`, `rejected`, `groups` (the project) |
 //! | `export_completed` | an export finished | `photos`, `xmp`, `copied`, `moved` (what was asked) |
 //! | `plus_activated` | Plus just became active | `via`: `purchase`, `key`, `account` |
+//! | `model_pack_failed` | the Maximum pack failed (not a pause), once per failure; always anonymous | `stage` (`download`, `prepare`, `load`), `code` (`checkFailed`, `unsupported`, `checksum`, `notFound`, `offline`, `diskFull`, `internal`…), `model` (its manifest id, or `null`) |
 //! | `telemetry_disabled` | telemetry was turned off: the last one | — |
 //!
 //! Each payload holds a random install id (a UUID kept in the library only
@@ -44,6 +45,7 @@ pub const EVENTS: &[&str] = &[
     "analysis_completed",
     "export_completed",
     "plus_activated",
+    "model_pack_failed",
     "telemetry_disabled",
 ];
 
@@ -91,9 +93,23 @@ struct LogOnly;
 
 impl TelemetrySender for LogOnly {
     fn send(&self, payload: Value, _bearer: Option<String>) {
-        log::info!("telemetry (a debug build sends it only to PELLI_API_URL): {payload}");
+        log::info!("telemetry (a debug build sends it only to PELLI_API_URL): {}", loggable(payload));
     }
 }
+
+/// A payload as a log line: without the licence token (logs reach a file).
+fn loggable(mut payload: Value) -> Value {
+    if let Some(o) = payload.as_object_mut() {
+        if o.remove("license").is_some() {
+            o.insert("license".into(), Value::String("<redacted>".into()));
+        }
+    }
+    payload
+}
+
+/// Events always sent anonymously, even with Plus: neither the licence nor
+/// the account's token.
+const ANONYMOUS: &[&str] = &["model_pack_failed"];
 
 /// The engine's sender: none until the host starts the services.
 #[derive(Default)]
@@ -103,11 +119,7 @@ pub(crate) struct Telemetry {
 
 /// `arm64` or `x64` (the architecture's Rust name otherwise).
 pub fn arch() -> &'static str {
-    match std::env::consts::ARCH {
-        "aarch64" => "arm64",
-        "x86_64" => "x64",
-        other => other,
-    }
+    cull_ml::arch()
 }
 
 /// What "What is sent?" shows (`telemetry_preview`).
@@ -179,7 +191,7 @@ impl Engine {
         let Some(sender) = self.telemetry.sender.read().clone() else { return false };
         let Some(id) = self.install_id(true) else { return false };
         let mut payload = self.telemetry_payload(&id, event, props);
-        let (license, bearer) = self.plus_identity();
+        let (license, bearer) = if ANONYMOUS.contains(&event) { (None, None) } else { self.plus_identity() };
         if let Some(token) = license {
             payload["license"] = Value::String(token);
         }
@@ -356,6 +368,13 @@ mod tests {
         // Declined before the first use: nothing is ever sent.
         assert!(sender.events().is_empty());
         assert_eq!(engine.kv_get(super::INSTALL_ID_KEY).unwrap(), None);
+    }
+
+    #[test]
+    fn a_logged_payload_holds_no_licence() {
+        let line =
+            super::loggable(json!({ "event": "app_opened", "license": "eyJ2IjoxfQ.sig", "arch": "x64" })).to_string();
+        assert!(!line.contains("eyJ2") && line.contains("<redacted>") && line.contains("app_opened"), "{line}");
     }
 
     #[test]
