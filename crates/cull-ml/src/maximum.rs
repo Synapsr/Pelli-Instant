@@ -1,14 +1,16 @@
 //! The optional **Maximum** pack: bigger models, slower, finer results.
 //!
 //! Five files downloaded by the app into its data folder (`bundle:
-//! "maximum"` in `models/manifest.json`, ~777 MB), all run on the CPU:
+//! "maximum"` in `models/manifest.json`, ~1 GB), all run on the CPU:
 //!
-//! * **DINOv2 ViT-B/14** int8 (Meta, Apache-2.0): CLS token of the whole
-//!   photo squashed to 224x224, ImageNet normalisation, L2-normalised. The
+//! * **DINOv2 ViT-B/14** (Meta, Apache-2.0): CLS token of the whole photo
+//!   squashed to 224x224, ImageNet normalisation, L2-normalised. The
 //!   grouping embedding (bursts, near-duplicates): on the calibration set it
 //!   separates duplicates from different scenes by +0.25 of cosine, CLIP
 //!   B/32 by +0.11, CLIP L/14 by +0.05. Fixed input shape (session dimension
-//!   overrides).
+//!   overrides). fp32: the int8 export depends on the processor's integer
+//!   kernels, and on x86 they turn it into garbage (cosine 0.13 to fp32 on
+//!   photos).
 //! * **CLIP ViT-L/14** int8 image tower (OpenAI, MIT), same letterboxed
 //!   preprocessing as ViT-B/32: text search and the **LAION V2** aesthetic
 //!   head (compiled in). Its fp16 text tower ([`MaximumText`]) is loaded
@@ -23,13 +25,13 @@
 //!   Its new faces go through the same mesh and blendshapes.
 //!
 //! Never the Neural Engine: in fp16 it silently returns wrong values for
-//! DINOv2, RF-DETR and CLIP L/14. The pack is CPU-only (int8 and fp16-stored
-//! weights computed in fp32), which on Apple Silicon is also the fastest
-//! without minutes of CoreML compilation.
+//! DINOv2, RF-DETR and CLIP L/14. The pack is CPU-only (fp32, CLIP L/14's
+//! int8, and fp16-stored weights computed in fp32), which on Apple Silicon
+//! is also the fastest without minutes of CoreML compilation.
 //!
 //! Memory: CLIP L/14 keeps 2 sessions (3 with ≥ 8 cores and ≥ 12 GB) of a
-//! few intra-op threads each, RF-DETR and RetinaFace 2, DINOv2 up to 4,
-//! whatever the number of analysis workers, and the engine runs at most
+//! few intra-op threads each, RF-DETR, RetinaFace and DINOv2 2, whatever
+//! the number of analysis workers, and the engine runs at most
 //! [`MaximumModels::max_workers`] workers with the pack (more would only
 //! wait, holding decoded photos). [`MaximumModels`] is loaded when an
 //! analysis needs it and dropped after.
@@ -51,7 +53,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 /// Model ids of the pack in `models/manifest.json`.
-pub(crate) const DINO: &str = "dinov2-b14-int8";
+pub(crate) const DINO: &str = "dinov2-b14-fp32";
 pub(crate) const CLIP_VISION: &str = "clip-l14-vision-int8";
 pub(crate) const CLIP_TEXT: &str = "clip-l14-text";
 pub(crate) const RFDETR: &str = "rfdetr-seg-s";
@@ -179,6 +181,23 @@ pub fn maximum_pack_files() -> Vec<PackFile> {
         .unwrap_or_default()
 }
 
+/// Files the pack no longer uses: the int8 DINOv2 of version 1.1.0.
+const RETIRED_PACK_FILES: &[&str] = &["dinov2-base-int8.onnx"];
+
+/// Files of the Maximum pack that are useless here, to delete: retired ones
+/// ([`RETIRED_PACK_FILES`]) and those meant for another processor
+/// architecture (`arch` in the manifest).
+pub fn stale_pack_files() -> Vec<String> {
+    let here: Vec<String> = maximum_pack_files().into_iter().map(|f| f.file).collect();
+    let mut stale: Vec<String> = manifest::entries()
+        .map(|all| {
+            all.iter().filter(|e| e.bundle == "maximum" && !here.contains(&e.file)).map(|e| e.file.clone()).collect()
+        })
+        .unwrap_or_default();
+    stale.extend(RETIRED_PACK_FILES.iter().map(|f| f.to_string()).filter(|f| !here.contains(f)));
+    stale
+}
+
 /// Sessions of the heavy models: few, with a few threads each (memory is
 /// per session, not per thread): 2 below 12 GB of memory or 8 cores, 3
 /// above.
@@ -187,6 +206,13 @@ fn heavy_pool(memory_bytes: Option<u64>) -> (usize, usize) {
     let big = cores >= 8 && memory_bytes.is_none_or(|m| m >= 12 << 30);
     let sessions = if big { 3 } else { 2 };
     (sessions, (cores / sessions).clamp(1, 4))
+}
+
+/// DINOv2 sessions and their intra-op threads: 2 of 2 threads, as fast as 4
+/// of one (throughput 139 against 137 ms a photo on an i7-14700KF) for half
+/// the memory, an fp32 session taking ~400 MB.
+fn dino_pool() -> (usize, usize) {
+    (default_pool_size().min(2), 2)
 }
 
 fn verified(dir: &Path, id: &str) -> Result<(&'static str, PathBuf)> {
@@ -210,18 +236,19 @@ impl MaximumModels {
         manifest::set_cache_dir(opts.checksum_cache_dir.clone());
         let mut tags = Vec::new();
         let (heavy, heavy_threads) = heavy_pool(opts.memory_bytes);
-        let intra = opts.intra_threads.clamp(1, 64);
 
         let (tag, path) = verified(dir, DINO)?;
-        let o = ModelOpts { dims: DINO_DIMS, ..ModelOpts::cpu(intra) };
-        let (first, spec) = build_first("dinov2", ModelSource::File(path), None, &o)?;
-        let dino = SessionPool::new(first, spec, None, default_pool_size().min(4));
+        let (dino_sessions, dino_threads) = dino_pool();
+        let o = ModelOpts { dims: DINO_DIMS, ..ModelOpts::cpu(dino_threads) };
+        let (first, spec) = build_first("dinov2", ModelSource::File(path), None, &o).map_err(|e| e.in_pack(DINO))?;
+        let dino = SessionPool::new(first, spec, None, dino_sessions);
         tags.push(format!("{tag}-{DINO_TAG}"));
 
         let (tag, path) = verified(dir, CLIP_VISION)?;
         let prepacked = ort::session::builder::PrepackedWeights::new();
         let o = ModelOpts { dims: CLIP_DIMS, prepacked: Some(&prepacked), ..ModelOpts::cpu(heavy_threads) };
-        let (first, spec) = build_first("clip-l14", ModelSource::File(path), None, &o)?;
+        let (first, spec) =
+            build_first("clip-l14", ModelSource::File(path), None, &o).map_err(|e| e.in_pack(CLIP_VISION))?;
         let clip = ClipVision { pool: SessionPool::new(first, spec, Some(prepacked), heavy), dim: clip::L14_DIM };
         tags.push(format!("{tag}-{}", clip::PREPROCESS_TAG));
         tags.push("laion-v2-l14".to_string());
@@ -243,13 +270,14 @@ impl MaximumModels {
             coreml_units: CoreMlUnits::CpuAndGpu,
             ..ModelOpts::cpu(heavy_threads.min(2))
         };
-        let (first, spec) = build_first("rfdetr", ModelSource::File(path), None, &o)?;
+        let (first, spec) = build_first("rfdetr", ModelSource::File(path), None, &o).map_err(|e| e.in_pack(RFDETR))?;
         // RF-DETR and RetinaFace only run on part of the photos: 2 sessions.
         let rfdetr = SessionPool::new(first, spec, None, PARTIAL_SESSIONS);
         tags.push(tag.to_string());
 
         let (tag, path) = verified(dir, RETINA)?;
-        let (first, spec) = build_first("retinaface", ModelSource::File(path), None, &ModelOpts::cpu(heavy_threads))?;
+        let (first, spec) = build_first("retinaface", ModelSource::File(path), None, &ModelOpts::cpu(heavy_threads))
+            .map_err(|e| e.in_pack(RETINA))?;
         let retina = SessionPool::new(first, spec, None, PARTIAL_SESSIONS);
         tags.push(tag.to_string());
 
@@ -295,60 +323,42 @@ impl MaximumModels {
     }
 
     /// Run every model once on synthetic inputs and compare their outputs
-    /// with reference values computed when the pack was built (ONNX Runtime
-    /// 1.31, CPU): a session that loads but computes wrong (a broken
-    /// runtime, an accelerator returning garbage) fails here. `progress`
-    /// receives 0..1 as the models pass. Loads the text tower too, then
-    /// releases it.
+    /// with the full-precision reference values (see [`check_references`]),
+    /// within each model's tolerance ([`min_correlation`]): a session that
+    /// loads but computes wrong (a broken runtime, a model the processor's
+    /// kernels get wrong, an accelerator returning garbage) fails here with
+    /// [`MlError::Pack`] naming the model. `progress` receives 0..1 as the
+    /// models pass. Loads the text tower too, then releases it.
     pub fn check(&self, progress: &dyn Fn(f32)) -> Result<()> {
         guard("MaximumModels::check", || {
-            let refs: serde_json::Value =
-                serde_json::from_str(CHECK_JSON).map_err(|e| MlError::Runtime(format!("maximum-check.json: {e}")))?;
-            let reference = |id: &str| -> Result<Vec<f32>> {
-                serde_json::from_value(refs[id].clone())
-                    .map_err(|e| MlError::Runtime(format!("maximum-check.json {id}: {e}")))
-            };
-            let steps = 5.0;
-            let image = pattern(3, DINO_SIZE, DINO_SIZE, 1.5);
-            let cls = self.dino.with(|s| dino_raw(s, &image))?;
-            expect_close(DINO, &cls.iter().step_by(12).copied().collect::<Vec<_>>(), &reference(DINO)?)?;
-            progress(1.0 / steps);
-            let e = self.clip.pool.with(|s| {
-                let t = TensorRef::from_array_view(([1usize, 3, 224, 224], &image[..]))
-                    .map_err(|e| MlError::Runtime(format!("clip-l14 input: {e}")))?;
-                let out = s.run(ort::inputs![t]).map_err(|e| MlError::Runtime(format!("clip-l14: {e}")))?;
-                Ok(output_f32(&out, "image_embeds", clip::L14_DIM)?[..clip::L14_DIM].to_vec())
-            })?;
-            expect_close(CLIP_VISION, &e.iter().step_by(12).copied().collect::<Vec<_>>(), &reference(CLIP_VISION)?)?;
-            progress(2.0 / steps);
-            let input = pattern(3, RFDETR_SIZE, RFDETR_SIZE, 1.5);
-            let logits = self.rfdetr.with(|s| {
-                let t = TensorRef::from_array_view(([1usize, 3, RFDETR_SIZE, RFDETR_SIZE], &input[..]))
-                    .map_err(|e| MlError::Runtime(format!("rfdetr input: {e}")))?;
-                let out = s.run(ort::inputs![t]).map_err(|e| MlError::Runtime(format!("rfdetr: {e}")))?;
-                let l = output_f32(&out, "labels", RFDETR_QUERIES * RFDETR_CLASSES)?;
-                Ok((0..64).map(|q| l[q * RFDETR_CLASSES + COCO_PERSON]).collect::<Vec<_>>())
-            })?;
-            expect_close(RFDETR, &logits, &reference(RFDETR)?)?;
-            progress(3.0 / steps);
-            let input = pattern(3, 64, 96, 50.0);
-            let loc = self.retina.with(|s| {
-                let t = TensorRef::from_array_view(([1usize, 3, 64, 96], &input[..]))
-                    .map_err(|e| MlError::Runtime(format!("retinaface input: {e}")))?;
-                let out = s.run(ort::inputs![t]).map_err(|e| MlError::Runtime(format!("retinaface: {e}")))?;
-                Ok(output_f32(&out, "loc", 64)?[..64].to_vec())
-            })?;
-            expect_close(RETINA, &loc, &reference(RETINA)?)?;
-            progress(4.0 / steps);
-            let text = MaximumText::from_file(self.text_path.clone(), self.text_threads)?;
-            let mut ids = vec![0i64; 77];
-            ids[..7].copy_from_slice(&[49406, 320, 1125, 539, 320, 1929, 49407]);
-            // `embed_ids` normalises: compare directions only.
-            let t = text.model.embed_ids(&ids)?;
-            expect_close(CLIP_TEXT, &t.iter().step_by(12).copied().collect::<Vec<_>>(), &reference(CLIP_TEXT)?)?;
-            progress(1.0);
+            let refs = check_references()?;
+            for (k, role) in Role::ALL.iter().enumerate() {
+                let got = self.check_output(*role).map_err(|e| e.in_pack(role.id()))?;
+                expect_close(*role, &got, &refs)?;
+                progress((k + 1) as f32 / Role::ALL.len() as f32);
+            }
             Ok(())
         })
+    }
+
+    /// What [`MaximumModels::check`] compares, model id → sampled outputs.
+    pub fn check_outputs(&self) -> Result<Vec<(&'static str, Vec<f32>)>> {
+        guard("MaximumModels::check_outputs", || {
+            Role::ALL.iter().map(|r| Ok((r.id(), self.check_output(*r)?))).collect()
+        })
+    }
+
+    fn check_output(&self, role: Role) -> Result<Vec<f32>> {
+        match role {
+            Role::Dino => self.dino.with(|s| role.output(s)),
+            Role::ClipVision => self.clip.pool.with(|s| role.output(s)),
+            Role::Rfdetr => self.rfdetr.with(|s| role.output(s)),
+            Role::Retina => self.retina.with(|s| role.output(s)),
+            Role::ClipText => {
+                let text = MaximumText::from_file(self.text_path.clone(), self.text_threads)?;
+                text_output(&text)
+            }
+        }
     }
 
     /// L2-normalised DINOv2 CLS embedding of the whole image (squashed).
@@ -472,14 +482,187 @@ pub(crate) fn correlation(a: &[f32], b: &[f32]) -> f32 {
     }
 }
 
-fn expect_close(id: &str, got: &[f32], reference: &[f32]) -> Result<()> {
+/// Least correlation of model `id` with the full-precision reference, the
+/// same on every processor.
+///
+/// 0.99 for the models computed in fp32 (DINOv2, RF-DETR, RetinaFace, and
+/// the fp16-stored text tower): 1.0000 on x86, and for RF-DETR, RetinaFace
+/// and the text tower on the Mac of 1.1.0's references too, float kernels
+/// differing only by rounding. 0.85 for CLIP ViT-L/14 int8, whose integer kernels differ from
+/// one processor to the next (x86 AVX2, AVX-VNNI; arm64 dot product, i8mm),
+/// and the synthetic input, far from a photo, magnifies their rounding: it
+/// correlates 0.919 to 0.966 with fp32 on the processors measured (AVX-VNNI
+/// 0.920-0.936, AVX2 0.939, arm64 0.925 emulated and 0.966 on the Mac of
+/// 1.1.0's references), while on photos its cosine to fp32 stays at 0.96 or
+/// more; a model computing garbage gives 0.46-0.49 (the int8 DINOv2 on x86).
+pub fn min_correlation(id: &str) -> f32 {
+    match id {
+        CLIP_VISION => CLIP_INT8_MIN,
+        _ => 0.99,
+    }
+}
+
+const CLIP_INT8_MIN: f32 = 0.85;
+
+fn expect_close(role: Role, got: &[f32], refs: &References) -> Result<()> {
+    let id = role.id();
+    let reference = refs
+        .get(role.family())
+        .ok_or_else(|| MlError::Runtime(format!("maximum-check.json: no reference for {}", role.family())))?;
     let c = correlation(got, reference);
-    log::info!("cull-ml: maximum pack check {id}: correlation {c:.5}");
-    if c >= 0.99 {
+    let min = min_correlation(id);
+    log::info!("cull-ml: maximum pack check {id}: correlation {c:.5} (at least {min})");
+    if c >= min {
         Ok(())
     } else {
-        Err(MlError::Runtime(format!("{id}: wrong results (correlation {c:.3} with the reference)")))
+        Err(MlError::Pack {
+            model: id.to_string(),
+            message: format!("wrong results (correlation {c:.3} with the reference, at least {min} expected)"),
+        })
     }
+}
+
+/// Model family (`dinov2`, `clip-l14-vision`, `clip-l14-text`, `rfdetr`,
+/// `retinaface`) → reference outputs.
+pub type References = std::collections::BTreeMap<String, Vec<f32>>;
+
+/// The reference outputs of the sanity check (`assets/maximum-check.json`):
+/// the full-precision (fp32) export of each model on the synthetic inputs,
+/// ONNX Runtime 1.31 on the CPU, valid on every processor
+/// (`examples/maximum_check.rs --references` computes them).
+pub fn check_references() -> Result<References> {
+    #[derive(serde::Deserialize)]
+    struct Json {
+        references: References,
+    }
+    serde_json::from_str::<Json>(CHECK_JSON)
+        .map(|j| j.references)
+        .map_err(|e| MlError::Runtime(format!("maximum-check.json: {e}")))
+}
+
+/// What a model of the pack does in the sanity check.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Role {
+    Dino,
+    ClipVision,
+    Rfdetr,
+    Retina,
+    ClipText,
+}
+
+impl Role {
+    /// In the order of the check.
+    const ALL: [Role; 5] = [Role::Dino, Role::ClipVision, Role::Rfdetr, Role::Retina, Role::ClipText];
+
+    /// Manifest id of the model playing this role on this processor.
+    fn id(self) -> &'static str {
+        match self {
+            Role::Dino => DINO,
+            Role::ClipVision => CLIP_VISION,
+            Role::Rfdetr => RFDETR,
+            Role::Retina => RETINA,
+            Role::ClipText => CLIP_TEXT,
+        }
+    }
+
+    fn of(name: &str) -> Option<Role> {
+        Role::ALL.into_iter().find(|r| r.id() == name || r.family() == name)
+    }
+
+    /// The model whatever its variant (`dinov2-b14-fp32` and the int8 export
+    /// are both `dinov2`): the key of its reference.
+    fn family(self) -> &'static str {
+        match self {
+            Role::Dino => "dinov2",
+            Role::ClipVision => "clip-l14-vision",
+            Role::Rfdetr => "rfdetr",
+            Role::Retina => "retinaface",
+            Role::ClipText => "clip-l14-text",
+        }
+    }
+
+    /// Sampled outputs on the synthetic input (the image models).
+    fn output(self, s: &mut Session) -> Result<Vec<f32>> {
+        match self {
+            Role::Dino => {
+                let image = pattern(3, DINO_SIZE, DINO_SIZE, 1.5);
+                Ok(dino_raw(s, &image)?.iter().step_by(12).copied().collect())
+            }
+            Role::ClipVision => {
+                let image = pattern(3, 224, 224, 1.5);
+                let t = TensorRef::from_array_view(([1usize, 3, 224, 224], &image[..]))
+                    .map_err(|e| MlError::Runtime(format!("clip-l14 input: {e}")))?;
+                let out = s.run(ort::inputs![t]).map_err(|e| MlError::Runtime(format!("clip-l14: {e}")))?;
+                Ok(output_f32(&out, "image_embeds", clip::L14_DIM)?[..clip::L14_DIM]
+                    .iter()
+                    .step_by(12)
+                    .copied()
+                    .collect())
+            }
+            Role::Rfdetr => {
+                let input = pattern(3, RFDETR_SIZE, RFDETR_SIZE, 1.5);
+                let t = TensorRef::from_array_view(([1usize, 3, RFDETR_SIZE, RFDETR_SIZE], &input[..]))
+                    .map_err(|e| MlError::Runtime(format!("rfdetr input: {e}")))?;
+                let out = s.run(ort::inputs![t]).map_err(|e| MlError::Runtime(format!("rfdetr: {e}")))?;
+                let l = output_f32(&out, "labels", RFDETR_QUERIES * RFDETR_CLASSES)?;
+                Ok((0..64).map(|q| l[q * RFDETR_CLASSES + COCO_PERSON]).collect())
+            }
+            Role::Retina => {
+                let input = pattern(3, 64, 96, 50.0);
+                let t = TensorRef::from_array_view(([1usize, 3, 64, 96], &input[..]))
+                    .map_err(|e| MlError::Runtime(format!("retinaface input: {e}")))?;
+                let out = s.run(ort::inputs![t]).map_err(|e| MlError::Runtime(format!("retinaface: {e}")))?;
+                Ok(output_f32(&out, "loc", 64)?[..64].to_vec())
+            }
+            Role::ClipText => Err(MlError::Runtime("the text tower is checked through MaximumText".into())),
+        }
+    }
+}
+
+/// Sampled text embedding of "a photo of a dog" (`embed_ids` normalises:
+/// the check compares directions only).
+fn text_output(text: &MaximumText) -> Result<Vec<f32>> {
+    let mut ids = vec![0i64; 77];
+    ids[..7].copy_from_slice(&[49406, 320, 1125, 539, 320, 1929, 49407]);
+    Ok(text.model.embed_ids(&ids)?.iter().step_by(12).copied().collect())
+}
+
+/// The sampled outputs of one ONNX file, verified or not, run in the role
+/// of the pack's model `name` (a manifest id, or a family: `dinov2`,
+/// `clip-l14-vision`, `clip-l14-text`, `rfdetr`, `retinaface`) on the check's
+/// synthetic input, on the CPU. With the family it plays: what
+/// `examples/maximum_check.rs` writes as references (from the fp32 exports)
+/// or compares with them.
+pub fn check_file_outputs(name: &str, path: &Path) -> Result<(&'static str, Vec<f32>)> {
+    guard("check_file_outputs", || {
+        let role = Role::of(name).ok_or_else(|| MlError::Runtime(format!("{name}: not a model of the pack")))?;
+        let threads = default_pool_size().clamp(1, 4);
+        let got = match role {
+            Role::ClipText => text_output(&MaximumText::from_file(path.to_path_buf(), threads)?)?,
+            _ => {
+                let dims = match role {
+                    Role::Dino => DINO_DIMS,
+                    Role::ClipVision => CLIP_DIMS,
+                    _ => &[],
+                };
+                let o = ModelOpts { dims, ..ModelOpts::cpu(threads) };
+                let (mut s, _) = build_first("check", ModelSource::File(path.to_path_buf()), None, &o)?;
+                role.output(&mut s)?
+            }
+        };
+        Ok((role.family(), got))
+    })
+}
+
+/// [`check_file_outputs`] compared with the reference of its family: would
+/// this file pass the check here? `(correlation, least accepted for the
+/// pack's model in that role)`.
+pub fn check_model_file(name: &str, path: &Path) -> Result<(f32, f32)> {
+    let (family, got) = check_file_outputs(name, path)?;
+    let refs = check_references()?;
+    let reference = refs.get(family).ok_or_else(|| MlError::Runtime(format!("no reference for {family}")))?;
+    let role = Role::of(family).ok_or_else(|| MlError::Runtime(format!("{family}: unknown")))?;
+    Ok((correlation(&got, reference), min_correlation(role.id())))
 }
 
 /// CLS row of DINOv2's `last_hidden_state` for a `[1, 3, 224, 224]` tensor.
@@ -693,6 +876,38 @@ mod tests {
         let mut tiny = vec![-1f32; RFDETR_QUERIES * side];
         tiny[3 * side] = 1.0;
         assert!(largest_instance(&labels, &tiny).is_none());
+    }
+
+    #[test]
+    fn every_model_has_its_reference() {
+        let refs = check_references().unwrap();
+        let mut families: Vec<&str> = Role::ALL.iter().map(|r| r.family()).collect();
+        families.sort();
+        assert_eq!(refs.keys().map(String::as_str).collect::<Vec<_>>(), families);
+        assert!(refs.values().all(|v| v.len() == 64 && v.iter().all(|x| x.is_finite())));
+        for arch in ["arm64", "x64"] {
+            let pack: Vec<String> =
+                manifest::bundle_for("maximum", arch).unwrap().iter().map(|e| e.id.clone()).collect();
+            assert!(Role::ALL.iter().all(|r| pack.iter().any(|id| id == r.id())), "{arch}: {pack:?}");
+        }
+        // This processor checks the models it downloads.
+        let here: Vec<&str> = Role::ALL.iter().map(|r| r.id()).collect();
+        for f in maximum_pack_files() {
+            assert!(here.contains(&f.id.as_str()), "{}", f.id);
+        }
+        assert!(stale_pack_files().iter().all(|f| maximum_pack_files().iter().all(|p| &p.file != f)));
+        assert_eq!(stale_pack_files(), ["dinov2-base-int8.onnx"]);
+    }
+
+    #[test]
+    fn roles_by_id_or_family() {
+        assert_eq!(Role::of("dinov2"), Some(Role::Dino));
+        assert_eq!(Role::of(DINO), Some(Role::Dino));
+        assert_eq!(Role::of("clip-l14-vision-int8"), Some(Role::ClipVision));
+        assert_eq!(Role::of("yunet"), None);
+        assert_eq!(min_correlation(DINO), 0.99);
+        assert_eq!(min_correlation(RFDETR), 0.99);
+        assert_eq!(min_correlation(CLIP_VISION), 0.85);
     }
 
     #[test]

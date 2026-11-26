@@ -52,6 +52,28 @@ pub(crate) struct ModelEntry {
     /// `default` (shipped with the app), `gpu`, `maximum` (optional pack,
     /// without URL: Pelli hands them out to Pelli Instant Plus).
     pub bundle: String,
+    /// Processor architecture the model is for (`arm64`, `x64`, the names
+    /// of [`arch`]); every architecture when absent. A model whose results
+    /// depend on the CPU's integer kernels has one variant per architecture.
+    #[serde(default)]
+    pub arch: Option<String>,
+}
+
+impl ModelEntry {
+    /// The entry is for the processor architecture `arch`.
+    pub(crate) fn runs_on(&self, arch: &str) -> bool {
+        self.arch.as_deref().is_none_or(|a| a == arch)
+    }
+}
+
+/// This processor's architecture as the manifest and Pelli name it: `arm64`,
+/// `x64`, else Rust's name for it.
+pub fn arch() -> &'static str {
+    match std::env::consts::ARCH {
+        "aarch64" => "arm64",
+        "x86_64" => "x64",
+        other => other,
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -73,9 +95,15 @@ pub(crate) fn entries() -> Result<&'static [ModelEntry]> {
     manifest()
 }
 
-/// Entries of one bundle (`maximum`: the optional Maximum pack).
+/// Entries of one bundle for this processor (`maximum`: the optional Maximum
+/// pack).
 pub(crate) fn bundle(name: &str) -> Result<Vec<&'static ModelEntry>> {
-    Ok(manifest()?.iter().filter(|e| e.bundle == name).collect())
+    bundle_for(name, arch())
+}
+
+/// Entries of one bundle for the processor architecture `arch`.
+pub(crate) fn bundle_for(name: &str, arch: &str) -> Result<Vec<&'static ModelEntry>> {
+    Ok(manifest()?.iter().filter(|e| e.bundle == name && e.runs_on(arch)).collect())
 }
 
 /// Manifest entry of model `id`.
@@ -228,6 +256,8 @@ mod tests {
             assert!(!e.tag.is_empty());
             assert!(["default", "gpu", "maximum"].contains(&e.bundle.as_str()), "{}", e.id);
             assert!(!e.required || e.bundle == "default", "{}", e.id);
+            assert!(e.arch.as_deref().is_none_or(|a| ["arm64", "x64"].contains(&a)), "{}", e.id);
+            assert!(e.arch.is_none() || e.bundle == "maximum", "{}", e.id);
         }
         // The Maximum pack has no public URL (the app asks Pelli for
         // short-lived ones); every other model has one.
@@ -238,11 +268,26 @@ mod tests {
             assert_eq!(url.is_none() && m.get("mirrors").is_none(), maximum, "{}", m["id"]);
             assert!(maximum || url.unwrap().starts_with("https://"), "{}", m["id"]);
         }
-        let pack: Vec<&str> = bundle("maximum").unwrap().iter().map(|e| e.id.as_str()).collect();
+        // The same files for every processor architecture today; an entry
+        // with `arch` would be for that one only.
+        let pack = |arch| -> Vec<&str> { bundle_for("maximum", arch).unwrap().iter().map(|e| e.id.as_str()).collect() };
         assert_eq!(
-            pack,
-            ["clip-l14-vision-int8", "clip-l14-text", "dinov2-b14-int8", "rfdetr-seg-s", "retinaface-r50"]
+            pack("arm64"),
+            ["clip-l14-vision-int8", "clip-l14-text", "dinov2-b14-fp32", "rfdetr-seg-s", "retinaface-r50"]
         );
+        assert_eq!(pack("x64"), pack("arm64"));
+        // Variants of one model share nothing on disk.
+        let files: std::collections::BTreeSet<&str> = m.iter().map(|e| e.file.as_str()).collect();
+        assert_eq!(files.len(), m.len());
+    }
+
+    #[test]
+    fn an_entry_with_an_arch_is_for_that_processor_only() {
+        let mut e = entry("rfdetr-seg-s").unwrap().clone();
+        assert!(e.runs_on("arm64") && e.runs_on("x64"));
+        e.arch = Some("x64".into());
+        assert!(e.runs_on("x64") && !e.runs_on("arm64"));
+        assert!(["arm64", "x64"].contains(&arch()) || cfg!(not(any(target_arch = "aarch64", target_arch = "x86_64"))));
     }
 
     #[test]

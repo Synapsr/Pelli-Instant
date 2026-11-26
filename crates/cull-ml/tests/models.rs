@@ -338,22 +338,70 @@ fn text_search_ranks_matching_photo_first() {
 
 // ---------------------------------------------------------------------------
 // Maximum pack (`models/maximum/`, or `PELLI_CULL_MAXIMUM`): skipped when
-// absent. The photos come from `samples/photos` (scripts/fetch-calibration-photos.sh).
+// absent, unless `PELLI_CULL_REQUIRE_MAXIMUM=1` (CI). The photos come from
+// `samples/photos` (scripts/fetch-calibration-photos.sh).
 // ---------------------------------------------------------------------------
 
-fn maximum() -> Option<&'static cull_ml::MaximumModels> {
+fn maximum_dir() -> PathBuf {
+    std::env::var_os("PELLI_CULL_MAXIMUM").map(PathBuf::from).unwrap_or_else(|| models_dir().join("maximum"))
+}
+
+fn maximum_required() -> bool {
+    std::env::var("PELLI_CULL_REQUIRE_MAXIMUM").is_ok_and(|v| v == "1")
+}
+
+/// The pack this processor downloads, loaded once on the CPU.
+fn maximum_pack() -> Option<&'static cull_ml::MaximumModels> {
     static PACK: OnceLock<Option<cull_ml::MaximumModels>> = OnceLock::new();
     PACK.get_or_init(|| {
-        let dir =
-            std::env::var_os("PELLI_CULL_MAXIMUM").map(PathBuf::from).unwrap_or_else(|| models_dir().join("maximum"));
-        if models().is_none() || !dir.join("dinov2-base-int8.onnx").is_file() {
-            eprintln!("SKIP: Maximum pack absent ({})", dir.display());
+        let dir = maximum_dir();
+        let missing: Vec<String> =
+            cull_ml::maximum_pack_files().into_iter().map(|f| f.file).filter(|f| !dir.join(f).is_file()).collect();
+        if !missing.is_empty() {
+            assert!(!maximum_required(), "Maximum pack required, missing in {}: {missing:?}", dir.display());
+            eprintln!("SKIP: Maximum pack absent ({}: {missing:?})", dir.display());
             return None;
         }
         let opts = RuntimeOptions { acceleration: Acceleration::CpuOnly, ..Default::default() };
         Some(cull_ml::MaximumModels::load(&dir, &opts).expect("pack present but failed to load"))
     })
     .as_ref()
+}
+
+/// The pack, with the Standard models it runs with.
+fn maximum() -> Option<&'static cull_ml::MaximumModels> {
+    models()?;
+    maximum_pack()
+}
+
+/// What the app runs before using the pack (`prepare_model_pack`), with
+/// the references of this processor's architecture.
+#[test]
+fn maximum_pack_passes_its_check() {
+    let Some(max) = maximum_pack() else { return };
+    let steps = std::sync::Mutex::new(Vec::new());
+    max.check(&|p| steps.lock().unwrap().push(p)).unwrap_or_else(|e| panic!("{} sanity check: {e}", cull_ml::arch()));
+    assert_eq!(steps.lock().unwrap().len(), 5);
+    assert_eq!(steps.lock().unwrap().last(), Some(&1.0));
+}
+
+/// The check still catches a model that computes garbage here: the int8
+/// DINOv2 of 1.1.0, on x64 (`dinov2-base-int8.onnx` in the pack folder, or
+/// `PELLI_CULL_DINO_INT8`).
+#[test]
+#[cfg(target_arch = "x86_64")]
+fn maximum_check_rejects_the_int8_dinov2_on_x64() {
+    let file = std::env::var_os("PELLI_CULL_DINO_INT8")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| maximum_dir().join("dinov2-base-int8.onnx"));
+    if !file.is_file() {
+        assert!(!maximum_required(), "{} missing", file.display());
+        eprintln!("SKIP: {} absent", file.display());
+        return;
+    }
+    let (c, min) = cull_ml::check_model_file("dinov2", &file).expect("runs");
+    eprintln!("int8 DINOv2 on x64: correlation {c:.3} (at least {min})");
+    assert!(c < min, "the int8 DINOv2 passes on x64: {c}");
 }
 
 fn photo(name: &str) -> Option<RgbImage> {
@@ -368,9 +416,6 @@ fn photo(name: &str) -> Option<RgbImage> {
 #[test]
 fn maximum_pack_checks_and_analyses() {
     let (Some(m), Some(max)) = (models(), maximum()) else { return };
-    let steps = std::sync::Mutex::new(Vec::new());
-    max.check(&|p| steps.lock().unwrap().push(p)).expect("sanity check");
-    assert_eq!(steps.lock().unwrap().last(), Some(&1.0));
     let img = RgbImage::from_fn(640, 427, |x, y| Rgb([(x / 3) as u8, (y / 2) as u8, 90]));
     let obs = m.analyze_maximum(max, &img, &|_| None).unwrap();
     assert!(cull_ml::is_maximum_models_id(&obs.models) && !cull_ml::is_maximum_models_id(&m.models_id()));
@@ -380,8 +425,7 @@ fn maximum_pack_checks_and_analyses() {
     assert!((norm(&e) - 1.0).abs() < 1e-3 && (norm(&s) - 1.0).abs() < 1e-3);
     assert!(obs.aesthetic.is_some_and(|a| (0.0..12.0).contains(&a)));
     assert!(obs.subject.is_none(), "a gradient has no person");
-    let dir = std::env::var_os("PELLI_CULL_MAXIMUM").map(PathBuf::from).unwrap_or_else(|| models_dir().join("maximum"));
-    let text = cull_ml::MaximumText::load(&dir, &RuntimeOptions::default()).unwrap();
+    let text = cull_ml::MaximumText::load(&maximum_dir(), &RuntimeOptions::default()).unwrap();
     assert_eq!(text.embed_text("a dog").unwrap().len(), 768);
 }
 
