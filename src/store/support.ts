@@ -40,6 +40,15 @@ export function closeSupportDialog() {
   useAppStore.getState().reviewResults()
 }
 
+/**
+ * Plus activating while the dialog is open hides it: like every other way
+ * out, the pending dialog is spent and the review opens, once. The dialog
+ * never comes back for this sort, even if Plus is released.
+ */
+usePlusStore.subscribe((state, before) => {
+  if (state.status.active && !before.status.active && useAnalysisStore.getState().supportOpen) closeSupportDialog()
+})
+
 /** Instagram or GitHub in the browser, and on to the review. */
 export function followFromSupportDialog(url: string) {
   void api().openExternal(url)

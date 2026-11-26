@@ -1,4 +1,4 @@
-import { Button, Modal, ModalBody, ModalContent } from '@heroui/react'
+import { Button, Modal, ModalBody, ModalContent, ModalHeader } from '@heroui/react'
 import { ArrowRight, Heart, Instagram, Sparkles, Star, X } from 'lucide-react'
 import { useRef } from 'react'
 import { useT } from '@/lib/i18n'
@@ -34,7 +34,10 @@ export function SupportDialog() {
             <span className="brand-fill flex size-12 items-center justify-center rounded-2xl shadow-[0_12px_32px_-10px_rgba(88,64,240,0.9)]" aria-hidden>
               <Heart className="size-[22px]" strokeWidth={1.9} />
             </span>
-            <h2 className="mt-5 text-balance text-[22px] font-semibold leading-tight tracking-[-0.02em] text-foreground">{t('support.title')}</h2>
+            {/* A ModalHeader: HeroUI names the dialog by it (aria-labelledby). */}
+            <ModalHeader as="h2" className="mt-5 block p-0 text-balance text-[22px] font-semibold leading-tight tracking-[-0.02em] text-foreground">
+              {t('support.title')}
+            </ModalHeader>
             <p className="mt-2.5 max-w-[340px] text-pretty text-[13.5px] leading-relaxed text-default-500">{t('support.body')}</p>
 
             <Button

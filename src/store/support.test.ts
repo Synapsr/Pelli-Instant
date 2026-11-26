@@ -125,12 +125,31 @@ describe('support dialog on the way to the review', () => {
     expect(supportDialogVisible()).toBe(true)
   })
 
-  it('disappears as soon as Plus activates while it is open, and the review stays one click away', async () => {
+  it('closes when Plus activates while it is open, and opens the review once', async () => {
+    const review = vi.spyOn(useAppStore.getState(), 'reviewResults')
+    await sort()
+    goToReview()
+    expect(supportDialogVisible()).toBe(true)
+    usePlusStore.getState().onStatus(LICENCE)
+    expect(supportDialogVisible()).toBe(false)
+    expect(useAnalysisStore.getState()).toMatchObject({ supportOpen: false, supportOffered: false })
+    expect(screen()).toBe('workspace')
+    expect(review).toHaveBeenCalledTimes(1)
+    // Another Plus answer changes nothing more.
+    usePlusStore.getState().onStatus(LICENCE)
+    expect(review).toHaveBeenCalledTimes(1)
+  })
+
+  it('never comes back for the same sort when Plus is released', async () => {
     await sort()
     goToReview()
     usePlusStore.getState().onStatus(LICENCE)
+    usePlusStore.getState().onStatus(NO_PLUS)
     expect(supportDialogVisible()).toBe(false)
-    expect(press('Enter')).toBe(true)
+    // Even on the result screen again, straight to the review.
+    useAppStore.setState({ screen: 'analysis' })
+    goToReview()
+    expect(supportDialogVisible()).toBe(false)
     expect(screen()).toBe('workspace')
   })
 
