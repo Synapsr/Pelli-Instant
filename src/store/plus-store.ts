@@ -13,7 +13,7 @@ export interface PlusState {
   status: PlusStatus
   /** the engine answered once, or the request failed: the app goes on */
   loaded: boolean
-  /** a Plus status really arrived (an answer or a `plus` event): what the support card waits for */
+  /** a Plus status really arrived (an answer or a `plus` event): what the support dialog waits for */
   answered: boolean
   /** Pelli's price for this visitor; null offline (the dialog falls back to the locale's) */
   offer: PlusOffer | null

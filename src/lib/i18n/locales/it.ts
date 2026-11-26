@@ -728,11 +728,13 @@ export const it: Catalogue<typeof fr> = {
     export: 'Invia questa selezione ai tuoi clienti con una galleria Pelli',
   },
   support: {
-    title: 'Pelli Instant ti fa risparmiare tempo?',
-    body: 'Segui Pelli su Instagram: consigli per scegliere le foto, novità e contenuti dietro le quinte.',
+    title: 'Pelli Instant ti ha fatto risparmiare tempo?',
+    body: 'È gratuito e lo fa un piccolo team. Seguirci su Instagram è il modo migliore per aiutarci, e lì trovi consigli per scegliere le foto e le novità.',
     instagram: 'Segui @pelli.io su Instagram',
-    github: 'Oppure lascia una stella su GitHub: è gratis ed è il modo migliore per aiutarci.',
-    plus: 'Passa a Pelli Instant Plus per non vederla più',
+    github: 'Lascia una stella su GitHub',
+    later: 'Più tardi, vedi la selezione',
+    plusQuestion: 'Non vuoi più vederlo?',
+    plusCta: 'Passa a Pelli Instant Plus',
   },
   onboarding: {
     skip: 'Salta',

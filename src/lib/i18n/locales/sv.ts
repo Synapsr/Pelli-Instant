@@ -728,11 +728,13 @@ export const sv: Catalogue<typeof fr> = {
     export: 'Skicka det här urvalet till dina kunder med ett Pelli-galleri',
   },
   support: {
-    title: 'Sparar Pelli Instant tid åt dig?',
-    body: 'Följ Pelli på Instagram: tips om bildurval, nyheter och en titt bakom kulisserna.',
+    title: 'Har Pelli Instant sparat tid åt dig?',
+    body: 'Det är gratis och görs av ett litet team. Att följa oss på Instagram är det bästa sättet att hjälpa oss, och där hittar du tips om bildurval och nyheter.',
     instagram: 'Följ @pelli.io på Instagram',
-    github: 'Eller ge oss en stjärna på GitHub: det är gratis och det bästa sättet att hjälpa oss.',
-    plus: 'Skaffa Pelli Instant Plus för att slippa se det här',
+    github: 'Ge oss en stjärna på GitHub',
+    later: 'Senare, visa urvalet',
+    plusQuestion: 'Vill du slippa se det här?',
+    plusCta: 'Skaffa Pelli Instant Plus',
   },
   onboarding: {
     skip: 'Hoppa över',

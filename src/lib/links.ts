@@ -2,7 +2,7 @@
 
 export const GITHUB_URL = 'https://github.com/Synapsr/Pelli-Instant'
 export const PELLI_URL = 'https://pelli.io'
-/** Pelli's Instagram, which the support card after a sort invites to follow. */
+/** Pelli's Instagram, which the support dialog after a sort invites to follow. */
 export const INSTAGRAM_URL = 'https://www.instagram.com/pelli.io/'
 
 /** Where the Pelli promotion of the free version leads (`home`, `export`). */

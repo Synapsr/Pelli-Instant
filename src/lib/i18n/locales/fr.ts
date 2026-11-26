@@ -726,11 +726,13 @@ export const fr = {
     export: 'Envoyez cette sélection à vos clients avec une galerie Pelli',
   },
   support: {
-    title: 'Pelli Instant vous fait gagner du temps ?',
-    body: 'Suivez Pelli sur Instagram : astuces de tri, nouveautés et coulisses.',
+    title: 'Pelli Instant vous a fait gagner du temps ?',
+    body: 'Il est gratuit et fait par une petite équipe. Nous suivre sur Instagram, c’est la meilleure façon de nous aider, et vous y trouverez des astuces de tri et nos nouveautés.',
     instagram: 'Suivre @pelli.io sur Instagram',
-    github: 'Ou laissez une étoile sur GitHub : c’est gratuit, et c’est la meilleure façon de nous aider.',
-    plus: 'Prenez Pelli Instant Plus pour ne plus l’afficher',
+    github: 'Laisser une étoile sur GitHub',
+    later: 'Plus tard, voir le tri',
+    plusQuestion: 'Vous ne voulez plus voir ça ?',
+    plusCta: 'Prenez Pelli Instant Plus',
   },
   onboarding: {
     skip: 'Passer',

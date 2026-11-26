@@ -137,7 +137,7 @@ export function leftToControl(key: string, target: KeyTarget | null): boolean {
 
 /**
  * The result screen of a sort: Enter opens the review only from the screen
- * itself. A focused control (the support card's links and ×, a button) keeps
+ * itself. A focused control (a button, a link) keeps
  * its own Enter, and so does a text field.
  */
 export function resultEnterReviews(key: string, target: KeyTarget | null): boolean {

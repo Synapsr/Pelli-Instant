@@ -7,11 +7,11 @@ in French from the `Français` block.
 
 ## Unreleased
 
-- After each completed sort, the free version shows a small card on the result screen to follow Pelli on Instagram or leave a star on GitHub. Never a pop-up and never in the way of the review: it closes with its × until the next sort, and Pelli Instant Plus removes it.
+- After each completed sort, the free version shows a light dialog on the way to the review: follow Pelli on Instagram, or leave a star on GitHub. Closing it, however you do, goes straight on to the review, and Pelli Instant Plus removes it.
 
 <details><summary>Français</summary>
 
-- Après chaque tri terminé, la version gratuite affiche sur l'écran de résultat une petite carte pour suivre Pelli sur Instagram ou laisser une étoile sur GitHub. Jamais une fenêtre surgissante ni un frein à la revue : elle se ferme avec sa croix jusqu'au tri suivant, et Pelli Instant Plus la retire.
+- Après chaque tri terminé, la version gratuite affiche une fenêtre légère au passage vers la revue : suivre Pelli sur Instagram, ou laisser une étoile sur GitHub. La fermer, de n'importe quelle façon, mène directement à la revue, et Pelli Instant Plus la retire.
 
 </details>
 

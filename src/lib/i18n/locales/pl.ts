@@ -803,11 +803,13 @@ export const pl: Catalogue<typeof fr> = {
     export: 'Wyślij ten wybór klientom w galerii Pelli',
   },
   support: {
-    title: 'Pelli Instant oszczędza Ci czas?',
-    body: 'Obserwuj Pelli na Instagramie: porady dotyczące selekcji, nowości i kulisy.',
+    title: 'Pelli Instant zaoszczędził Ci czas?',
+    body: 'Jest darmowy i tworzy go mały zespół. Obserwowanie nas na Instagramie to najlepszy sposób, żeby nam pomóc, a znajdziesz tam porady dotyczące selekcji i nowości.',
     instagram: 'Obserwuj @pelli.io na Instagramie',
-    github: 'Albo zostaw gwiazdkę na GitHubie: to nic nie kosztuje, a najbardziej nam pomaga.',
-    plus: 'Z Pelli Instant Plus ta karta przestanie się wyświetlać',
+    github: 'Zostaw gwiazdkę na GitHubie',
+    later: 'Później, zobacz selekcję',
+    plusQuestion: 'Nie chcesz już tego widzieć?',
+    plusCta: 'Wybierz Pelli Instant Plus',
   },
   onboarding: {
     skip: 'Pomiń',

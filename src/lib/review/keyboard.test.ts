@@ -129,7 +129,7 @@ describe('Enter on the result screen of a sort', () => {
     expect(resultEnterReviews(' ', surface)).toBe(false)
   })
 
-  it('leaves Enter to a focused control: the support card’s Plus line, ×, Instagram and GitHub buttons, links', () => {
+  it('leaves Enter to a focused control: the support dialog’s buttons, links', () => {
     expect(resultEnterReviews('Enter', inside('button'))).toBe(false)
     expect(resultEnterReviews('Enter', inside('a[href]'))).toBe(false)
     expect(resultEnterReviews('Enter', inside('[role="dialog"]'))).toBe(false)

@@ -2,7 +2,7 @@ import { Button } from '@heroui/react'
 import { AnimatePresence, motion, useReducedMotion, useSpring, useTransform, type Variants } from 'framer-motion'
 import { ArrowRight, Check, Share } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { SupportCard } from '@/components/promo/SupportCard'
+import { SupportDialog } from '@/components/promo/SupportDialog'
 import { AnimatedNumber } from '@/components/ui/AnimatedNumber'
 import { Backdrop } from '@/components/ui/Backdrop'
 import { DECISION_BG } from '@/components/ui/Decision'
@@ -16,11 +16,10 @@ import { cn } from '@/lib/cn'
 import type { DecisionCounts, FinalDecision, Progress, Reason } from '@/lib/contract'
 import { formatDuration, formatNumber, formatPercent } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import { resultEnterReviews } from '@/lib/review/keyboard'
 import { type RecentPhoto, useAnalysisStore } from '@/store/analysis-store'
 import { useAppStore } from '@/store/app-store'
-import { usePlusStore } from '@/store/plus-store'
 import { useReviewStore } from '@/store/review-store'
+import { goToReview, resultKeyDown } from '@/store/support'
 
 const EASE = [0.22, 1, 0.36, 1] as const
 const DECISIONS: FinalDecision[] = ['selected', 'toReview', 'rejected']
@@ -472,16 +471,11 @@ function Session({ phase }: { phase: 'running' | 'result' }) {
   useEffect(() => {
     if (!done) return
     const onKey = (e: KeyboardEvent) => {
-      // From the result itself only: a focused control keeps its Enter, and so does the Plus dialog the support card opens.
-      if (e.defaultPrevented || useAppStore.getState().dialog || usePlusStore.getState().dialogOpen) return
-      if (resultEnterReviews(e.key, e.target instanceof Element ? e.target : null)) {
-        e.preventDefault()
-        reviewResults()
-      }
+      if (resultKeyDown({ key: e.key, target: e.target instanceof Element ? e.target : null, defaultPrevented: e.defaultPrevented })) e.preventDefault()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [done, reviewResults])
+  }, [done])
 
   const orb = short ? 156 : 196
   const ring = orb + 64
@@ -546,7 +540,7 @@ function Session({ phase }: { phase: 'running' | 'result' }) {
                 </motion.ul>
               )}
               <motion.div variants={RISE} className="flex items-center gap-3">
-                <Button radius="full" className="btn-brand h-12 px-7 text-[15px] font-semibold" endContent={<ArrowRight className="size-4" />} onPress={reviewResults}>
+                <Button radius="full" className="btn-brand h-12 px-7 text-[15px] font-semibold" endContent={<ArrowRight className="size-4" />} onPress={goToReview}>
                   {t('analysisScreen.review')}
                 </Button>
                 <Button
@@ -564,10 +558,6 @@ function Session({ phase }: { phase: 'running' | 'result' }) {
               <motion.button variants={RISE} type="button" onClick={goHome} className="focus-ring mt-3 rounded-full px-3 py-1.5 text-[13px] text-white/40 transition-colors hover:text-white/75">
                 {t('analysisScreen.back')}
               </motion.button>
-              {/* Free version only: under the actions, never in the way of the review. */}
-              <motion.div variants={RISE} className="mt-6 w-full max-w-md short:mt-4">
-                <SupportCard />
-              </motion.div>
             </motion.div>
           ) : (
             <motion.button
@@ -639,6 +629,7 @@ export function AnalysisScreen() {
           <AnimatePresence mode="wait">{phase === 'failed' ? <Failed key="failed" /> : <Session key="session" phase={phase} />}</AnimatePresence>
         </div>
       </main>
+      <SupportDialog />
     </div>
   )
 }

@@ -728,11 +728,13 @@ export const es: Catalogue<typeof fr> = {
     export: 'Envía esta selección a tus clientes con una galería de Pelli',
   },
   support: {
-    title: '¿Pelli Instant te ahorra tiempo?',
-    body: 'Sigue a Pelli en Instagram: consejos para seleccionar fotos, novedades y un vistazo entre bastidores.',
+    title: '¿Pelli Instant te ha ahorrado tiempo?',
+    body: 'Es gratis y lo hace un equipo pequeño. Seguirnos en Instagram es la mejor manera de ayudarnos, y allí encontrarás consejos para seleccionar fotos y novedades.',
     instagram: 'Seguir a @pelli.io en Instagram',
-    github: 'O deja una estrella en GitHub: es gratis y es la mejor manera de ayudarnos.',
-    plus: 'Consigue Pelli Instant Plus para no volver a verla',
+    github: 'Dejar una estrella en GitHub',
+    later: 'Ahora no, ver la selección',
+    plusQuestion: '¿No quieres volver a verlo?',
+    plusCta: 'Consigue Pelli Instant Plus',
   },
   onboarding: {
     skip: 'Omitir',

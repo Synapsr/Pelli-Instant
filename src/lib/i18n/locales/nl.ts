@@ -728,11 +728,13 @@ export const nl: Catalogue<typeof fr> = {
     export: 'Stuur deze selectie naar je klanten met een Pelli-galerij',
   },
   support: {
-    title: 'Bespaart Pelli Instant je tijd?',
-    body: 'Volg Pelli op Instagram: tips voor het selecteren van foto’s, nieuws en een kijkje achter de schermen.',
+    title: 'Heeft Pelli Instant je tijd bespaard?',
+    body: 'Het is gratis en gemaakt door een klein team. Ons volgen op Instagram is de beste manier om ons te helpen, en je vindt er tips voor het selecteren en het laatste nieuws.',
     instagram: 'Volg @pelli.io op Instagram',
-    github: 'Of geef ons een ster op GitHub: het is gratis en de beste manier om ons te helpen.',
-    plus: 'Neem Pelli Instant Plus om dit niet meer te zien',
+    github: 'Geef een ster op GitHub',
+    later: 'Later, selectie bekijken',
+    plusQuestion: 'Wil je dit niet meer zien?',
+    plusCta: 'Neem Pelli Instant Plus',
   },
   onboarding: {
     skip: 'Overslaan',

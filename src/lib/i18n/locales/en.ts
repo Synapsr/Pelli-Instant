@@ -728,11 +728,13 @@ export const en: Catalogue<typeof fr> = {
     export: 'Send this selection to your clients with a Pelli gallery',
   },
   support: {
-    title: 'Is Pelli Instant saving you time?',
-    body: 'Follow Pelli on Instagram for culling tips, news and behind the scenes.',
+    title: 'Did Pelli Instant save you time?',
+    body: 'It’s free and made by a small team. Following us on Instagram is the best way to help, and you’ll find culling tips and news there.',
     instagram: 'Follow @pelli.io on Instagram',
-    github: 'Or leave a star on GitHub: it’s free, and it’s the best way to help us.',
-    plus: 'Get Pelli Instant Plus to hide this card',
+    github: 'Leave a star on GitHub',
+    later: 'Not now, see the selection',
+    plusQuestion: 'Don’t want to see this again?',
+    plusCta: 'Get Pelli Instant Plus',
   },
   onboarding: {
     skip: 'Skip',
