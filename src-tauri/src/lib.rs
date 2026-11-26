@@ -11,7 +11,9 @@
 //! Logs go to the terminal and to `pelli-instant.log` in the app's log
 //! folder (macOS `~/Library/Logs/io.pelli.instant`, Windows
 //! `%LOCALAPPDATA%\io.pelli.instant\logs`), 5 MB a file, the 3 latest kept:
-//! a release build on Windows has no console to read them from.
+//! a release build on Windows has no console to read them from. The file
+//! holds only the Maximum pack's, the models', the start's and the updates'
+//! records, redacted.
 
 mod updates;
 
@@ -201,15 +203,19 @@ struct AppState {
 }
 
 /// The log file and the terminal; `RUST_LOG=debug` (a single level) for
-/// more.
+/// more on the terminal. Every line is redacted (`cull_engine::redact`: no
+/// user name, no credential, no link signature); the file keeps only safe
+/// diagnostics ([`FILE_LOG_MODULES`]).
 fn log_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
     use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
     let level = std::env::var("RUST_LOG").ok().and_then(|l| l.parse().ok()).unwrap_or(log::LevelFilter::Info);
     tauri_plugin_log::Builder::new()
         .clear_targets()
         .targets([
-            Target::new(TargetKind::Stdout),
-            Target::new(TargetKind::LogDir { file_name: Some("pelli-instant".into()) }),
+            Target::new(TargetKind::Stdout).format(redacted_line),
+            Target::new(TargetKind::LogDir { file_name: Some("pelli-instant".into()) })
+                .filter(file_log_allowed)
+                .format(redacted_line),
         ])
         .level(level)
         .max_file_size(LOG_FILE_BYTES)
@@ -217,11 +223,44 @@ fn log_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
         .build()
 }
 
+/// Modules whose records the log file keeps: the Maximum pack, the AI
+/// models, the app's start (version, system) and its updates. Not the rest
+/// of the engine, whose records name photos and folders (often a client's
+/// name), nor the telemetry payloads, nor other crates (HTTP clients, the
+/// webview).
+const FILE_LOG_MODULES: &[&str] =
+    &["cull_engine::modelpack", "cull_ml", "pelli_cull_app_lib::diagnostics", "pelli_cull_app_lib::updates"];
+
+/// What the log file keeps: [`FILE_LOG_MODULES`], Info and above.
+fn file_log_allowed(meta: &log::Metadata) -> bool {
+    let target = meta.target();
+    meta.level() <= log::Level::Info
+        && FILE_LOG_MODULES.iter().any(|m| target == *m || target.strip_prefix(m).is_some_and(|r| r.starts_with("::")))
+}
+
+/// `2026-11-26 14:05:09 [WARN] cull_engine::modelpack: <redacted message>`.
+fn redacted_line(out: tauri_plugin_log::fern::FormatCallback, message: &std::fmt::Arguments, record: &log::Record) {
+    let t = tauri_plugin_log::TimezoneStrategy::UseLocal.get_now();
+    out.finish(format_args!(
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02} [{}] {}: {}",
+        t.year(),
+        t.month() as u8,
+        t.day(),
+        t.hour(),
+        t.minute(),
+        t.second(),
+        record.level(),
+        record.target(),
+        cull_engine::redact::redact(&message.to_string())
+    ))
+}
+
 const LOG_FILE_BYTES: u128 = 5 * 1024 * 1024;
 
 fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle().clone();
     log::info!(
+        target: "pelli_cull_app_lib::diagnostics",
         "Pelli Instant {} on {} {}",
         env!("CARGO_PKG_VERSION"),
         cull_engine::pelli::os(),
@@ -291,4 +330,29 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running Pelli Instant");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::file_log_allowed;
+    use log::{Level, MetadataBuilder};
+
+    #[test]
+    fn the_log_file_keeps_only_safe_diagnostics() {
+        let allowed =
+            |target: &str, level: Level| file_log_allowed(&MetadataBuilder::new().target(target).level(level).build());
+        assert!(allowed("cull_engine::modelpack", Level::Warn));
+        assert!(allowed("cull_ml::maximum", Level::Info));
+        assert!(allowed("cull_ml", Level::Info));
+        assert!(allowed("pelli_cull_app_lib::diagnostics", Level::Info));
+        assert!(allowed("pelli_cull_app_lib::updates", Level::Warn));
+        assert!(!allowed("cull_engine::modelpack", Level::Debug), "Info and above");
+        assert!(!allowed("cull_engine::telemetry", Level::Info), "telemetry payloads");
+        assert!(!allowed("cull_engine::pipeline", Level::Warn), "photo names");
+        assert!(!allowed("cull_engine::upload", Level::Warn));
+        assert!(!allowed("pelli_cull_app_lib", Level::Warn), "command errors name folders");
+        assert!(!allowed("cull_mlx", Level::Warn));
+        assert!(!allowed("ureq::unversioned", Level::Info), "HTTP clients");
+        assert!(!allowed("tao::platform_impl", Level::Warn));
+    }
 }
