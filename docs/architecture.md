@@ -293,6 +293,7 @@ Nothing is written in your photo folders until you export.
 | Pelli token (release builds) | Keychain, service `io.pelli.instant` | Credential Manager, `io.pelli.instant` |
 | Standard AI models | Inside the app: `Pelli Instant.app/Contents/Resources/models/` | `models\` in the install folder |
 | Models already verified (`.verified.json`, by size and date) | Next to the library | Next to the library |
+| Log file (`pelli-instant.log`, a new file every 5 MB): the Maximum pack, the models, the app's start and updates, redacted ([details](models.md#how-the-app-downloads-and-checks-it)) | `~/Library/Logs/io.pelli.instant/` | `%LOCALAPPDATA%\io.pelli.instant\logs\` |
 
 `PELLI_CULL_MODELS` points the app at another folder for the Standard
 models. Removing a project deletes its previews and its analysis.

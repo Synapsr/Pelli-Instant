@@ -226,6 +226,7 @@ Every message also carries a random install id (a random number, not tied to you
 - Requests to Pelli carry the app version, the system and the interface language. **No crash reporter.** ONNX Runtime's own telemetry is switched off.
 - **The AI models** are fixed files at pinned versions, and their SHA-256 fingerprints are checked when they load. Built from source, `pnpm models` downloads the Standard ones once from Hugging Face and the other sources listed in [`models/manifest.json`](models/manifest.json).
 - **Removing a project** from the home screen deletes its previews and analysis, never your photos. **Deleting the Maximum pack** (*Settings → Analysis*) frees its 1 GB.
+- **A log file stays on your computer** (`pelli-instant.log`, a few MB at most): what Maximum precision, its models, the app's start and updates did, to help when something goes wrong. No photo or folder name, no user name, no licence, and it is never sent. Where to find it: [FAQ](#faq).
 
 ## Languages
 
@@ -248,6 +249,20 @@ Yes, and without limits: sort as many photos as you like, at the Standard precis
 Standard comes with the app, is fast, and suits most shoots. Maximum, part of Plus, adds bigger models, about 1 GB to download once: a second face detector for group photos, a model that tells bursts and near-duplicates apart from different scenes more clearly, a bigger CLIP model for search and the aesthetic score, and the outline of people and animals, so a subject without a visible face (seen from behind, back-lit) is judged on its own focus and exposure. The analysis is slower and needs more memory.
 
 With Plus, choose it in *Settings → Analysis → Precision* (or in the welcome tour): the download starts in the background, resumes where it stopped if you pause it or quit, and every file is checked before use. Until it is ready, analyses run in Standard. A shoot already sorted can be analysed again in Maximum.
+
+If you downloaded it with an earlier version, *Settings → Analysis* offers a 347 MB update: the old files are deleted only once the new one is checked, and analyses run in Standard until then.
+
+</details>
+
+<details>
+<summary><b>Maximum precision doesn't install</b></summary>
+
+The message under *Settings → Analysis → Precision* says why: no connection, not enough disk space, a damaged file, or models that don't work correctly on this computer. *Try again* resumes the download or downloads the faulty file again; Standard keeps sorting meanwhile. If it fails again, click *Details*, then *Copy*, and send that text to [contact@pelli.io](mailto:contact@pelli.io) with the log file, `pelli-instant.log`:
+
+- **Mac:** in the `~/Library/Logs/io.pelli.instant` folder (in the Finder, *Go → Go to Folder…*, then paste that path).
+- **Windows:** in the `%LOCALAPPDATA%\io.pelli.instant\logs` folder (paste that path into the File Explorer address bar).
+
+The log only covers Maximum precision, its models, the app's start and updates: no photo or folder name, no user name, no licence. It never leaves your computer unless you send it.
 
 </details>
 

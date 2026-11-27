@@ -25,7 +25,7 @@ sources, checksums and licences are in `models/manifest.json` (see also
 | --- | --- | --- |
 | CLIP ViT-L/14 image model, int8, and text model, fp16 (ONNX, Xenova) | OpenAI | MIT |
 | LAION-Aesthetics Predictor V2, head for ViT-L/14 (`sac+logos+ava1-l14-linearMSE`) | Christoph Schuhmann (LAION) | Apache-2.0 |
-| DINOv2 ViT-B/14, int8 (ONNX, onnx-community) | Meta AI | Apache-2.0 |
+| DINOv2 ViT-B/14, fp32 (ONNX, onnx-community) | Meta AI | Apache-2.0 |
 | RF-DETR-Seg Small (exported to ONNX by Pelli) | Roboflow | Apache-2.0 |
 | RetinaFace ResNet-50 (`biubug6/Pytorch_Retinaface`, exported to ONNX by Pelli) | biubug6 | MIT |
 
