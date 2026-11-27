@@ -141,6 +141,8 @@ Le tri reste gratuit et illimité. **Plus**, c'est pour vos séances les plus ex
 
 Les modèles Standard sont livrés dans l'installeur : Pelli Instant fonctionne dès qu'il est installé, hors ligne compris ; ceux de la précision Maximale se téléchargent depuis l'app, avec Plus, seulement si vous la choisissez. Chaque téléchargement est accompagné de son empreinte SHA-256 (`.sha256`), et chaque version produite par le [workflow de publication](.github/workflows/release.yml) fournit un fichier `SHA256SUMS` et une [attestation de build](https://docs.github.com/actions/security-for-github-actions/using-artifact-attestations) vérifiable avec `gh attestation verify <fichier> --repo Synapsr/Pelli-Instant`.
 
+Sous Windows, [Installer sur Windows](docs/install-windows.fr.md) détaille chaque étape : l'avertissement SmartScreen, la vérification du téléchargement, les mises à jour et la désinstallation.
+
 <details>
 <summary><b>Mac Intel</b></summary>
 
