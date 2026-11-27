@@ -226,6 +226,7 @@ Chaque message porte aussi un identifiant d'installation aléatoire (un nombre t
 - Les requêtes à Pelli indiquent la version de l'app, le système et la langue de l'interface. **Aucun rapport de plantage.** La télémétrie propre à ONNX Runtime est désactivée.
 - **Les modèles d'IA** sont des fichiers figés, à des versions fixées, et leur empreinte SHA-256 est vérifiée au chargement. Depuis les sources, `pnpm models` télécharge une fois les modèles Standard depuis Hugging Face et les autres sources listées dans [`models/manifest.json`](models/manifest.json).
 - **Retirer un projet** de l'écran d'accueil efface ses aperçus et son analyse, jamais vos photos. **Supprimer la précision Maximale** (*Réglages → Analyse*) libère environ 1 Go.
+- **Un fichier journal reste sur votre ordinateur** (`pelli-instant.log`, quelques Mo au plus) : ce qu'ont fait la précision maximale, ses modèles, le démarrage de l'app et les mises à jour, pour aider quand quelque chose ne va pas. Aucun nom de photo ni de dossier, ni nom d'utilisateur, ni licence, et il n'est jamais envoyé. Où le trouver : [Questions fréquentes](#questions-fréquentes).
 
 ## Langues
 
@@ -248,6 +249,20 @@ Oui, et sans limite : triez autant de photos que vous voulez, en précision Stan
 La précision Standard est livrée avec l'app, rapide, et convient à la plupart des séances. La Maximale, comprise dans Plus, ajoute des modèles plus grands, environ 1 Go à télécharger une fois : un second détecteur de visages pour les photos de groupe, un modèle qui distingue plus nettement les rafales et les quasi-doublons des scènes différentes, un modèle CLIP plus grand pour la recherche et la note esthétique, et le contour des personnes et des animaux, pour qu'un sujet sans visage visible (de dos, en contre-jour) soit jugé sur sa propre netteté et sa propre exposition. L'analyse est plus lente et demande plus de mémoire.
 
 Avec Plus, choisissez-la dans *Réglages → Analyse → Précision* (ou pendant la présentation) : le téléchargement démarre en arrière-plan, reprend là où il s'était arrêté si vous le mettez en pause ou quittez l'app, et chaque fichier est vérifié avant usage. En attendant, les analyses se font en Standard. Une séance déjà triée peut être réanalysée en Maximale.
+
+Si vous l'avez téléchargée avec une version précédente, *Réglages → Analyse* propose une mise à jour de 347 Mo : les anciens fichiers ne sont supprimés qu'une fois le nouveau vérifié, et les analyses se font en Standard d'ici là.
+
+</details>
+
+<details>
+<summary><b>La précision maximale ne s'installe pas</b></summary>
+
+Le message sous *Réglages → Analyse → Précision* dit pourquoi : pas de connexion, pas assez d'espace disque, un fichier abîmé, ou des modèles qui ne fonctionnent pas correctement sur cet ordinateur. *Réessayer* reprend le téléchargement ou télécharge à nouveau le fichier en cause ; en attendant, le tri continue en Standard. Si l'échec se reproduit, cliquez sur *Détails*, puis *Copier*, et envoyez ce texte à [contact@pelli.io](mailto:contact@pelli.io) avec le fichier journal, `pelli-instant.log` :
+
+- **Mac :** dans le dossier `~/Library/Logs/io.pelli.instant` (dans le Finder, *Aller → Aller au dossier…*, puis collez ce chemin).
+- **Windows :** dans le dossier `%LOCALAPPDATA%\io.pelli.instant\logs` (collez ce chemin dans la barre d'adresse de l'Explorateur de fichiers).
+
+Le journal ne parle que de la précision maximale, de ses modèles, du démarrage de l'app et des mises à jour : aucun nom de photo ni de dossier, ni nom d'utilisateur, ni licence. Il ne quitte votre ordinateur que si vous l'envoyez.
 
 </details>
 
